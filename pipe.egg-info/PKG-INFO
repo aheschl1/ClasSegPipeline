@@ -1,0 +1,24 @@
+Metadata-Version: 2.1
+Name: pipe
+Version: 0.2.0
+Summary: Flexible Deep Learning Package
+Home-page: https://github.com/aheschl1/ClassificationPipeline
+Author: Andrew Heschl
+Author-email: andrew.heschl@ucalgary.ca
+Requires-Dist: torch~=2.2.0
+Requires-Dist: numpy~=1.26.3
+Requires-Dist: matplotlib~=3.8.0
+Requires-Dist: torchvision~=0.17.0
+Requires-Dist: pillow~=10.2.0
+Requires-Dist: overrides~=7.4.0
+Requires-Dist: click~=8.1.7
+Requires-Dist: scikit-learn~=1.5.0
+Requires-Dist: seaborn
+Requires-Dist: pyyaml~=6.0.1
+Requires-Dist: tqdm~=4.65.0
+Requires-Dist: seaborn~=0.12.2
+Requires-Dist: pandas~=2.1.4
+Requires-Dist: SimpleITK~=2.3.1
+Requires-Dist: einops~=0.7.0
+Requires-Dist: albumentations~=1.4.8
+Requires-Dist: opencv-python
