@@ -1,4 +1,5 @@
 import logging
+import os.path
 import time
 import warnings
 from abc import abstractmethod
@@ -125,16 +126,22 @@ class Preprocessor:
         """
         ...
 
+    @abstractmethod
     def pre_preprocessing(self):
         """
         Called before standard preprocessing flow
         """
         ...
 
+    def _ensure_raw_exists(self):
+        if not os.path.exists(f"{RAW_ROOT}/{self.dataset_name}"):
+            raise ValueError("The raw folder does not exist!")
+
     def process(self) -> None:
         # Here we will find what labels are present in the dataset. We will also map them to int labels, and save the
         # mappings.
         self.pre_preprocessing()
+        self._ensure_raw_exists()
         self.mode = get_dataset_mode_from_name(self.dataset_name)
         print(f"Dataset mode detected through RAW_ROOT is {self.mode}.")
         {

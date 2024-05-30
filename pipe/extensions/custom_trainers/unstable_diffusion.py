@@ -3,21 +3,22 @@ import os.path
 import pdb
 import shutil
 import sys
-from typing import override, Tuple
+from typing import Tuple
 
 import albumentations as A
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
+from typing_extensions import override
 
-from src.inference.inference_entry import Inferer
-from src.training.trainer import Trainer
-from src.utils.constants import *
-from src.utils.utils import (
+from pipe.inference.inference_entry import Inferer
+from pipe.training.trainer import Trainer
+from pipe.utils.constants import *
+from pipe.utils.utils import (
     get_forward_diffuser_from_config,
 )
-from src.utils.utils import write_json
+from pipe.utils.utils import write_json
 
 
 class ForkedPdb(pdb.Pdb):
@@ -36,18 +37,18 @@ class ForkedPdb(pdb.Pdb):
 
 
 class UnstableDiffusionTrainer(Trainer):
-    def __init__(self, dataset_name: str, fold: int, save_latest: bool, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, continue_training: bool = False, preload: bool = True, world_size: int = 1):
+    def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
+                 config_name: str, resume_training: bool = False, preload: bool = True, world_size: int = 1):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
         :param fold: The fold in the dataset to use.
-        :param save_latest: If we should save a checkpoint each epoch
         :param model_path: The path to the json that defines the architecture.
         :param gpu_id: The gpu for this process to use.
-        :param continue_training: None if we should train from scratch, otherwise the model weights that should be used.
+        :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
-        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, continue_training, preload, world_size)
+        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume_training,
+                         preload, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self._instantiate_inferer(self.dataset_name.split("_")[-1], fold, unique_folder_name)

@@ -1,4 +1,4 @@
-torch~=2.2.0
+torch
 numpy~=1.26.3
 matplotlib~=3.8.0
 torchvision~=0.17.0
@@ -15,3 +15,5 @@ SimpleITK~=2.3.1
 einops~=0.7.0
 albumentations~=1.4.8
 opencv-python
+tensorboard
+json-torch-models

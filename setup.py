@@ -5,7 +5,7 @@ setup(
     name='pipe',
     version='0.2.0',
     install_requires=[
-        "torch~=2.2.0",
+        "torch",
         "numpy~=1.26.3",
         "matplotlib~=3.8.0",
         "torchvision~=0.17.0",
@@ -21,10 +21,15 @@ setup(
         "SimpleITK~=2.3.1",
         "einops~=0.7.0",
         "albumentations~=1.4.8",
-        "opencv-python"
+        "opencv-python",
+        "tensorboard",
+        "json-torch-models"
     ],
     entry_points={
-        'console_scripts': ["pipePreprocess=pipe.preprocessing.preprocess_entry:main"]
+        'console_scripts': [
+            "pipePreprocess=pipe.preprocessing.preprocess_entry:main",
+            "pipeTrain=pipe.training.training_entry:main"
+        ]
     },
     packages=find_packages(),
     url='https://github.com/aheschl1/ClasSegPipeline',

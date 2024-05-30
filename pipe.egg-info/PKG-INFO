@@ -5,7 +5,7 @@ Summary: Flexible Deep Learning Package
 Home-page: https://github.com/aheschl1/ClasSegPipeline
 Author: Andrew Heschl
 Author-email: andrew.heschl@ucalgary.ca
-Requires-Dist: torch~=2.2.0
+Requires-Dist: torch
 Requires-Dist: numpy~=1.26.3
 Requires-Dist: matplotlib~=3.8.0
 Requires-Dist: torchvision~=0.17.0
@@ -22,3 +22,5 @@ Requires-Dist: SimpleITK~=2.3.1
 Requires-Dist: einops~=0.7.0
 Requires-Dist: albumentations~=1.4.8
 Requires-Dist: opencv-python
+Requires-Dist: tensorboard
+Requires-Dist: json-torch-models

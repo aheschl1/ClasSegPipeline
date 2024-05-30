@@ -1,0 +1,15 @@
+{
+  "Tag": "Autoencoder model",
+  "Children": [
+    {
+      "ComponentClass": "pipe.models.autoencoder.Autoencoder",
+      "args": {
+        "in_channels": 1,
+        "depth": 3,
+        "hidden_size": 64,
+        "input_dimension": 256,
+        "channel_growth_factor": 2
+      }
+    }
+  ]
+}

@@ -14,14 +14,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-
 from pipe.logging.logging import LogHelper
 from pipe.models.src.utils import my_import
 from pipe.utils.constants import *
-from pipe.utils.utils import (
-    get_dataloaders_from_fold,
-    get_config_from_dataset, )
+from pipe.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name
 from pipe.utils.utils import write_json
+from json_torch_models.model_factory import ModelFactory
 
 
 class ForkedPdb(pdb.Pdb):
@@ -48,7 +46,7 @@ class Trainer:
             gpu_id: int,
             unique_folder_name: str,
             config_name: str,
-            continue_training: bool = False,
+            resume: bool = False,
             preload: bool = True,
             world_size: int = 1
     ):
@@ -58,13 +56,14 @@ class Trainer:
         :param fold: The fold in the dataset to use.
         :param model_path: The path to the json that defines the architecture.
         :param gpu_id: The gpu for this process to use.
-        :param continue_training: None if we should train from scratch, otherwise the model weights that should be used.
+        :param resume: None if we should train from scratch, otherwise the model weights that should be used.
         """
         assert (
             torch.cuda.is_available()
         ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
         self.preload = preload
         self.dataset_name = dataset_name
+        self.mode = get_dataset_mode_from_name(self.dataset_name)
         self.fold = fold
         self.world_size = world_size
         self.device = gpu_id
@@ -91,7 +90,7 @@ class Trainer:
         if self.device == 0:
             log(f"Optim being used is {self.optim}")
         self._save_self_file()
-        if continue_training is not None:
+        if resume is not None:
             self._load_checkpoint("latest")
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
@@ -181,14 +180,18 @@ class Trainer:
         """
         ...
 
-    @abstractmethod
     def post_epoch(self, epoch: int) -> None:
         """
         Executed after each epoch
         """
         ...
 
-    @abstractmethod
+    def post_epoch_log(self, epoch: int) -> Tuple:
+        """
+        Executed after each default logging cycle
+        """
+        ...
+
     def post_training(self) -> None:
         """
         Executed after training
@@ -215,7 +218,7 @@ class Trainer:
                 self.val_dataloader.sampler.set_epoch(epoch)
             if self.device == 0:
                 log(self.seperator)
-                log(f"Epoch {epoch}/{epochs-1} running...")
+                log(f"Epoch {epoch}/{epochs - 1} running...")
                 if epoch == 0 and self.world_size > 1:
                     log("First epochs will be slow due to loading forking workers in ddp.")
             self.model.train()
@@ -228,6 +231,7 @@ class Trainer:
                 log("Learning rate: ", self.lr_scheduler.optimizer.param_groups[0]["lr"])
                 log(f"Train loss: {mean_train_loss} --change-- {mean_train_loss - last_train_loss}")
                 log(f"Val loss: {mean_val_loss} --change-- {mean_val_loss - last_val_loss}")
+                log(self.post_epoch_log(epoch))
             self.lr_scheduler.step()
             # update 'last' values
             last_train_loss = mean_train_loss
@@ -307,41 +311,18 @@ class Trainer:
 
     def get_model(self, path: str) -> nn.Module:
         """
-        Given the path to the network, generates the model, and verifies its integrity with onnx.
-        Additionally, the model will be saved with onnx for visualization at https://netron.app
         :param path: The path to the json architecture definition.
         :return: The pytorch network module.
         """
-        model = my_import(path)(**self.config["model_args"]).to(self.device)
-
-        model.eval()
-        data_shape = list(self.data_shape)
-        data_shape[0], data_shape[1], data_shape[2] = data_shape[1], data_shape[2], data_shape[0]
-        print(data_shape)
-        try:
-            data = self.train_transforms(
-                image=np.random.randn(*data_shape).astype(np.float32),
-                mask=np.random.randn(*data_shape[0:-1], 1).astype(np.float32)
-            )
-        except Exception as e:
-            print(e)
-            print("Error occurred in the augmentation pipeline - Killing")
+        if not os.path.exists(path):
+            log(f"The model path {path} does not exist.")
+            log("If you do not want to define models through json as described at "
+                "https://github.com/aheschl1/JsonTorchModels"
+                ", then you can override the get_model method in a custom trainer!")
             raise SystemExit
-
-        try:
-            model(
-                torch.from_numpy(data["image"]).to(self.device).permute(2, 0, 1).unsqueeze(0),
-                torch.from_numpy(data["mask"]).to(self.device).permute(2, 0, 1).unsqueeze(0),
-                torch.zeros(
-                    1, dtype=torch.int32, device=torch.device(self.device)
-                ),
-            )
-        except Exception as e:
-            print(e)
-            print("Error occurred in the model forward pass - Killing")
-            raise SystemExit
-
-        log("A test input has passed the augmentation pipeline and model!")
+        factory = ModelFactory(path, lookup_packages=["pipe.models.autoencoder"])
+        model = factory.get_model().to(self.device)
+        log(factory.log_kwargs)
 
         if self.device == 0:
             log(f"Loaded model {path}")

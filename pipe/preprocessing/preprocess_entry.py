@@ -20,14 +20,15 @@ def get_preprocessor_from_name(name: str) -> Type[Preprocessor]:
 
 
 @click.command()
-@click.option("-folds", "-f", help="How many folds should be generated.", type=int)
+@click.option("-folds", "-f", help="How many folds should be generated.", type=int, required=True)
 @click.option("-processes", "-p", help="How many processes can be used.", type=int, default=DEFAULT_PROCESSES)
 @click.option("--normalize", "--n", help="Should we compute and save normalized data.", type=bool, is_flag=True, )
-@click.option("-dataset_id", "-d", help="The dataset id to work on.", type=str)
-@click.option("-dataset_desc", "-dd", help="The dataset name", type=str, default=None)
-@click.option("-preprocessor", help="Identifier of the preprocessor you want to use. Default preprocessor is available")
+@click.option("-dataset_id", "-d", help="The dataset id to work on.", type=str, required=True)
+@click.option("-dataset_description", "-dd", help="Short description/dataset name", type=str, default=None)
+@click.option("-preprocessor", "-pr", help="Name of the preprocessor class you want to use. Default preprocessor is "
+                                           "available")
 @click.argument('extra_args', nargs=-1)
-def main(folds: int, processes: int, normalize: bool, dataset_id: str, preprocessor: str, dataset_desc: str, extra_args: List[str]):
+def main(folds: int, processes: int, normalize: bool, dataset_id: str, preprocessor: str, dataset_description: str, extra_args: List[str]):
     kwargs = {}
     for arg in extra_args:
         if "=" not in arg:
@@ -37,7 +38,7 @@ def main(folds: int, processes: int, normalize: bool, dataset_id: str, preproces
 
     preprocessor = get_preprocessor_from_name(preprocessor)
     preprocessor = preprocessor(
-        dataset_id=dataset_id, normalize=normalize, folds=folds, processes=processes, dataset_desc=dataset_desc, **kwargs
+        dataset_id=dataset_id, normalize=normalize, folds=folds, processes=processes, dataset_desc=dataset_description, **kwargs
     )
     preprocessor.process()
     print("Preprocessing completed!")
