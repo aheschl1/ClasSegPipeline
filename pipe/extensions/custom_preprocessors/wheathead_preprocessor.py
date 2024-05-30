@@ -1,8 +1,8 @@
-from src.preprocessing.preprocess_entry import Preprocessor
+from pipe.preprocessing.preprocess_entry import Preprocessor
 from torchvision.datasets import MNIST
 from PIL import Image
-from src.utils.constants import RAW_ROOT
-from src.utils.utils import get_case_name_from_number, get_dataset_name_from_id, check_raw_exists
+from pipe.utils.constants import RAW_ROOT
+from pipe.utils.utils import get_case_name_from_number, get_dataset_name_from_id, check_raw_exists
 import shutil
 from tqdm import tqdm
 import os

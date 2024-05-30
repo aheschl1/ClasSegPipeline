@@ -16,3 +16,4 @@ einops~=0.7.0
 albumentations~=1.4.8
 setuptools~=68.2.2
 opencv-python
+multiprocessing_logging

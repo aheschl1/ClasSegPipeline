@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torchvision.transforms import Normalize
-from src.utils.constants import CT, NATURAL
+from pipe.utils.constants import CT, NATURAL
 
 
 class Normalizer:

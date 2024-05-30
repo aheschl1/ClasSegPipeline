@@ -15,13 +15,13 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from src.logging.logging import LogHelper
-from src.models.src.utils import my_import
-from src.utils.constants import *
-from src.utils.utils import (
+from pipe.logging.logging import LogHelper
+from pipe.models.src.utils import my_import
+from pipe.utils.constants import *
+from pipe.utils.utils import (
     get_dataloaders_from_fold,
     get_config_from_dataset, )
-from src.utils.utils import write_json
+from pipe.utils.utils import write_json
 
 
 class ForkedPdb(pdb.Pdb):

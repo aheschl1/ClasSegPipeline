@@ -2,7 +2,7 @@ Metadata-Version: 2.1
 Name: pipe
 Version: 0.2.0
 Summary: Flexible Deep Learning Package
-Home-page: https://github.com/aheschl1/ClassificationPipeline
+Home-page: https://github.com/aheschl1/ClasSegPipeline
 Author: Andrew Heschl
 Author-email: andrew.heschl@ucalgary.ca
 Requires-Dist: torch~=2.2.0

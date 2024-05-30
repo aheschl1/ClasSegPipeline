@@ -5,7 +5,7 @@ import SimpleITK as sitk
 import numpy as np
 import torch
 
-from src.utils.constants import *
+from pipe.utils.constants import *
 from PIL import Image
 from overrides import override
 

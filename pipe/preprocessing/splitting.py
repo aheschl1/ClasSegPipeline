@@ -1,7 +1,7 @@
 from typing import List, Dict
 
 from sklearn.model_selection import train_test_split, KFold
-from src.dataloading.datapoint import Datapoint
+from pipe.dataloading.datapoint import Datapoint
 
 
 class Splitter:

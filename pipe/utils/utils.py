@@ -2,7 +2,8 @@ import glob
 import json
 import logging
 import os
-from typing import Dict, List, Union, Tuple
+import pkgutil
+from typing import Dict, List, Union, Tuple, Any
 
 import torch
 from torch.utils.data import DataLoader
@@ -12,6 +13,25 @@ from pipe.dataloading.datapoint import Datapoint
 from pipe.dataloading.dataset import PipelineDataset
 from pipe.forward_diffusers.diffusers import Diffuser, LinearDiffuser, CosDiffuser
 from pipe.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
+import importlib
+
+
+def import_from(from_package: str, class_name: str) -> Any:
+    module = importlib.import_module(from_package)
+    # Iterate through all modules in the package
+    for loader, name, is_pkg in pkgutil.walk_packages(module.__path__):
+        # Import module
+        submodule = importlib.import_module(f"{from_package}.{name}")
+        # Check if class_name exists in the module
+        if hasattr(submodule, class_name):
+            return getattr(submodule, class_name)
+
+    # If class is not found in any submodule, raise ImportError
+    raise ImportError(f"Class '{class_name}' not found in package '{from_package}'")
+
+
+if __name__ == "__main__":
+    import_from("pipe.preprocessing.custom_preprocessors", "MnistPreprocessor")
 
 
 def write_json(data: Union[Dict, List], path: str, create_folder: bool = False) -> None:
@@ -78,8 +98,10 @@ def get_dataset_name_from_id(id: Union[str, int], name: str = None) -> str:
         dataset_name = dataset_name.replace("_", f"_{name}_")
     return dataset_name
 
+
 if __name__ == "__main__":
     print(get_dataset_name_from_id(420))
+
 
 def check_raw_exists(dataset_name: str) -> bool:
     """
@@ -136,6 +158,7 @@ def get_dataset_mode_from_name(dataset_name: str):
                 mode = SELF_SUPERVISED
     return mode
 
+
 def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
     """
     Given the name of a dataset, gets a list of datapoint objects.
@@ -170,6 +193,7 @@ def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
 
     return datapoints
 
+
 def get_label_case_mapping_from_dataset(dataset_name: str) -> Dict:
     """
     Given a dataset name looks for a case_label_mapping file.
@@ -178,6 +202,7 @@ def get_label_case_mapping_from_dataset(dataset_name: str) -> Dict:
     """
     path = f"{PREPROCESSED_ROOT}/{dataset_name}/case_label_mapping.json"
     return read_json(path)
+
 
 def get_labels_from_raw(dataset_name: str) -> List[str]:
     """
@@ -188,6 +213,7 @@ def get_labels_from_raw(dataset_name: str) -> List[str]:
     path = f"{RAW_ROOT}/{dataset_name}"
     folders = glob.glob(f"{path}/*")
     return [f.split('/')[-1] for f in folders if os.path.isdir(f)]
+
 
 def get_preprocessed_datapoints(dataset_name: str, fold: int) \
         -> Tuple[List[Datapoint], List[Datapoint]]:
@@ -309,6 +335,7 @@ class SimpleBatch:
 
     def __getitem__(self, _):
         return self.images, self.labels, self.points
+
 
 def batch_collate_fn(batch: List[Tuple[torch.Tensor, Datapoint]]) -> Tuple[torch.Tensor, torch.Tensor, List[Datapoint]]:
     """

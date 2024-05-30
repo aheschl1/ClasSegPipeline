@@ -65,7 +65,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.command()
 @click.option("-fold", "-f", help="Which fold to train.", type=int, required=True)
 @click.option("-dataset_id", "-d", help="The dataset id to train.", type=str, required=True)
-@click.option("-model", "-m", help="Path to model json definition or model name.", type=str, default="PIMPNet")
+@click.option("-model", "-m", help="Path to model json definition or model name.", type=str, required=True)
 @click.option("--gpus", "-g", help="How many gpus for ddp", type=int, default=1)
 @click.option("--continue_training", "--c", help="Continue training from best", type=bool, is_flag=True)
 @click.option("-config", "-c", help="Name of the config file to utilize.", type=str, default="config")

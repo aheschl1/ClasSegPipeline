@@ -23,8 +23,11 @@ setup(
         "albumentations~=1.4.8",
         "opencv-python"
     ],
+    entry_points={
+        'console_scripts': ["pipePreprocess=pipe.preprocessing.preprocess_entry:main"]
+    },
     packages=find_packages(),
-    url='https://github.com/aheschl1/ClassificationPipeline',
+    url='https://github.com/aheschl1/ClasSegPipeline',
     author='Andrew Heschl',
     author_email='andrew.heschl@ucalgary.ca',
     description='Flexible Deep Learning Package'

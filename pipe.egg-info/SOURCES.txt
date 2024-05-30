@@ -1,9 +1,9 @@
-README.md
 setup.py
 pipe/__init__.py
 pipe.egg-info/PKG-INFO
 pipe.egg-info/SOURCES.txt
 pipe.egg-info/dependency_links.txt
+pipe.egg-info/entry_points.txt
 pipe.egg-info/requires.txt
 pipe.egg-info/top_level.txt
 pipe/dataloading/__init__.py
