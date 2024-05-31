@@ -1,11 +1,13 @@
 from typing import List, Callable, Tuple
 
+import albumentations
 import torch
 from torch.utils.data import Dataset
 from pipe.dataloading.datapoint import Datapoint
 import glob
 from pipe.utils.constants import RAW_ROOT, CLASSIFICATION, SEGMENTATION, SELF_SUPERVISED, PREPROCESSED_ROOT
 import json
+
 
 class PipelineDataset(Dataset):
 
@@ -65,16 +67,20 @@ class PipelineDataset(Dataset):
         image, label = point.get_data(store_metadata=self.store_metadata, )
 
         if self.transforms is not None:
-            result = self.transforms(
-                image=image.transpose((1, 2, 0)),
-                mask=(label.transpose((1, 2, 0)) if self.mode == SEGMENTATION else None)
-            )
-            image = result["image"]
-            if self.mode == SEGMENTATION:
+            if isinstance(self.transforms, albumentations.Compose):
+                print(image.shape, label.shape)
+                result = self.transforms(
+                    image=image.transpose((1, 2, 0)),
+                    mask=label.transpose((1, 2, 0))
+                )
+                image = result["image"]
                 label = result["mask"]
+            else:
+                image = self.transforms(torch.from_numpy(image))
 
         if not isinstance(image, torch.Tensor):
             image = torch.from_numpy(image).permute(2, 0, 1)
+        if not isinstance(label, torch.Tensor) and label is not None:
             label = torch.from_numpy(label)
 
         if self.mode == CLASSIFICATION:

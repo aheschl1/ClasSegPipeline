@@ -1,7 +1,11 @@
 import os
-from typing import Any
+from typing import Any, List
 
+import torch
 from torch.utils.tensorboard import SummaryWriter
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sn
 
 
 class LogHelper:
@@ -46,12 +50,24 @@ class LogHelper:
         self.epoch += 1
         self.summary_writer.flush()
 
-    def log_image(self, image: Any, mask: Any):
+    def plot_confusion_matrix(self, predictions: List, labels: List, class_names):
+        cm = confusion_matrix(labels, predictions, normalize='true', labels=[i for i in range(len(class_names))])
+        plt.figure(figsize=(11, 11))
+        heatmap = sn.heatmap(cm, annot=True, fmt='.2%', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        fig = heatmap.get_figure()
+
+        self.summary_writer.add_figure("Metrics/confusion", fig, self.epoch)
+        plt.close(fig)
+        self.summary_writer.flush()
+
+    def log_augmented_image(self, image: Any, mask: Any = None):
         self.summary_writer.add_image("Augmented Images", image, self.image_step)
-        self.summary_writer.add_image("Augmented Masks", mask, self.image_step)
+        if mask is not None:
+            self.summary_writer.add_image("Augmented Masks", mask, self.image_step)
         self.image_step += 1
-        if self.image_step > self.max_images:
-            self.image_step = 0
+        self.summary_writer.flush()
 
     def log_net_structure(self, net, images, t):
         self.summary_writer.add_graph(net, [images, t])
@@ -61,17 +77,18 @@ class LogHelper:
             "Network/params", {"total": total, "trainable": trainable}
         )
 
-    def log_image_infered(self, image, seg, epoch):
+    def log_image_infered(self, image, epoch, **kwargs):
         self.summary_writer.add_image(
             "Infered Images",
             image,
             epoch
         )
-        self.summary_writer.add_image(
-            "Infered Masks",
-            seg,
-            epoch
-        )
+        for key, value in kwargs.items():
+            self.summary_writer.add_image(
+                f"Infered {key}",
+                value,
+                epoch
+            )
 
     def __del__(self):
         self.summary_writer.flush()

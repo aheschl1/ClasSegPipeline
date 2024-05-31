@@ -4,7 +4,8 @@ from typing import Tuple
 
 import numpy as np
 from pipe.utils.constants import SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
-from pipe.utils.reader_writer import get_reader_writer, get_reader_writer_from_extension
+from pipe.utils.reader_writer import get_reader_writer, get_reader_writer_from_extension, NaturalReaderWriter, \
+    SimpleITKReaderWriter
 from pipe.utils.normalizer import get_normalizer, get_normalizer_from_extension
 
 
@@ -53,12 +54,29 @@ class Datapoint:
         :param kwargs:
         :return: Data as np.array. DO NOT EDIT DIRECTLY IF CACHE ENABLED!!!
         """
+        image = self.reader_writer.read(self.im_path, **kwargs)
+        # Enforce [H, W, C] or [H, W, D, C]
+        if len(image.shape) == self.reader_writer.image_dimensions:
+            # Add channels in - it is missing
+            image = image.reshape(list(image.shape) + [1])
+        if len(image.shape)-1 != self.reader_writer.image_dimensions:
+            raise ValueError(f"There is a shape mismatch. The reader/writer indicates "
+                             f"{self.reader_writer.image_dimensions} spacial dimensions. "
+                             f"With channels, your IMAGE shape is {image.shape}.")
         if self.mode == SEGMENTATION:
-            return self.reader_writer.read(self.im_path, **kwargs), self.reader_writer.read(self.label, **kwargs)
+            label = self.reader_writer.read(self.label, **kwargs)
+            if len(label.shape) == self.reader_writer.image_dimensions:
+                # Add channels in - it is missing
+                label = label.reshape(list(label.shape) + [1])
+            if len(label.shape) - 1 != self.reader_writer.image_dimensions:
+                raise ValueError(f"There is a shape mismatch. The reader/writer indicates "
+                                 f"{self.reader_writer.image_dimensions} spacial dimensions. "
+                                 f"With channels, your LABEL shape is {label.shape}.")
+            return image, label
         elif self.mode == CLASSIFICATION:
-            return self.reader_writer.read(self.im_path, **kwargs), np.array(int(self.label))
+            return image, np.array(int(self.label))
         else:
-            return self.reader_writer.read(self.im_path, **kwargs), np.array(-12)
+            return image, None
 
     def set_num_classes(self, n: int) -> None:
         self.num_classes = n
@@ -72,7 +90,8 @@ class Datapoint:
             self._shared_mem = SharedMemory(size=data.nbytes, create=True, name=self._case_name)
             temp_buf = np.ndarray(data.shape, dtype=data.dtype, buffer=self._shared_mem.buf)
             temp_buf[:] = data
-        except FileExistsError: ...  # Already exists
+        except FileExistsError:
+            ...  # Already exists
 
     def _get_cached(self) -> np.array:
         """

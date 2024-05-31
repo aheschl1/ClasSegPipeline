@@ -31,6 +31,13 @@ class BaseReaderWriter:
 
     def __store_metadata(self) -> None: ...
 
+    @property
+    def image_dimensions(self) -> int:
+        """
+        Number of SPACIAL dimensions that this read/writer manages. Ignores channels.
+        """
+        raise NotImplementedError("Do not use BaseWriter, but instead use a subclass that overrides write.")
+
 
 class SimpleITKReaderWriter(BaseReaderWriter):
 
@@ -98,6 +105,10 @@ class SimpleITKReaderWriter(BaseReaderWriter):
         image.SetDirection(self.direction)
         sitk.WriteImage(image, path)
 
+    @property
+    def image_dimensions(self) -> int:
+        return 3
+
 
 class NaturalReaderWriter(BaseReaderWriter):
 
@@ -112,8 +123,6 @@ class NaturalReaderWriter(BaseReaderWriter):
             image = np.load(path, allow_pickle=True)
         else:
             image = np.array(Image.open(path))
-        if len(image.shape) == 2:
-            image = image[None]
         return image
 
     def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
@@ -123,21 +132,9 @@ class NaturalReaderWriter(BaseReaderWriter):
             data = np.array(data.detach().cpu())
         np.save(path, data)
 
-
-class ImageNetReaderWriter(NaturalReaderWriter):
-
-    def __verify_extension(self, extension: str) -> None:
-        assert extension in ['JPEG'], f'Invalid extension {extension} for reader ImageNetReaderWriter.'
-
-    @override
-    def read(self, path: str, store_metadata: bool = False, **kwargs) -> np.array:
-        name = path.split('/')[-1]
-        extension = '.'.join(name.split('.')[1:])
-        self.__verify_extension(extension)
-        if extension == 'npy':
-            return np.load(path)
-        image = Image.open(path).convert('RGB')
-        return np.array(image)
+    @property
+    def image_dimensions(self) -> int:
+        return 2
 
 
 def get_reader_writer(io: str) -> Type[BaseReaderWriter]:
@@ -156,7 +153,6 @@ def get_reader_writer_from_extension(extension: str) -> Type[BaseReaderWriter]:
         'png': NaturalReaderWriter,
         'jpg': NaturalReaderWriter,
         'jpeg': NaturalReaderWriter,
-        'JPEG': ImageNetReaderWriter,
         'npy': NaturalReaderWriter
     }
     assert extension in mapping.keys(), f"Currently unsupported extension {extension}"

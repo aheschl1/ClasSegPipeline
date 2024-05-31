@@ -4,6 +4,9 @@ import torch
 import torch.nn as nn
 from pipe.training.trainer import Trainer, log
 import torchvision.transforms as transforms
+from pipe.utils.constants import PREPROCESSED_ROOT
+from pipe.utils.utils import read_json
+from tqdm import tqdm
 
 
 class ClassificationTrainer(Trainer):
@@ -20,8 +23,12 @@ class ClassificationTrainer(Trainer):
         """
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, preload,
                          world_size)
+
+        class_names = read_json(f"{PREPROCESSED_ROOT}/{self.dataset_name}/id_to_label.json")
+        self.class_names = [i for i in sorted(class_names.values())]
         self._last_val_accuracy = 0.
         self._val_accuracy = 0.
+        self.softmax = nn.Softmax(dim=1)
 
     def get_augmentations(self) -> Tuple[Any, Any]:
         train_aug = transforms.Compose([
@@ -47,10 +54,10 @@ class ClassificationTrainer(Trainer):
         total_items = 0
         # ForkedPdb().set_trace()
         log_image = epoch % 10 == 0
-        for data, labels, _ in self.train_dataloader:
+        for data, labels, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_image(data[0])
+                self.log_helper.log_augmented_image(data[0])
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             batch_size = data.shape[0]
@@ -86,7 +93,7 @@ class ClassificationTrainer(Trainer):
         correct_count = 0.
         total_items = 0
         all_predictions, all_labels = [], []
-        for data, labels, _ in self.val_dataloader:
+        for data, labels, _ in tqdm(self.val_dataloader):
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             batch_size = data.shape[0]
@@ -96,12 +103,12 @@ class ClassificationTrainer(Trainer):
             running_loss += loss.item() * batch_size
             # analyze
             predictions = torch.argmax(self.softmax(predictions), dim=1)
-            labels = torch.argmax(labels, dim=1)
+            # labels = torch.argmax(labels, dim=1)
             all_predictions.extend(predictions.tolist())
             all_labels.extend(labels.tolist())
             correct_count += torch.sum(predictions == labels)
             total_items += batch_size
-        self.log_helper.eval_epoch_complete(all_predictions, all_labels)
+        self.log_helper.plot_confusion_matrix(all_predictions, all_labels, self.class_names)
         self._val_accuracy = correct_count / total_items
         return running_loss / total_items
 

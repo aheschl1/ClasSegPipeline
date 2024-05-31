@@ -81,16 +81,17 @@ class Trainer:
         self.train_transforms, _ = self.get_augmentations()
         self.train_dataloader, self.val_dataloader = self._get_dataloaders()
         self._current_epoch = 0
-        self.lr_scheduler = self.get_lr_scheduler()
+        self.model_path = model_path
         self.model = self.get_model(model_path)
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
         self.loss = self.get_loss()
         self.optim: torch.optim = self.get_optim()
+        self.lr_scheduler = self.get_lr_scheduler()
         if self.device == 0:
             log(f"Optim being used is {self.optim}")
         self._save_self_file()
-        if resume is not None:
+        if resume:
             self._load_checkpoint("latest")
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
@@ -113,6 +114,8 @@ class Trainer:
 
     def _save_self_file(self):
         shutil.copy(__file__, f"{self.output_dir}/trainer_code.py")
+        if os.path.exists(self.model_path):
+            shutil.copy(self.model_path, f"{self.output_dir}/model.json")
         write_json(self.config, f"{self.output_dir}/config.json")
 
     def _prepare_output_directory(self, session_id: str) -> str:
@@ -231,7 +234,9 @@ class Trainer:
                 log("Learning rate: ", self.lr_scheduler.optimizer.param_groups[0]["lr"])
                 log(f"Train loss: {mean_train_loss} --change-- {mean_train_loss - last_train_loss}")
                 log(f"Val loss: {mean_val_loss} --change-- {mean_val_loss - last_val_loss}")
-                log(self.post_epoch_log(epoch))
+                extra_messages = self.post_epoch_log(epoch)
+                if extra_messages is not None:
+                    log(*extra_messages)
             self.lr_scheduler.step()
             # update 'last' values
             last_train_loss = mean_train_loss
@@ -320,7 +325,7 @@ class Trainer:
                 "https://github.com/aheschl1/JsonTorchModels"
                 ", then you can override the get_model method in a custom trainer!")
             raise SystemExit
-        factory = ModelFactory(path, lookup_packages=["pipe.models.autoencoder"])
+        factory = ModelFactory(path, lookup_packages=["pipe.models.autoencoder", "pipe.models.unet"])
         model = factory.get_model().to(self.device)
         log(factory.log_kwargs)
 

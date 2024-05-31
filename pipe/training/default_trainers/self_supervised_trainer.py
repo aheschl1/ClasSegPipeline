@@ -1,3 +1,4 @@
+import random
 from typing import Tuple, Any
 
 import torch
@@ -22,13 +23,13 @@ class SelfSupervisedTrainer(Trainer):
 
     def get_augmentations(self) -> Tuple[Any, Any]:
         train_transforms = transforms.Compose([
-            transforms.Resize(*self.config["target_size"]),
+            transforms.Resize(self.config["target_size"]),
             transforms.RandomRotation(degrees=30),
             transforms.RandomVerticalFlip(p=0.25, ),
             transforms.RandomHorizontalFlip(p=0.25, )
         ])
         val_transforms = transforms.Compose([
-            transforms.Resize(*self.config["target_size"]),
+            transforms.Resize(self.config["target_size"]),
         ])
         return train_transforms, val_transforms
 
@@ -41,11 +42,11 @@ class SelfSupervisedTrainer(Trainer):
         running_loss = 0.
         total_items = 0.
         i = 0.
-        for data in tqdm.tqdm(self.train_dataloader):
+        for data, _, _ in tqdm.tqdm(self.train_dataloader):
             i += 1
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_image(data[0])
+                self.log_helper.log_augmented_image(data[0])
 
             data: torch.Tensor = data.to(self.device)
             og_data = data.detach().clone()
@@ -72,11 +73,12 @@ class SelfSupervisedTrainer(Trainer):
 
         running_loss = 0.
         total_items = 0
-        for data in tqdm.tqdm(self.val_dataloader):
+        for data, _, _ in tqdm.tqdm(self.val_dataloader):
             data = data.to(self.device)
             batch_size = data.shape[0]
             predictions = self.model(data)
-
+            index = random.randint(0, data.shape[0]-1)
+            self.log_helper.log_image_infered(predictions[index], epoch, Original=data[index])
             loss = self.loss(predictions, data)
             running_loss += loss.item() * batch_size
             total_items += batch_size

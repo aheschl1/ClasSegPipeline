@@ -83,7 +83,8 @@ def get_dataset_name_from_id(id: Union[str, int], name: str = None) -> str:
     id = '0' * (3 - len(id)) + id
     dataset_name = f"Dataset_{id}"
     if name is None:
-        preprocessed_folders = [x.split("/")[-1] for x in glob.glob(f"{PREPROCESSED_ROOT}/*") if f"_{id}" in x.split("/")[-1]]
+        preprocessed_folders = [x.split("/")[-1] for x in glob.glob(f"{PREPROCESSED_ROOT}/*") if
+                                f"_{id}" in x.split("/")[-1]]
         raw_folders = [x.split("/")[-1] for x in glob.glob(f"{RAW_ROOT}/*") if f"_{id}" in x.split("/")[-1]]
         if len(preprocessed_folders) > 1 or len(raw_folders) > 1:
             raise EnvironmentError(f"Found more than one dataset with id {id}.")
@@ -215,8 +216,7 @@ def get_labels_from_raw(dataset_name: str) -> List[str]:
     return [f.split('/')[-1] for f in folders if os.path.isdir(f)]
 
 
-def get_preprocessed_datapoints(dataset_name: str, fold: int) \
-        -> Tuple[List[Datapoint], List[Datapoint]]:
+def get_preprocessed_datapoints(dataset_name: str, fold: int) -> Tuple[List[Datapoint], List[Datapoint]]:
     """
     Returns the datapoints of preprocessed cases.
     :param dataset_name:
@@ -227,13 +227,13 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int) \
     train_root = f"{PREPROCESSED_ROOT}/{dataset_name}/fold_{fold}/train"
     val_root = f"{PREPROCESSED_ROOT}/{dataset_name}/fold_{fold}/val"
     logging.info("Reading dataset paths.")
-    if os.path.exists(f"{val_root}/imagesTr"):
-        mode = SEGMENTATION
+    mode = get_dataset_mode_from_name(dataset_name)
+    if mode == SEGMENTATION:
         val_paths = glob.glob(f"{val_root}/imagesTr/*")
         train_paths = glob.glob(f"{train_root}/imagesTr/*")
     else:
-        mode = CLASSIFICATION or SELF_SUPERVISED
-        case_label_mapping = get_label_case_mapping_from_dataset(dataset_name)
+        if mode == CLASSIFICATION:
+            case_label_mapping = get_label_case_mapping_from_dataset(dataset_name)
         val_paths = glob.glob(f"{val_root}/*")
         train_paths = glob.glob(f"{train_root}/*")
 
@@ -247,8 +247,10 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int) \
             verify_case_name(name)
             if mode == SEGMENTATION:
                 label = path.replace("imagesTr", "labelsTr")
-            else:
+            elif mode == CLASSIFICATION:
                 label = case_label_mapping[name]
+            else:
+                label = None
             train_datapoints.append(
                 Datapoint(path, label, case_name=name, dataset_name=dataset_name))
             pbar.update()
@@ -258,7 +260,7 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int) \
             verify_case_name(name)
             if mode == SEGMENTATION:
                 label = path.replace("imagesTr", "labelsTr")
-            else:
+            elif mode == CLASSIFICATION:
                 label = case_label_mapping[name]
             val_datapoints.append(
                 Datapoint(path, label, case_name=name, dataset_name=dataset_name))
@@ -312,32 +314,7 @@ def get_config_from_dataset(dataset_name: str, config_name: str = 'config', outp
     return read_json(path)
 
 
-class SimpleBatch:
-    def __init__(self, batch):
-        images, labels = [], []
-        points = []
-
-        for images_data, labels_data, point in batch:
-            images.append(images_data)
-            labels.append(labels_data)
-            points.append(point)
-
-        self.images = torch.stack(images)
-        self.labels = torch.stack(labels)
-        self.points = points
-
-    def pin_memory(self):
-        self.images = self.images.pin_memory()
-        self.labels = self.labels.pin_memory()
-
-    def __len__(self):
-        return 1
-
-    def __getitem__(self, _):
-        return self.images, self.labels, self.points
-
-
-def batch_collate_fn(batch: List[Tuple[torch.Tensor, Datapoint]]) -> Tuple[torch.Tensor, torch.Tensor, List[Datapoint]]:
+def batch_collate_fn(batch: List[Tuple[torch.Tensor, Datapoint]]):
     """
     Combines data fetched by dataloader into proper format.
     :param batch: List of data points from loader.
@@ -351,7 +328,11 @@ def batch_collate_fn(batch: List[Tuple[torch.Tensor, Datapoint]]) -> Tuple[torch
         labels.append(labels_data)
         points.append(point)
 
-    return torch.stack(images), torch.stack(labels), points
+    images = torch.stack(images)
+    if labels[0] is not None:
+        labels = torch.stack(labels)
+
+    return images, labels, points
 
 
 def get_dataloaders_from_fold(dataset_name: str,

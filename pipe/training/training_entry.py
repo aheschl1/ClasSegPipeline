@@ -1,6 +1,7 @@
 from typing import Type
 
 from pipe.training.default_trainers.classification_trainer import ClassificationTrainer
+from pipe.training.default_trainers.segmentation_trainer import SegmentationTrainer
 from pipe.training.default_trainers.self_supervised_trainer import SelfSupervisedTrainer
 from pipe.training.trainer import Trainer
 import glob
@@ -111,10 +112,11 @@ def main(
     else:
         mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
         trainer_class = {
-            SEGMENTATION: Trainer,
+            SEGMENTATION: SegmentationTrainer,
             SELF_SUPERVISED: SelfSupervisedTrainer,
             CLASSIFICATION: ClassificationTrainer
         }[mode]
+        print(f"Training detecting mode {mode}")
     # This sets the behavior of some modules in json models utils.
     session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name
     if gpus > 1:
@@ -158,3 +160,7 @@ def main(
             raise e
     else:
         raise NotImplementedError("You must set gpus to >= 1")
+
+
+if __name__ == "__main__":
+    main()

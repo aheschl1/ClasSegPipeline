@@ -6,6 +6,7 @@ from pipe.training.trainer import Trainer, log
 import albumentations as A
 from monai.losses import DiceCELoss
 
+
 class SegmentationTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
@@ -47,7 +48,7 @@ class SegmentationTrainer(Trainer):
         for data, labels, _ in self.train_dataloader:
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_image(data[0])
+                self.log_helper.log_augmented_image(data[0])
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             batch_size = data.shape[0]
@@ -111,5 +112,6 @@ class SegmentationTrainer(Trainer):
             log("Loss being used is nn.CrossEntropyLoss()")
         return DiceCELoss(
             include_background=False,
-            softmax=True
+            softmax=True,
+            to_onehot_y=True
         )

@@ -138,7 +138,7 @@ class UnstableDiffusionTrainer(Trainer):
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_image(images[0], segmentations[0])
+                self.log_helper.log_augmented_image(images[0], segmentations[0])
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 

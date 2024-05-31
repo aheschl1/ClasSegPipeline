@@ -1,3 +1,4 @@
+import gc
 from typing import Tuple, Type, Any
 import torch
 from torch.utils.data import DataLoader
@@ -68,30 +69,41 @@ class NaturalImageNormalizer(Normalizer):
         """
         if not self.active or not self.calculate_early:
             return
-        means = []
+        means = None
+        total = 0
         shape_len = None
         for data, _, _ in tqdm(dataloader, desc="Calculating mean"):
             assert data.shape[0] == 1, "Expected batch size 1 for mean std calculations. Womp womp"
             if shape_len is None:
                 shape_len = len(data.shape)
             if data.shape[1] == 1 or data.shape[1] == 3:
+                # channels last
                 data = data.permute(0, 2, 3, 1)
-            assert len(data.shape) == 3 or data.shape[3] == 3, \
+            assert data.shape[3] == 3 or data.shape[3] == 1, \
                 f"NaturalImageNormalizer requires three or one channels, and shape [b, h, w, c] or [b, h, w]. Got {data.shape}"
             assert shape_len == len(data.shape), "Some images are grayscale, some are RGB!!"
-            means.append(torch.mean(data.float(), dim=[0, 1, 2]))
+            if means is None:
+                means = torch.mean(data.float(), dim=[0, 1, 2])
+            else:
+                means += torch.mean(data.float(), dim=[0, 1, 2])
+            total += 1
 
-        means = torch.stack(means)
-        mu_rgb = torch.mean(means, dim=[0])
-        variances = []
+        means /= total
+        mu_rgb = means
+        variances = None
+        total = 0
         for data, _, _ in tqdm(dataloader, desc="Calculating std"):
             assert data.shape[0] == 1, "Expected batch size 1 for mean std calculations. Womp womp"
             if data.shape[1] == 1 or data.shape[1] == 3:
                 data = data.permute(0, 2, 3, 1)
             var = torch.mean((data - mu_rgb) ** 2, dim=[0, 1, 2])
-            variances.append(var)
-        variances = torch.stack(variances)
-        std_rgb = torch.sqrt(torch.mean(variances, dim=[0]))
+            if variances is None:
+                variances = var
+            else:
+                variances += var
+            total += 1
+        variances /= total
+        std_rgb = torch.sqrt(variances)
         self.mean = mu_rgb
         self.std = std_rgb
 
