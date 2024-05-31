@@ -20,3 +20,4 @@ multiprocessing_logging
 click
 tensorboard
 json-torch-models
+monai

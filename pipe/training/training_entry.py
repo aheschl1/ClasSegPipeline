@@ -1,5 +1,7 @@
 from typing import Type
 
+from pipe.training.default_trainers.classification_trainer import ClassificationTrainer
+from pipe.training.default_trainers.self_supervised_trainer import SelfSupervisedTrainer
 from pipe.training.trainer import Trainer
 import glob
 import os.path
@@ -7,7 +9,7 @@ import click
 import multiprocessing_logging
 import shutil
 from pipe.utils.constants import *
-from pipe.utils.utils import get_dataset_name_from_id, import_from
+from pipe.utils.utils import get_dataset_name_from_id, import_from, get_dataset_mode_from_name
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 import datetime
@@ -105,9 +107,14 @@ def main(
         model
     ), "The model path you specified doesn't exist."
     if trainer is not None:
-        trainerClass = import_from("pipe.extensions.custom_trainers", trainer)
+        trainer_class = import_from("pipe.extensions.custom_trainers", trainer)
     else:
-        trainerClass = Trainer
+        mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
+        trainer_class = {
+            SEGMENTATION: Trainer,
+            SELF_SUPERVISED: SelfSupervisedTrainer,
+            CLASSIFICATION: ClassificationTrainer
+        }[mode]
     # This sets the behavior of some modules in json models utils.
     session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name
     if gpus > 1:
@@ -122,7 +129,7 @@ def main(
                 resume,
                 config,
                 preload,
-                trainerClass
+                trainer_class
             ),
             nprocs=gpus,
             join=True,
@@ -131,7 +138,7 @@ def main(
         dataset_name = get_dataset_name_from_id(dataset_id)
         trainer = None
         try:
-            trainer = trainerClass(
+            trainer = trainer_class(
                 dataset_name,
                 fold,
                 model,

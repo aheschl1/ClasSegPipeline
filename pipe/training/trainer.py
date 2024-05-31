@@ -6,20 +6,20 @@ import sys
 import time
 from abc import abstractmethod
 from typing import Tuple, Any
-import numpy as np
+
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from json_torch_models.model_factory import ModelFactory
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+
 from pipe.logging.logging import LogHelper
-from pipe.models.src.utils import my_import
 from pipe.utils.constants import *
 from pipe.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name
 from pipe.utils.utils import write_json
-from json_torch_models.model_factory import ModelFactory
 
 
 class ForkedPdb(pdb.Pdb):

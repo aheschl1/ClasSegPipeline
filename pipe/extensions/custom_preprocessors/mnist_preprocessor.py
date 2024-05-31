@@ -1,14 +1,12 @@
-import os
+import shutil
 
+import tqdm
 from overrides import override
+from torchvision.datasets import MNIST
 
 from pipe.preprocessing.preprocess_entry import Preprocessor
-from torchvision.datasets import MNIST
-from PIL import Image
 from pipe.utils.constants import RAW_ROOT
-from pipe.utils.utils import get_case_name_from_number, get_dataset_name_from_id, check_raw_exists
-import shutil
-import tqdm
+from pipe.utils.utils import get_case_name_from_number, check_raw_exists
 
 
 class MnistPreprocessor(Preprocessor):

@@ -23,7 +23,8 @@ setup(
         "albumentations~=1.4.8",
         "opencv-python",
         "tensorboard",
-        "json-torch-models"
+        "json-torch-models",
+        "monai"
     ],
     entry_points={
         'console_scripts': [
