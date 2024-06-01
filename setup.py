@@ -28,8 +28,9 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            "pipePreprocess=pipe.preprocessing.preprocess_entry:main",
-            "pipeTrain=pipe.training.training_entry:main"
+            "pipePreprocess=pipe.cli.preprocess_entry:main",
+            "pipeTrain=pipe.cli.training_entry:main",
+            "pipeCreateExtension=pipe.cli.create_extension:main"
         ]
     },
     packages=find_packages(),
