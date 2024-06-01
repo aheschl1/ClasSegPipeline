@@ -114,7 +114,7 @@ def main(
             SELF_SUPERVISED: "SelfSupervisedTrainer",
             CLASSIFICATION: "ClassificationTrainer"
         }[mode]
-        trainer_class = import_from(f"pipe.extensions.{extension}.training.trainer", name)
+        trainer_class = import_from(f"pipe.extensions.{extension}.training", name)
     else:
         trainer_class = {
             SEGMENTATION: SegmentationTrainer,

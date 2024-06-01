@@ -12,7 +12,7 @@ def get_preprocessor_from_extension(name: str) -> Type[Preprocessor]:
     if name is None:
         return Preprocessor
     try:
-        return import_from(f"pipe.extensions.{name}.preprocessing.preprocessor", "ExtensionPreprocessor")
+        return import_from(f"pipe.extensions.{name}.preprocessing", "ExtensionPreprocessor")
     except ImportError as e:
         print(e)
         print(f"Ensure you create the extension {name}")
