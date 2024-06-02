@@ -34,6 +34,7 @@ if RESULTS_ROOT is None or not os.path.exists(RESULTS_ROOT):
 BEST_EPOCH_CELEBRATION = current_config.get("best_epoch_celebration", "That is a new best epoch, saving the state!")
 DEFAULT_PROCESSES = current_config.get("default_processes", os.cpu_count())
 
+
 ENB6 = 'enb6'
 ENB4 = 'enb4'
 ENV2 = 'env2'
@@ -70,3 +71,4 @@ QUALITY_SUM = "quality_sum"
 SEGMENTATION = "segmentation"
 CLASSIFICATION = "classification"
 SELF_SUPERVISED = "self_supervised"
+EXTENSIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'extensions')

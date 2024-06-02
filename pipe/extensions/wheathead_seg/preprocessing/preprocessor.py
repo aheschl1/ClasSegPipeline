@@ -1,19 +1,21 @@
-from pipe.preprocessing.preprocess_entry import Preprocessor
-from torchvision.datasets import MNIST
-from PIL import Image
-from pipe.utils.constants import RAW_ROOT
-from pipe.utils.utils import get_case_name_from_number, get_dataset_name_from_id, check_raw_exists
-import shutil
-from tqdm import tqdm
-import os
 import glob
+import os
+import shutil
+
+from tqdm import tqdm
+
+from pipe.cli.preprocess_entry import Preprocessor
+from pipe.utils.constants import RAW_ROOT
+from pipe.utils.utils import get_case_name_from_number
 
 
-class WheatheadPreprocessor(Preprocessor):
+class ExtensionPreprocessor(Preprocessor):
     def __init__(
             self, dataset_id: str, folds: int, processes: int, normalize: bool, data_path: str, **kwargs
     ):
         super().__init__(dataset_id, folds, processes, normalize, **kwargs)
+        if data_path is None:
+            raise ValueError("Pass data_path='path to dataset' in preprocessing arguments.")
         self.data_path = f"{data_path}/1"
         assert os.path.exists(self.data_path)
         self._prepare_raw_folder()

@@ -1,7 +1,4 @@
-import logging
-import os.path
 import pdb
-import shutil
 import sys
 from typing import Tuple
 
@@ -13,12 +10,10 @@ from tqdm import tqdm
 from typing_extensions import override
 
 from pipe.inference.inference_entry import Inferer
-from pipe.training.trainer import Trainer
-from pipe.utils.constants import *
+from pipe.training.trainer import Trainer, log
 from pipe.utils.utils import (
     get_forward_diffuser_from_config,
 )
-from pipe.utils.utils import write_json
 
 
 class ForkedPdb(pdb.Pdb):
@@ -36,7 +31,7 @@ class ForkedPdb(pdb.Pdb):
             sys.stdin = _stdin
 
 
-class UnstableDiffusionTrainer(Trainer):
+class SegmentationTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume_training: bool = False, preload: bool = True, world_size: int = 1):
         """
@@ -87,38 +82,6 @@ class UnstableDiffusionTrainer(Trainer):
 
     def _instantiate_inferer(self, dataset_id, fold, result_folder):
         self._inferer = Inferer(dataset_id, fold, result_folder, "best")
-
-    def _assert_preprocess_ready_for_train(self) -> None:
-        """
-        Ensures that the preprocess folder exists for the current dataset,
-        and that the fold specified has been processed.
-        :return: None
-        """
-        preprocess_dir = f"{PREPROCESSED_ROOT}/{self.dataset_name}"
-        assert os.path.exists(preprocess_dir), (
-            f"Preprocess root for dataset {self.dataset_name} does not exist. "
-            f"run src.preprocessing.preprocess_entry.py before training."
-        )
-        assert os.path.exists(
-            f"{preprocess_dir}/fold_{self.fold}"
-        ), f"The preprocessed data path for fold {self.fold} does not exist. womp womp"
-
-    def _save_self_file(self):
-        shutil.copy(__file__, f"{self.output_dir}/trainer_code.py")
-        # shutil.copy(Diffuser.__file__, f"{self.output_dir}/diffuser_code.py")
-        write_json(self.config, f"{self.output_dir}/config.json")
-
-    def _prepare_output_directory(self, session_id: str) -> str:
-        """
-        Prepares the output directory, and sets up logging to it.
-        :return: str which is the output directory.
-        """
-        output_dir = f"{RESULTS_ROOT}/{self.dataset_name}/fold_{self.fold}/{session_id}"
-        os.makedirs(output_dir, exist_ok=True)
-        logging.basicConfig(level=logging.INFO, filename=f"{output_dir}/logs.txt")
-        if self.device == 0:
-            print(f"Sending logging and outputs to {output_dir}")
-        return output_dir
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -225,13 +188,3 @@ class UnstableDiffusionTrainer(Trainer):
             log("Loss being used is nn.MSELoss()")
         return nn.MSELoss()
 
-
-def log(*messages):
-    """
-    Prints to screen and logs a message.
-    :param messages: The messages to display and log.
-    :return: None
-    """
-    print(*messages)
-    for message in messages:
-        logging.info(f"{message} ")

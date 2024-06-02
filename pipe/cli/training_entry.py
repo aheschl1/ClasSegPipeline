@@ -78,7 +78,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("-config", "-c", help="Name of the config file to utilize.", type=str, default="config")
 @click.option("--preload", "--p", help="Should the datasets preload.", is_flag=True, type=bool)
 @click.option("-name", "-n", help="Output folder name.", type=str, default=None)
-@click.option("-trainer", "-tr", help="Name of the trainer class that you want to use.", type=str, default=None)
+@click.option("-extension", "-ext", help="Name of the extension that you want to use.", type=str, default=None)
 def main(
         fold: int,
         dataset_id: str,
@@ -88,7 +88,7 @@ def main(
         config: str,
         preload: bool,
         name: str,
-        trainer: str
+        extension: str
 ) -> None:
     """
     Initializes training on multiple processes, and initializes logger.
@@ -100,23 +100,28 @@ def main(
     :param model: The path to the model json definition
     :param resume: The weights to load, or None
     :param name: The name of the output folder. Will timestamp by default.
-    :param trainer: The name of the trainer class to use
+    :param extension: The name of the trainer class to use
     :return:
     """
     multiprocessing_logging.install_mp_handler()
     assert "json" not in model or os.path.exists(
         model
     ), "The model path you specified doesn't exist."
-    if trainer is not None:
-        trainer_class = import_from("pipe.extensions.custom_trainers", trainer)
+    mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
+    if extension is not None:
+        name = {
+            SEGMENTATION: "SegmentationTrainer",
+            SELF_SUPERVISED: "SelfSupervisedTrainer",
+            CLASSIFICATION: "ClassificationTrainer"
+        }[mode]
+        trainer_class = import_from(f"pipe.extensions.{extension}.training", name)
     else:
-        mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
         trainer_class = {
             SEGMENTATION: SegmentationTrainer,
             SELF_SUPERVISED: SelfSupervisedTrainer,
             CLASSIFICATION: ClassificationTrainer
         }[mode]
-        print(f"Training detecting mode {mode}")
+    print(f"Training detected mode {mode}")
     # This sets the behavior of some modules in json models utils.
     session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name
     if gpus > 1:
