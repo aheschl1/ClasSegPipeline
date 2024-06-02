@@ -104,17 +104,26 @@ def main(
     :return:
     """
     multiprocessing_logging.install_mp_handler()
-    assert "json" not in model or os.path.exists(
-        model
-    ), "The model path you specified doesn't exist."
+    if 'json' not in model:
+        # try to find it in the default model bucket
+        available_models = glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True)
+        for model_path in available_models:
+            if model_path.split('/')[-1].split('.')[0] == model:
+                model = model_path
+                break
+
+    if not os.path.exists(model):
+        raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in the default model bucket."
+                         "It is indeed not.")
+
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
     if extension is not None:
-        name = {
+        trainer_name = {
             SEGMENTATION: "SegmentationTrainer",
             SELF_SUPERVISED: "SelfSupervisedTrainer",
             CLASSIFICATION: "ClassificationTrainer"
         }[mode]
-        trainer_class = import_from(f"pipe.extensions.{extension}.training", name)
+        trainer_class = import_from(f"pipe.extensions.{extension}.training", trainer_name)
     else:
         trainer_class = {
             SEGMENTATION: SegmentationTrainer,

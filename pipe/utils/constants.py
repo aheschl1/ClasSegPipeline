@@ -11,7 +11,8 @@ if not os.path.exists(os.path.expanduser("~/.piperc")):
         "RESULTS_ROOT": os.path.expanduser("~/Documents/Datasets/PipelineRoot/results"),
         "PREPROCESSED_ROOT": os.path.expanduser("~/Documents/Datasets/PipelineRoot/preprocessed"),
         "best_epoch_celebration": "That is a new best epoch, saving the state!",
-        "default_processes": os.cpu_count()
+        "default_processes": os.cpu_count(),
+        "model_bucket_directory": f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions"
     }
     with open(os.path.expanduser("~/.piperc"), "w+") as config_file:
         json.dump(default_config, config_file, indent=4)
@@ -33,7 +34,10 @@ if RESULTS_ROOT is None or not os.path.exists(RESULTS_ROOT):
 
 BEST_EPOCH_CELEBRATION = current_config.get("best_epoch_celebration", "That is a new best epoch, saving the state!")
 DEFAULT_PROCESSES = current_config.get("default_processes", os.cpu_count())
-
+MODEL_BUCKET_DIRECTORY = current_config.get(
+    "model_bucket_directory",
+    f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions"
+)
 
 ENB6 = 'enb6'
 ENB4 = 'enb4'

@@ -7,7 +7,7 @@
         "in_channels": 1,
         "depth": 3,
         "hidden_size": 64,
-        "input_dimension": 32,
+        "input_dimension": 24,
         "channel_growth_factor": 2
       }
     }
