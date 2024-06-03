@@ -77,7 +77,6 @@ class PipelineDataset(Dataset):
 
         if self.transforms is not None:
             if isinstance(self.transforms, albumentations.Compose):
-                print(image.shape, label.shape)
                 result = self.transforms(
                     image=image.transpose((1, 2, 0)),
                     mask=label.transpose((1, 2, 0))
