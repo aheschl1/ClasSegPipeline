@@ -90,6 +90,18 @@ class LogHelper:
                 epoch
             )
 
+    def log_image_mask(self, image, mask, epoch):
+        self.summary_writer.add_image(
+            "Image In",
+            image,
+            epoch
+        )
+        self.summary_writer.add_image(
+            f"Infered mask",
+            mask,
+            epoch
+        )
+
     def __del__(self):
         self.summary_writer.flush()
         self.summary_writer.close()

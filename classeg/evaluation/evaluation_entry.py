@@ -1,24 +1,20 @@
 
 import sys
 
-from tqdm import tqdm
-
 from classeg.evaluation.utils import INCEPTION_SCORE
-from classeg.inference.inference_entry import Inferer
+from classeg.cli.inference_entry import Inferer
 
 # Adds the source to path for imports and stuff
 sys.path.append("/home/andrew.heschl/Documents/diffusion")
 sys.path.append("/home/andrewheschl/PycharmProjects/diffusion")
 sys.path.append("/home/student/andrew/Documents/diffusion")
 sys.path.append("/home/student/andrewheschl/Documents/diffusion")
-import numpy as np
 import os.path
 import click
 import torch
-import torch.nn as nn
 
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataset_name_from_id, get_forward_diffuser_from_config
+from classeg.utils.utils import get_dataset_name_from_id
 from classeg.utils.utils import read_json
 
 
@@ -63,8 +59,6 @@ class Evaluator:
 @click.option('-name', '-n', required=True)  # 2024_02_02_16_50_472684
 @click.option('-weights', '-w', default='best')
 def main(dataset_id: str, fold: int, name: str, weights: str) -> None:
-    import matplotlib.pyplot as plt
-
     evaluator = Evaluator(dataset_id, fold, name, weights)
     evaluator.evaluate()
 

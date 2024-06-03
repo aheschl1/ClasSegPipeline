@@ -32,7 +32,7 @@ def setup_ddp(rank: int, world_size: int) -> None:
 def ddp_training(rank, world_size: int, dataset_id: int,
                  fold: int, model: str,
                  session_id: str, resume: bool,
-                 config: str, preload: bool, trainer_class: Type[Trainer]) -> None:
+                 config: str, preload: bool, trainer_class: Type[Trainer], dataset_desc: str) -> None:
     """
     Launches training on a single process using pytorch ddp.
     :param preload:
@@ -45,10 +45,11 @@ def ddp_training(rank, world_size: int, dataset_id: int,
     :param model: The path to the model json definition
     :param resume: Continue training from latest epoch
     :param trainer_class: Trainer class to use
+    :param dataset_desc: Trainer class to useZ
     :return: Nothing
     """
     setup_ddp(rank, world_size)
-    dataset_name = get_dataset_name_from_id(dataset_id)
+    dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
     trainer = None
     try:
         trainer = trainer_class(
@@ -80,6 +81,8 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("--preload", "--p", help="Should the datasets preload.", is_flag=True, type=bool)
 @click.option("-name", "-n", help="Output folder name.", type=str, default=None)
 @click.option("-extension", "-ext", help="Name of the extension that you want to use.", type=str, default=None)
+@click.option("-dataset_desc", "-dd", required=False,
+              help="Description of dataset. Useful if you have overlapping ids.")  # 10
 def main(
         fold: int,
         dataset_id: str,
@@ -89,7 +92,8 @@ def main(
         config: str,
         preload: bool,
         name: str,
-        extension: str
+        extension: str,
+        dataset_desc: str
 ) -> None:
     """
     Initializes training on multiple processes, and initializes logger.
@@ -102,6 +106,7 @@ def main(
     :param resume: The weights to load, or None
     :param name: The name of the output folder. Will timestamp by default.
     :param extension: The name of the trainer class to use
+    :param dataset_desc: Dataset description
     :return:
     """
     multiprocessing_logging.install_mp_handler()
@@ -114,14 +119,15 @@ def main(
                 break
 
     if not os.path.exists(model):
-        raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in the default model bucket."
+        raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in "
+                         "the default model bucket."
                          "It is indeed not.")
 
-    mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
+    mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id, dataset_desc))
     if extension is not None:
-        module = importlib.import_module(f"pipe.extensions.{extension}")
+        module = importlib.import_module(f"classeg.extensions.{extension}")
         trainer_name = getattr(module, "TRAINER_CLASS_NAME")
-        trainer_class = import_from_recursive(f"pipe.extensions.{extension}.training", trainer_name)
+        trainer_class = import_from_recursive(f"classeg.extensions.{extension}.training", trainer_name)
     else:
         trainer_class = {
             SEGMENTATION: SegmentationTrainer,
@@ -143,13 +149,14 @@ def main(
                 resume,
                 config,
                 preload,
-                trainer_class
+                trainer_class,
+                dataset_desc
             ),
             nprocs=gpus,
             join=True,
         )
     elif gpus == 1:
-        dataset_name = get_dataset_name_from_id(dataset_id)
+        dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
         trainer = None
         try:
             trainer = trainer_class(

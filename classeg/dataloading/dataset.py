@@ -66,6 +66,15 @@ class PipelineDataset(Dataset):
         point = self.datapoints[idx]
         image, label = point.get_data(store_metadata=self.store_metadata, )
 
+        # TODO take a closer look at how we can handle dimension mismatch!
+        # Preprocess saves arrays as channel first, but for inference, we don't really know
+        # TODO Maybe for inference, we can preprocess first :thinking:
+        if image.shape[-1] in [1, 3]:
+            # perhaps it is still channel last?
+            image = image.transpose((2, 0, 1))
+        if label is not None and len(label.shape) > 1 and label.shape[-1] in [1]:
+            label = label.transpose((2, 0, 1))
+
         if self.transforms is not None:
             if isinstance(self.transforms, albumentations.Compose):
                 print(image.shape, label.shape)

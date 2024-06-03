@@ -1,8 +1,10 @@
 import os.path
 from multiprocessing.shared_memory import SharedMemory
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
+import torch
+
 from classeg.utils.constants import SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 from classeg.utils.reader_writer import get_reader_writer, get_reader_writer_from_extension, NaturalReaderWriter, \
     SimpleITKReaderWriter
@@ -12,7 +14,7 @@ from classeg.utils.normalizer import get_normalizer, get_normalizer_from_extensi
 class Datapoint:
     def __init__(self,
                  im_path: str,
-                 label: str,
+                 label: Union[None, str, torch.Tensor],
                  dataset_name: str = None,
                  case_name: str = None,
                  writer: str = None,
@@ -54,7 +56,7 @@ class Datapoint:
         :param kwargs:
         :return: Data as np.array. DO NOT EDIT DIRECTLY IF CACHE ENABLED!!!
         """
-        image = self.reader_writer.read(self.im_path, **kwargs)
+        image = self.reader_writer.read(self.im_path, **kwargs).astype(np.float32)
         # Enforce [H, W, C] or [H, W, D, C]
         if len(image.shape) == self.reader_writer.image_dimensions:
             # Add channels in - it is missing

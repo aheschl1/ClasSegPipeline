@@ -13,9 +13,9 @@ def get_preprocessor_from_extension(name: str) -> Type[Preprocessor]:
     if name is None:
         return Preprocessor
     try:
-        module = importlib.import_module(f"pipe.extensions.{name}")
+        module = importlib.import_module(f"classeg.extensions.{name}")
         preprocessor_name = getattr(module, "PREPROCESSOR_CLASS_NAME")
-        return import_from_recursive(f"pipe.extensions.{name}.preprocessing", preprocessor_name)
+        return import_from_recursive(f"classeg.extensions.{name}.preprocessing", preprocessor_name)
     except ImportError as e:
         print(e)
         print(f"Ensure you create the extension {name}")

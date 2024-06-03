@@ -30,7 +30,8 @@ setup(
         'console_scripts': [
             "classegPreprocess=classeg.cli.preprocess_entry:main",
             "classegTrain=classeg.cli.training_entry:main",
-            "classegCreateExtension=classeg.cli.create_extension:main"
+            "classegCreateExtension=classeg.cli.create_extension:main",
+            "classegInference=classeg.cli.inference_entry:main"
         ]
     },
     packages=find_packages(),

@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 from typing_extensions import override
 
-from classeg.inference.inference_entry import Inferer
+from classeg.cli.inference_entry import Inferer
 from classeg.training.trainer import Trainer, log
 from classeg.utils.utils import (
     get_forward_diffuser_from_config,
