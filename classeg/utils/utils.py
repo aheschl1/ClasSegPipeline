@@ -152,7 +152,7 @@ def get_dataset_mode_from_name(dataset_name: str):
         if "id_to_label.json" in [x.split('/')[-1] for x in first_level]:
             mode = CLASSIFICATION
         else:
-            second_level = glob.glob(f"{first_level}/fold_0/train/*")
+            second_level = glob.glob(f"{preprocessed_root}/fold_0/train/*")
             if os.path.isdir(second_level[0]):
                 mode = SEGMENTATION
             else:
