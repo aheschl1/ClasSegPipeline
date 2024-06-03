@@ -60,6 +60,23 @@ class CocoPreprocessor(Preprocessor):
         """
         ...
 
+    def my_resize(self, image, mask=False):
+        # Get the dimensions of the image
+        height, width = image.shape[:2]
+        # Determine the scaling factor
+        if height < width:
+            scale_factor = 260 / height
+        else:
+            scale_factor = 260 / width
+
+        # Compute the new dimensions
+        new_dimensions = (int(width * scale_factor), int(height * scale_factor))
+
+        # Resize the image
+        resized_image = cv2.resize(image, new_dimensions, interpolation=cv2.INTER_NEAREST if mask else cv2.INTER_AREA)
+        # Save the resized image
+        return resized_image
+
     @override
     def pre_preprocessing(self):
         """
@@ -86,11 +103,15 @@ class CocoPreprocessor(Preprocessor):
 
             image = plt.imread(path)
             if image.shape[-1] != 3:
-                image = image[None].transpose((1, 2, 0))
-                image = np.stack([image, image, image], axis=2)
-                plt.imsave(f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{get_case_name_from_number(int(case_num))}.jpg", image)
-            else:
-                shutil.copy(path, f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{get_case_name_from_number(int(case_num))}.jpg")
+                if image.shape[-1] != 1:
+                    image = image[None].transpose((1, 2, 0))
+                image = np.concatenate([image, image, image], axis=2)
+
+            if min(image[:, :, 0].shape) < 256:
+                image = self.my_resize(image)
+                mask = self.my_resize(mask, mask=True)
+
+            plt.imsave(f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{get_case_name_from_number(int(case_num))}.jpg", image)
             mask[mask != 0] = 1
             cv2.imwrite(
                 f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{get_case_name_from_number(int(case_num))}.jpg",
