@@ -31,11 +31,15 @@ class ExtensionPreprocessor(Preprocessor):
         return {
             "batch_size": 32,
             "processes": DEFAULT_PROCESSES,
-            "lr": 0.001,
+            "lr": 0.0002,
             "epochs": 50,
             "momentum": 0,
             "weight_decay": 0.0001,
-            "target_size": [224, 224]
+            "target_size": [224, 224],
+            "max_timestep": 1000,
+            "diffuser": "linear",
+            "min_beta": 0.0001,
+            "max_beta": 0.02,
         }
 
     def normalize_function(self, data: np.array) -> np.array:
