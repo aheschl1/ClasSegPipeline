@@ -8,7 +8,7 @@ import tqdm
 from pipe.training.trainer import Trainer, log
 
 
-class SelfSupervisedTrainer(Trainer):
+class MnistAE(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
         """

@@ -16,7 +16,7 @@ from pipe.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLAS
 import importlib
 
 
-def import_from(from_package: str, class_name: str) -> Any:
+def import_from_recursive(from_package: str, class_name: str) -> Any:
     module = importlib.import_module(from_package)
     # Iterate through all modules in the package
     for loader, name, is_pkg in pkgutil.walk_packages(module.__path__):
@@ -31,7 +31,7 @@ def import_from(from_package: str, class_name: str) -> Any:
 
 
 if __name__ == "__main__":
-    import_from("pipe.preprocessing.custom_preprocessors", "MnistPreprocessor")
+    import_from_recursive("pipe.preprocessing.custom_preprocessors", "MnistPreprocessor")
 
 
 def write_json(data: Union[Dict, List], path: str, create_folder: bool = False) -> None:

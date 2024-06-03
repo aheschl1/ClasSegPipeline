@@ -17,12 +17,13 @@ def copy_templates(template_type, root_path):
 
 def create_extension(name, template_type):
     # Define the path for the new extension
-    extension_path = os.path.join(EXTENSIONS_DIR, name)
+    extension_path = str(os.path.join(EXTENSIONS_DIR, name))
 
     if not os.path.exists(extension_path):
         os.makedirs(extension_path)
         with open(os.path.join(extension_path, '__init__.py'), 'w') as f:
             f.write(f'# {name} extension\n')
+            f.write('TRAINER_CLASS_NAME = "ClassificationTrainer"\nPREPROCESSOR_CLASS_NAME = "ExtensionPreprocessor"\n')
     else:
         print(f"Extension '{name}' already exists.")
 

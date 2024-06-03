@@ -11,7 +11,7 @@ from pipe.utils.constants import RAW_ROOT, DEFAULT_PROCESSES
 from pipe.utils.utils import get_case_name_from_number, check_raw_exists
 
 
-class ExtensionPreprocessor(Preprocessor):
+class MnistPreprocessor(Preprocessor):
     def __init__(self, dataset_id: str, folds: int, processes: int, normalize: bool, **kwargs):
         super().__init__(dataset_id, folds, processes, normalize, **kwargs)
         self.normalize = True

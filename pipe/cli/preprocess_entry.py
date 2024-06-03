@@ -1,3 +1,4 @@
+import importlib
 import warnings
 from typing import Type, List
 
@@ -5,14 +6,16 @@ import click
 
 from pipe.preprocessing.preprocessor import Preprocessor
 from pipe.utils.constants import *
-from pipe.utils.utils import import_from
+from pipe.utils.utils import import_from_recursive
 
 
 def get_preprocessor_from_extension(name: str) -> Type[Preprocessor]:
     if name is None:
         return Preprocessor
     try:
-        return import_from(f"pipe.extensions.{name}.preprocessing", "ExtensionPreprocessor")
+        module = importlib.import_module(f"pipe.extensions.{name}")
+        preprocessor_name = getattr(module, "PREPROCESSOR_CLASS_NAME")
+        return import_from_recursive(f"pipe.extensions.{name}.preprocessing", preprocessor_name)
     except ImportError as e:
         print(e)
         print(f"Ensure you create the extension {name}")

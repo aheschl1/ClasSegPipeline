@@ -1,3 +1,4 @@
+import importlib
 from typing import Type
 
 from pipe.training.default_trainers.classification_trainer import ClassificationTrainer
@@ -10,7 +11,7 @@ import click
 import multiprocessing_logging
 import shutil
 from pipe.utils.constants import *
-from pipe.utils.utils import get_dataset_name_from_id, import_from, get_dataset_mode_from_name
+from pipe.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
 import datetime
@@ -31,7 +32,7 @@ def setup_ddp(rank: int, world_size: int) -> None:
 def ddp_training(rank, world_size: int, dataset_id: int,
                  fold: int, model: str,
                  session_id: str, resume: bool,
-                 config: str, preload: bool, trainerClass: Type[Trainer]) -> None:
+                 config: str, preload: bool, trainer_class: Type[Trainer]) -> None:
     """
     Launches training on a single process using pytorch ddp.
     :param preload:
@@ -43,14 +44,14 @@ def ddp_training(rank, world_size: int, dataset_id: int,
     :param fold: The fold to train
     :param model: The path to the model json definition
     :param resume: Continue training from latest epoch
-    :param trainerClass: Trainer class to use
+    :param trainer_class: Trainer class to use
     :return: Nothing
     """
     setup_ddp(rank, world_size)
     dataset_name = get_dataset_name_from_id(dataset_id)
     trainer = None
     try:
-        trainer = trainerClass(
+        trainer = trainer_class(
             dataset_name,
             fold,
             model,
@@ -118,12 +119,9 @@ def main(
 
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id))
     if extension is not None:
-        trainer_name = {
-            SEGMENTATION: "SegmentationTrainer",
-            SELF_SUPERVISED: "SelfSupervisedTrainer",
-            CLASSIFICATION: "ClassificationTrainer"
-        }[mode]
-        trainer_class = import_from(f"pipe.extensions.{extension}.training", trainer_name)
+        module = importlib.import_module(f"pipe.extensions.{extension}")
+        trainer_name = getattr(module, "TRAINER_CLASS_NAME")
+        trainer_class = import_from_recursive(f"pipe.extensions.{extension}.training", trainer_name)
     else:
         trainer_class = {
             SEGMENTATION: SegmentationTrainer,
