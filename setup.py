@@ -2,7 +2,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 setup(
-    name='pipe',
+    name='classeg',
     version='0.2.0',
     install_requires=[
         "torch",
@@ -28,9 +28,9 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            "pipePreprocess=pipe.cli.preprocess_entry:main",
-            "pipeTrain=pipe.cli.training_entry:main",
-            "pipeCreateExtension=pipe.cli.create_extension:main"
+            "classegPreprocess=classeg.cli.preprocess_entry:main",
+            "classegTrain=classeg.cli.training_entry:main",
+            "classegCreateExtension=classeg.cli.create_extension:main"
         ]
     },
     packages=find_packages(),

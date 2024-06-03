@@ -10,8 +10,8 @@ To get started by trianing an mnist classification follow these steps:
 1) Clone this repository ```git clone https://github.com/aheschl1/ClasSegPipeline```
 2) Navigate to the root directory ```cd ClasSegPipeline```
 3) Install the package ```pip install -e .```
-4) Preprocess the dataset (we have written an extension to manage this simple use-case) ```pipePreprocess -d <any integer id number <= 3 digits> -dd <text description> -f <number of folds> -ext mnist_class```
-5) Train the dataset ```pipeTrain -d <dataset id> -f <fold to train> -ext mnist_class -m efficientnetb0_one_channel -n <experiment name>```
+4) Preprocess the dataset (we have written an extension to manage this simple use-case) ```classegPreprocess -d <any integer id number <= 3 digits> -dd <text description> -f <number of folds> -ext mnist_class```
+5) Train the dataset ```classegTrain -d <dataset id> -f <fold to train> -ext mnist_class -m efficientnetb0_one_channel -n <experiment name>```
 
 **What is created on the file system?**
 1) When you ran the first command, ClasSeg created a configuration file at ```~/.classegrc```
@@ -80,7 +80,7 @@ RAW_ROOT
 ```
 # Writing an Extension
 Extensions currently allow you to easily create a custom trainer and a preprocessor. More extensionility coming soon!
-1) Run **pipeCreateExtension**
+1) Run **classegCreateExtension**
 2) Follow the prompts
 3) It is now created at ```<repo_root>/extensions/<extension_name>```
    
