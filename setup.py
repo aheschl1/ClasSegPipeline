@@ -24,7 +24,9 @@ setup(
         "opencv-python",
         "tensorboard",
         "json-torch-models",
-        "monai"
+        "monai",
+        "multiprocessing-logging",
+        "tensorboard",
     ],
     entry_points={
         'console_scripts': [
