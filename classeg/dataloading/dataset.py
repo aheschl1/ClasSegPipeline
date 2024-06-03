@@ -87,7 +87,7 @@ class PipelineDataset(Dataset):
                 image = self.transforms(torch.from_numpy(image))
 
         if not isinstance(image, torch.Tensor):
-            image = torch.from_numpy(image).permute(2, 0, 1)
+            image = torch.from_numpy(image)
         if not isinstance(label, torch.Tensor) and label is not None:
             label = torch.from_numpy(label)
 

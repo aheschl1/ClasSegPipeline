@@ -9,7 +9,7 @@ from classeg.preprocessing.splitting import Splitter
 from classeg.utils.constants import *
 import time
 from tqdm import tqdm
-from classeg.utils.utils import get_dataloaders_from_fold
+from classeg.utils.utils import get_dataloaders_from_fold, get_case_name_from_number
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 """
@@ -62,7 +62,14 @@ class ExtensionPreprocessor(Preprocessor):
         """
         Called before standard preprocessing flow
         """
-        ...
+        import glob, shutil
+        cases = glob.glob(f"{self.data_path}/*")
+        os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/labelsTr", exist_ok=True)
+        os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/imagesTr", exist_ok=True)
+        for case in tqdm(cases, desc="Moving data"):
+            case_name = get_case_name_from_number(int(case.split("/")[-1]))
+            shutil.copy(f"{case}/Mask.png", f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.jpg")
+            shutil.copy(f"{case}/Image.jpg", f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.jpg")
 
     def process(self) -> None:
         super().process()
