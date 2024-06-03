@@ -1,5 +1,6 @@
 import os
 import shutil
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -42,11 +43,18 @@ class UnstableDiffusionInferer(Inferer):
         """
         ...
 
+    def pre_infer(self) -> str:
+        """
+        Returns the output directory, and creates dataloader
+        """
+        save_path = f'{self.lookup_root}/inference'
+        return save_path
+
     def infer(self):
         grid_size = self.kwargs.get("grid_size", 1)
         save_process = self.kwargs.get("save_process", False) in [True, '1', 1, 't', 'T']
 
-        save_path, _ = self.pre_infer()
+        save_path = self.pre_infer()
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
         os.mkdir(save_path)
