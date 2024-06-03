@@ -419,8 +419,8 @@ class UnstableDiffusion(nn.Module):
         channels=None,
         time_emb_dim=100,
         shared_encoder=False,
-        apply_zero_conv=True,
-        apply_scale_u=False
+        apply_zero_conv=False,
+        apply_scale_u=True
     ):
 
         super(UnstableDiffusion, self).__init__()
