@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 from classeg.dataloading.datapoint import Datapoint
 from classeg.dataloading.dataset import PipelineDataset
-from classeg.forward_diffusers.diffusers import Diffuser, LinearDiffuser, CosDiffuser
 from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 import importlib
 
@@ -58,18 +57,6 @@ def read_json(path: str) -> Dict:
     """
     with open(path, 'r') as file:
         return json.load(file)
-
-
-def get_forward_diffuser_from_config(config) -> Diffuser:
-    min_beta = config.get("min_beta", 0.0001)
-    max_beta = config.get("max_beta", 0.999)
-    diffuser_mapping = {
-        "linear": LinearDiffuser,
-        "cos": CosDiffuser
-    }
-    assert config.get("diffuser", "cos") in ["linear", "cos"], \
-        f"{config['diffuser']} is not a supported diffuser."
-    return diffuser_mapping[config["diffuser"]](config["max_timestep"], min_beta, max_beta)
 
 
 def get_dataset_name_from_id(id: Union[str, int], name: str = None) -> str:

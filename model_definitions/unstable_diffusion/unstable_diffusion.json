@@ -1,0 +1,15 @@
+{
+  "Tag": "UnstableDiffusion model",
+  "Children": [
+    {
+      "ComponentClass": "classeg.extensions.unstable_diffusion.model.unstable_diffusion.UnstableDiffusion",
+      "args": {
+        "im_channels": 3,
+        "seg_channels": 1,
+        "layer_depth": 2,
+        "channels": [32, 64, 128, 256],
+        "time_emb_dim": 128
+      }
+    }
+  ]
+}

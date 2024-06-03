@@ -23,7 +23,8 @@ class Inferer:
             fold: int,
             name: str,
             weights: str,
-            input_root: str
+            input_root: str,
+            **kwargs
     ):
         """
         Inferer for pipeline.

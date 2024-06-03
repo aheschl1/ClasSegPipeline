@@ -5,13 +5,13 @@ from typing import Tuple
 import albumentations as A
 import torch
 import torch.nn as nn
+from overrides import override
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
-from typing_extensions import override
 
-from classeg.cli.inference_entry import Inferer
+from classeg.extensions.unstable_diffusion.inference.inferer import Inferer
 from classeg.training.trainer import Trainer, log
-from classeg.utils.utils import (
+from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
 
@@ -31,7 +31,7 @@ class ForkedPdb(pdb.Pdb):
             sys.stdin = _stdin
 
 
-class SegmentationTrainer(Trainer):
+class UnstableDiffusionTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume_training: bool = False, preload: bool = True, world_size: int = 1):
         """
@@ -46,7 +46,7 @@ class SegmentationTrainer(Trainer):
                          preload, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self._instantiate_inferer(self.dataset_name.split("_")[-1], fold, unique_folder_name)
+        self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
 
     @override
@@ -80,8 +80,8 @@ class SegmentationTrainer(Trainer):
         )
         return train_transforms, val_transforms
 
-    def _instantiate_inferer(self, dataset_id, fold, result_folder):
-        self._inferer = Inferer(dataset_id, fold, result_folder, "best")
+    def _instantiate_inferer(self, dataset_name, fold, result_folder):
+        self._inferer = Inferer(dataset_name, fold, result_folder, "best", None)
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -187,4 +187,3 @@ class SegmentationTrainer(Trainer):
         if self.device == 0:
             log("Loss being used is nn.MSELoss()")
         return nn.MSELoss()
-
