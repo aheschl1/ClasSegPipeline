@@ -3,6 +3,7 @@
         "architecture":"UNet",
         "base":"Conv2d"
     },
+    "Tag": "UNet model",
     "Children": [
         {
            "ComponentClass": "UNet",

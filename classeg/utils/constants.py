@@ -7,34 +7,31 @@ CT = 'CT'
 
 if not os.path.exists(os.path.expanduser("~/.classegrc")):
     default_config = {
-        "RAW_ROOT": os.path.expanduser("~/Documents/Datasets/ClasSegRoot/raw"),
-        "RESULTS_ROOT": os.path.expanduser("~/Documents/Datasets/ClasSegRoot/results"),
-        "PREPROCESSED_ROOT": os.path.expanduser("~/Documents/Datasets/ClasSegRoot/preprocessed"),
         "best_epoch_celebration": "That is a new best epoch, saving the state!",
         "default_processes": os.cpu_count(),
         "model_bucket_directory": f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions"
     }
     with open(os.path.expanduser("~/.classegrc"), "w+") as config_file:
         json.dump(default_config, config_file, indent=4)
-    os.makedirs(default_config["RAW_ROOT"], exist_ok=True)
-    os.makedirs(default_config["RESULTS_ROOT"], exist_ok=True)
-    os.makedirs(default_config["PREPROCESSED_ROOT"], exist_ok=True)
 
 with open(os.path.expanduser("~/.classegrc"), "r") as config_file:
     current_config = json.load(config_file)
 
-RAW_ROOT = current_config.get("RAW_ROOT", None)
+RAW_ROOT = os.getenv('RAW_ROOT')
 if RAW_ROOT is None or not os.path.exists(RAW_ROOT):
-    raise NotADirectoryError('You must define RAW_ROOT in ~/.classegrc and ensure it exists')
+    raise NotADirectoryError('You must define $RAW_ROOT in your environment variables '
+                             '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
 
-PREPROCESSED_ROOT = current_config.get('PREPROCESSED_ROOT', None)
+PREPROCESSED_ROOT = os.getenv('PREPROCESSED_ROOT')
 if PREPROCESSED_ROOT is None or not os.path.exists(PREPROCESSED_ROOT):
-    raise NotADirectoryError('You must define PREPROCESSED_ROOT ~/.classegrc and ensure it exists')
+    raise NotADirectoryError('You must define $PREPROCESSED_ROOT in your environment variables '
+                             '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
 
-RESULTS_ROOT = current_config.get('RESULTS_ROOT', None)
+RESULTS_ROOT = os.getenv('RESULTS_ROOT')
 if RESULTS_ROOT is None or not os.path.exists(RESULTS_ROOT):
-    raise NotADirectoryError('You must define RESULTS_ROOT in ~/.classegrc and ensure it exists')
-
+    raise NotADirectoryError('You must define $RESULTS_ROOT in your environment variables '
+                             '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
+                             
 BEST_EPOCH_CELEBRATION = current_config.get("best_epoch_celebration", "That is a new best epoch, saving the state!")
 DEFAULT_PROCESSES = current_config.get("default_processes", os.cpu_count())
 MODEL_BUCKET_DIRECTORY = current_config.get(
