@@ -2,6 +2,8 @@ from typing import Tuple, Any
 
 import torch
 import torch.nn as nn
+from tqdm import tqdm
+
 from classeg.training.trainer import Trainer, log
 import albumentations as A
 from monai.losses import DiceCELoss
@@ -45,7 +47,7 @@ class SegmentationTrainer(Trainer):
         total_items = 0
         # ForkedPdb().set_trace()
         log_image = epoch % 10 == 0
-        for data, labels, _ in self.train_dataloader:
+        for data, labels, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
                 self.log_helper.log_augmented_image(data[0])
@@ -85,7 +87,7 @@ class SegmentationTrainer(Trainer):
         total_items = 0
         all_predictions, all_labels = [], []
         i = 0
-        for data, labels, _ in self.val_dataloader:
+        for data, labels, _ in tqdm(self.val_dataloader):
             i += 1
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
