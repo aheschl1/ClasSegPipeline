@@ -81,8 +81,8 @@ class PipelineDataset(Dataset):
                     image=image.transpose((1, 2, 0)),
                     mask=label.transpose((1, 2, 0))
                 )
-                image = result["image"]
-                label = result["mask"]
+                image = result["image"].transpose((2, 0, 1))
+                label = result["mask"].transpose((2, 0, 1))
             else:
                 image = self.transforms(torch.from_numpy(image))
 

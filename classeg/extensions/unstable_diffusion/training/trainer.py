@@ -9,7 +9,7 @@ from overrides import override
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
-from classeg.extensions.unstable_diffusion.inference.inferer import Inferer
+from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
@@ -33,7 +33,7 @@ class ForkedPdb(pdb.Pdb):
 
 class UnstableDiffusionTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume_training: bool = False, preload: bool = True, world_size: int = 1):
+                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -42,7 +42,7 @@ class UnstableDiffusionTrainer(Trainer):
         :param gpu_id: The gpu for this process to use.
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
-        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume_training,
+        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume,
                          preload, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
@@ -51,29 +51,17 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
-        import cv2
-        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_LINEAR)
-        resize_mask = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_NEAREST)
-
-        def my_resize(image=None, mask=None, **kwargs):
-            if mask is not None:
-                return resize_mask(image=mask)["image"]
-            if image is not None:
-                return resize_image(image=image)["image"]
-
         train_transforms = A.Compose(
             [
                 A.HorizontalFlip(),
                 A.VerticalFlip(),
-                A.RandomCrop(width=512, height=512, p=1),
-                A.Lambda(image=my_resize, mask=my_resize, p=1)
+                A.RandomCrop(*self.config.get("target_size", [512, 512]), p=1)
             ],
             is_check_shapes=False
         )
         val_transforms = A.Compose(
             [
-                A.RandomCrop(width=512, height=512, p=1),
-                A.Lambda(image=my_resize, mask=my_resize, p=1),
+                A.RandomCrop(*self.config.get("target_size", [512, 512]), p=1),
                 A.ToFloat()
             ],
             is_check_shapes=False
@@ -81,7 +69,7 @@ class UnstableDiffusionTrainer(Trainer):
         return train_transforms, val_transforms
 
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
-        self._inferer = Inferer(dataset_name, fold, result_folder, "best", None)
+        self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
 
     @override
     def train_single_epoch(self, epoch) -> float:

@@ -81,7 +81,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("--preload", "--p", help="Should the datasets preload.", is_flag=True, type=bool)
 @click.option("-name", "-n", help="Output folder name.", type=str, default=None)
 @click.option("-extension", "-ext", help="Name of the extension that you want to use.", type=str, default=None)
-@click.option("-dataset_desc", "-dd", required=False,
+@click.option("-dataset_desc", "-dd", required=False, default=None,
               help="Description of dataset. Useful if you have overlapping ids.")  # 10
 def main(
         fold: int,
@@ -112,9 +112,10 @@ def main(
     multiprocessing_logging.install_mp_handler()
     if 'json' not in model:
         # try to find it in the default model bucket
-        available_models = glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True)
+        available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
         for model_path in available_models:
             if model_path.split('/')[-1].split('.')[0] == model:
+                print(model_path.split('/')[-1].split('.')[0])
                 model = model_path
                 break
 

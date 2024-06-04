@@ -24,6 +24,7 @@ class Inferer:
             name: str,
             weights: str,
             input_root: str,
+            late_model_instantiation = False,
             **kwargs
     ):
         """
@@ -45,7 +46,10 @@ class Inferer:
         self.config = read_json(f"{self.lookup_root}/config.json")
         self.weights = weights
         self.device = "cuda"
-        self.model = self._get_model()
+        if not late_model_instantiation:
+            self.model = self._get_model()
+        else:
+            self.model = None
         assert os.path.exists(self.lookup_root)
         assert torch.cuda.is_available(), "No gpu available."
 

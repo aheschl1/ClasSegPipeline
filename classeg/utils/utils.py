@@ -124,6 +124,7 @@ def get_dataset_mode_from_name(dataset_name: str):
     :param dataset_name:
     :return:
     """
+    print(dataset_name)
     raw_root = f"{RAW_ROOT}/{dataset_name}"
     preprocessed_root = f"{PREPROCESSED_ROOT}/{dataset_name}"
     if os.path.exists(raw_root):

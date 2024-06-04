@@ -20,6 +20,7 @@ class UnstableDiffusionInferer(Inferer):
                  name: str,
                  weights: str,
                  input_root: str,
+                 late_model_instantiation=True,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -27,7 +28,7 @@ class UnstableDiffusionInferer(Inferer):
         :param fold: The fold to run inference with
         :param weights: The name of the weights to load.
         """
-        super().__init__(dataset_id, fold, name, weights, input_root)
+        super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
@@ -48,6 +49,7 @@ class UnstableDiffusionInferer(Inferer):
         Returns the output directory, and creates dataloader
         """
         save_path = f'{self.lookup_root}/inference'
+        self.model = self._get_model()
         return save_path
 
     def infer(self):
