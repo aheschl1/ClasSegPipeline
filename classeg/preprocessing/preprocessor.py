@@ -252,7 +252,8 @@ class Preprocessor:
                     image_path = image_path.replace("/imagesTr", "")
                 writer.write(
                     images,
-                    image_path
+                    image_path,
+                    standardize=True
                 )
                 if self.mode == SEGMENTATION:
                     labels[labels != 0] = 1
@@ -264,4 +265,5 @@ class Preprocessor:
                         labels,
                         f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/labelsTr/{point.case_name}."
                         f"{point.extension if point.extension == 'nii.gz' else 'npy'}",
+                        standardize=True
                     )
