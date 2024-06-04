@@ -26,8 +26,11 @@ class BaseReaderWriter:
     def read(self, path: str, **kwargs) -> np.array:
         raise NotImplementedError("Do not use BaseReader, but instead use a subclass that overrides read.")
 
-    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
+    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str, standardize=False) -> None:
         raise NotImplementedError("Do not use BaseWriter, but instead use a subclass that overrides write.")
+
+    def standardize(self, data: Union[Type[np.array], Type[torch.Tensor]]) -> Union[Type[np.array], Type[torch.Tensor]]:
+        raise NotImplementedError("Do not use BaseReader, but instead use a subclass that overrides standardize.")
 
     def __store_metadata(self) -> None: ...
 
@@ -76,6 +79,16 @@ class SimpleITKReaderWriter(BaseReaderWriter):
             self.__store_metadata()
         return sitk.GetArrayFromImage(image)
 
+    def standardize(self, data: Union[Type[np.array], Type[torch.Tensor]]) -> Union[Type[np.array], Type[torch.Tensor]]:
+        if len(data.shape) == 3:
+            return data[np.newaxis, ...]
+        elif len(data.shape) == 4:
+            if data.shape[-1] in [1]:
+                data = np.transpose(data, (3, 0, 1, 2))
+            return data
+        else:
+            raise ValueError(f"Invalid shape {data.shape} for standardization in SimpleITKReaderWriter.")
+
     def check_for_metadata_folder(self) -> Union[dict, None]:
         expected_folder = f"{PREPROCESSED_ROOT}/{self.dataset_name}/metadata"
         expected_file = f"{expected_folder}/{self.case_name}.pkl"
@@ -84,7 +97,9 @@ class SimpleITKReaderWriter(BaseReaderWriter):
                 return pickle.load(file)
         return None
 
-    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
+    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str, standardize=False) -> None:
+        if standardize:
+            data = self.standardize(data)
         if not self.has_read:
             meta = self.check_for_metadata_folder()
             if meta is None:
@@ -113,7 +128,8 @@ class SimpleITKReaderWriter(BaseReaderWriter):
 class NaturalReaderWriter(BaseReaderWriter):
 
     def __verify_extension(self, extension: str) -> None:
-        assert extension in ['png', 'jpg', 'npy', 'jpeg', 'JPEG'], f'Invalid extension {extension} for reader NaturalReaderWriter.'
+        assert extension in ['png', 'jpg', 'npy', 'jpeg', 'JPEG'], (f'Invalid extension {extension} for reader '
+                                                                    f'NaturalReaderWriter.')
 
     def read(self, path: str, store_metadata: bool = False, **kwargs) -> np.array:
         name = path.split('/')[-1]
@@ -125,7 +141,25 @@ class NaturalReaderWriter(BaseReaderWriter):
             image = np.array(Image.open(path))
         return image
 
-    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
+    def standardize(self, data: Union[Type[np.array], Type[torch.Tensor]]) -> Union[Type[np.array], Type[torch.Tensor]]:
+        """
+        Standardizes the data to the format expected by the pipeline.
+
+        Channel first
+        """
+        if len(data.shape) == 2:
+            return data[np.newaxis, ...]
+        elif len(data.shape) == 3:
+            if data.shape[-1] in [1, 3]:
+                return np.transpose(data, (2, 0, 1))
+            else:
+                return data
+        else:
+            raise ValueError(f"Invalid shape {data.shape} for standardization in NaturalImages.")
+
+    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str, standardize=False) -> None:
+        if standardize:
+            data = self.standardize(data)
         name = path.split('/')[-1]
         self.__verify_extension('.'.join(name.split('.')[1:]))
         if isinstance(data, torch.Tensor):

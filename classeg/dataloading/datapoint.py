@@ -60,7 +60,7 @@ class Datapoint:
         # Enforce [H, W, C] or [H, W, D, C]
         if len(image.shape) == self.reader_writer.image_dimensions:
             # Add channels in - it is missing
-            image = image.reshape(list(image.shape) + [1])
+            image = image[..., np.newaxis]
         if len(image.shape)-1 != self.reader_writer.image_dimensions:
             raise ValueError(f"There is a shape mismatch. The reader/writer indicates "
                              f"{self.reader_writer.image_dimensions} spacial dimensions. "
@@ -69,7 +69,7 @@ class Datapoint:
             label = self.reader_writer.read(self.label, **kwargs)
             if len(label.shape) == self.reader_writer.image_dimensions:
                 # Add channels in - it is missing
-                label = label.reshape(list(label.shape) + [1])
+                label = label[..., np.newaxis]
             if len(label.shape) - 1 != self.reader_writer.image_dimensions:
                 raise ValueError(f"There is a shape mismatch. The reader/writer indicates "
                                  f"{self.reader_writer.image_dimensions} spacial dimensions. "
