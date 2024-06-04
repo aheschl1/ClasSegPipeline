@@ -55,7 +55,9 @@ class UnstableDiffusionInferer(Inferer):
         return save_path
 
     def infer(self):
-        grid_size = self.kwargs.get("grid_size", 1)
+        grid_size = int(self.kwargs.get("g", 1))
+        grid_size = int(self.kwargs.get("grid_size", grid_size))
+
         save_process = self.kwargs.get("save_process", False) in [True, '1', 1, 't', 'T']
 
         save_path = self.pre_infer()

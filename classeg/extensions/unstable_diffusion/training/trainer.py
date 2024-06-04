@@ -51,17 +51,28 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
+        import cv2
+        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_LINEAR)
+        resize_mask = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_NEAREST)
+        def my_resize(image=None, mask=None, **kwargs):
+            if mask is not None:
+                return resize_mask(image=mask)["image"]
+            if image is not None:
+                return resize_image(image=image)["image"]
+
         train_transforms = A.Compose(
             [
                 A.HorizontalFlip(),
                 A.VerticalFlip(),
-                A.RandomCrop(*self.config.get("target_size", [512, 512]), p=1)
+                A.RandomCrop(width=512, height=512, p=1),
+                A.Lambda(image=my_resize, mask=my_resize, p=1)
             ],
             is_check_shapes=False
         )
         val_transforms = A.Compose(
             [
-                A.RandomCrop(*self.config.get("target_size", [512, 512]), p=1),
+                A.RandomCrop(width=512, height=512, p=1),
+                A.Lambda(image=my_resize, mask=my_resize, p=1),
                 A.ToFloat()
             ],
             is_check_shapes=False
