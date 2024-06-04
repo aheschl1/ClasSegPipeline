@@ -21,6 +21,7 @@ class SegmentationInferer(Inferer):
         :param weights: The name of the weights to load.
         """
         super().__init__(dataset_name, fold, name, weights, input_root)
+        assert input_root is not None, "Provide input root argument for segmentation inference"
 
     def get_augmentations(self):
         mean_data = read_json(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{self.fold}/mean_std.json")

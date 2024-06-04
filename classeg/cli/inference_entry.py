@@ -14,7 +14,7 @@ from classeg.utils.utils import get_dataset_name_from_id, get_dataset_mode_from_
 @click.option("-dataset_id", "-d", required=True)  # 10
 @click.option("-fold", "-f", required=True, type=int)  # 0
 @click.option("-name", "-n", required=True)
-@click.option("-input_folder", "-i", required=True, help="Path to the input data folder")
+@click.option("-input_folder", "-i", required=False, default=None, help="Path to the input data folder")
 @click.option("-weights", "-w", default="best")
 @click.option("-extension", "-ext", help="Name of the extension to load for inference")
 @click.option("-dataset_desc", "-dd", required=False,
@@ -38,7 +38,7 @@ def main(dataset_id: str, fold: int, name: str, input_folder: str, weights: str,
     if extension is not None:
         module = importlib.import_module(f"classeg.extensions.{extension}")
         inferer_name = getattr(module, "INFERER_CLASS_NAME")
-        inferer_class = import_from_recursive(f"pipe.extensions.{extension}.inference", inferer_name)
+        inferer_class = import_from_recursive(f"classeg.extensions.{extension}.inference", inferer_name)
     else:
         inferer_class = {
             CLASSIFICATION: ClassificationInferer,

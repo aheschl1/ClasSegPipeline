@@ -23,6 +23,7 @@ class ClassificationInferer(Inferer):
         :param weights: The name of the weights to load.
         """
         super().__init__(dataset_name, fold, name, weights, input_root)
+        assert input_root is not None, "Provide input root argument for classification inference"
         self.results = {}
         self.id_to_label = read_json(f"{PREPROCESSED_ROOT}/{self.dataset_name}/id_to_label.json")
 
