@@ -140,7 +140,7 @@ class UnstableDiffusionTrainer(Trainer):
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
             result_im, result_seg = self._inferer.infer()
-            self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), result_seg.transpose(2, 0, 1), epoch)
+            self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
 
     def get_lr_scheduler(self):
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
