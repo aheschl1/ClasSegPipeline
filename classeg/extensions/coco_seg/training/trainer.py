@@ -23,6 +23,7 @@ class SegmentationTrainer(Trainer):
                          world_size)
         self._last_val_accuracy = 0.
         self._val_accuracy = 0.
+        self.softmax = nn.Softmax(dim=1)
 
     def get_augmentations(self) -> Tuple[Any, Any]:
         train_aug = A.Compose([
