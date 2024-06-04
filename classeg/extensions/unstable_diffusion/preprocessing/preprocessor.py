@@ -33,7 +33,7 @@ class ExtensionPreprocessor(Preprocessor):
     def get_config(self) -> Dict:
         return {
             "batch_size": 32,
-            "processes": DEFAULT_PROCESSES,
+            "processes": self.processes,
             "lr": 0.0002,
             "epochs": 50,
             "momentum": 0,
