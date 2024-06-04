@@ -16,7 +16,6 @@ class PipelineDataset(Dataset):
                  dataset_name: str,
                  transforms: Callable = None,
                  store_metadata: bool = False,
-                 preload: bool = False,
                  dataset_type: str = "train"
                  ):
         """
@@ -29,7 +28,6 @@ class PipelineDataset(Dataset):
         self.transforms = transforms
         self.store_metadata = store_metadata
         self.dataset_name = dataset_name
-        self.preload = preload
         self.dataset_type = dataset_type
         self.mode = self.datapoints[0].mode
         self._num_classes = None

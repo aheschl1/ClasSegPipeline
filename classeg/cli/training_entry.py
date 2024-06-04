@@ -32,10 +32,9 @@ def setup_ddp(rank: int, world_size: int) -> None:
 def ddp_training(rank, world_size: int, dataset_id: int,
                  fold: int, model: str,
                  session_id: str, resume: bool,
-                 config: str, preload: bool, trainer_class: Type[Trainer], dataset_desc: str) -> None:
+                 config: str, trainer_class: Type[Trainer], dataset_desc: str, cache) -> None:
     """
     Launches training on a single process using pytorch ddp.
-    :param preload:
     :param config: The name of the config to load.
     :param session_id: Session id to be used for folder name on output.
     :param rank: The rank we are starting.
@@ -59,8 +58,9 @@ def ddp_training(rank, world_size: int, dataset_id: int,
             rank,
             session_id,
             config,
+            cache=cache,
             resume=resume,
-            preload=preload, world_size=world_size)
+            world_size=world_size)
         trainer.train()
     except Exception as e:
         if trainer is not None and trainer.output_dir is not None:
@@ -83,6 +83,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("-extension", "-ext", help="Name of the extension that you want to use.", type=str, default=None)
 @click.option("-dataset_desc", "-dd", required=False, default=None,
               help="Description of dataset. Useful if you have overlapping ids.")  # 10
+@click.option("--cache", help="Cache the data in memory.", type=bool, is_flag=True)
 def main(
         fold: int,
         dataset_id: str,
@@ -90,14 +91,13 @@ def main(
         gpus: int,
         resume: bool,
         config: str,
-        preload: bool,
         name: str,
         extension: str,
-        dataset_desc: str
+        dataset_desc: str,
+        cache: bool
 ) -> None:
     """
     Initializes training on multiple processes, and initializes logger.
-    :param preload: Should datasets preload
     :param config: The name oof the config file to load.
     :param gpus: How many gpus to train with
     :param dataset_id: The dataset to train on
@@ -149,9 +149,9 @@ def main(
                 session_id,
                 resume,
                 config,
-                preload,
                 trainer_class,
-                dataset_desc
+                dataset_desc,
+                cache
             ),
             nprocs=gpus,
             join=True,
@@ -168,7 +168,7 @@ def main(
                 session_id,
                 config,
                 resume=resume,
-                preload=preload,
+                cache=cache,
                 world_size=1
             )
             trainer.train()

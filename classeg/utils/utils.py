@@ -204,7 +204,7 @@ def get_labels_from_raw(dataset_name: str) -> List[str]:
     return [f.split('/')[-1] for f in folders if os.path.isdir(f)]
 
 
-def get_preprocessed_datapoints(dataset_name: str, fold: int) -> Tuple[List[Datapoint], List[Datapoint]]:
+def get_preprocessed_datapoints(dataset_name: str, fold: int, cache: bool = False) -> Tuple[List[Datapoint], List[Datapoint]]:
     """
     Returns the datapoints of preprocessed cases.
     :param dataset_name:
@@ -240,7 +240,7 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int) -> Tuple[List[Data
             else:
                 label = None
             train_datapoints.append(
-                Datapoint(path, label, case_name=name, dataset_name=dataset_name))
+                Datapoint(path, label, case_name=name, dataset_name=dataset_name, cache=cache))
             pbar.update()
         for path in val_paths:
             name = path.split('/')[-1].split('.')[0]
@@ -251,7 +251,7 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int) -> Tuple[List[Data
             elif mode == CLASSIFICATION:
                 label = case_label_mapping[name]
             val_datapoints.append(
-                Datapoint(path, label, case_name=name, dataset_name=dataset_name))
+                Datapoint(path, label, case_name=name, dataset_name=dataset_name, cache=cache))
             pbar.update()
 
     return train_datapoints, val_datapoints
@@ -345,7 +345,7 @@ def get_dataloaders_from_fold(dataset_name: str,
     """
     config = get_config_from_dataset(dataset_name, config_name)
 
-    train_points, val_points = get_preprocessed_datapoints(dataset_name, fold) if preprocessed_data \
+    train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=kwargs.get("cache", False)) if preprocessed_data \
         else get_raw_datapoints_folded(dataset_name, fold)
 
     train_dataset = PipelineDataset(train_points, dataset_name, train_transforms,
