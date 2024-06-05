@@ -9,7 +9,7 @@ from monai.losses import DiceCELoss
 
 class SegmentationTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
+                 config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -19,7 +19,8 @@ class SegmentationTrainer(Trainer):
         :param gpu_id: The gpu for this process to use.
         :param checkpoint_name: None if we should train from scratch, otherwise the model weights that should be used.
         """
-        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, preload,
+
+        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, cache,
                          world_size)
         self._last_val_accuracy = 0.
         self._val_accuracy = 0.

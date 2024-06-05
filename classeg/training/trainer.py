@@ -38,18 +38,8 @@ class ForkedPdb(pdb.Pdb):
 
 
 class Trainer:
-    def __init__(
-            self,
-            dataset_name: str,
-            fold: int,
-            model_path: str,
-            gpu_id: int,
-            unique_folder_name: str,
-            config_name: str,
-            resume: bool = False,
-            preload: bool = True,
-            world_size: int = 1
-    ):
+    def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
+                 config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -61,7 +51,7 @@ class Trainer:
         assert (
             torch.cuda.is_available()
         ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
-        self.preload = preload
+        self.cache = cache
         self.dataset_name = dataset_name
         self.mode = get_dataset_mode_from_name(self.dataset_name)
         self.fold = fold
@@ -151,7 +141,7 @@ class Trainer:
             train_transforms=train_transforms,
             val_transforms=val_transforms,
             sampler=(None if self.world_size == 1 else DistributedSampler),
-            preload=self.preload,
+            cache=self.cache,
             rank=self.device,
             world_size=self.world_size,
             config_name=self.config_name
