@@ -104,7 +104,6 @@ class SegmentationTrainer(Trainer):
             all_labels.extend(labels.tolist())
             correct_count += torch.sum(predictions == labels)
             total_items += batch_size
-        self.log_helper.eval_epoch_complete(all_predictions, all_labels)
         self._val_accuracy = correct_count / total_items
         return running_loss / total_items
 
