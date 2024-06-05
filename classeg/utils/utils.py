@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import pkgutil
+from contextlib import contextmanager
 from typing import Dict, List, Union, Tuple, Any
 
 import torch
@@ -204,17 +205,34 @@ def get_labels_from_raw(dataset_name: str) -> List[str]:
     return [f.split('/')[-1] for f in folders if os.path.isdir(f)]
 
 
-def get_preprocessed_datapoints(dataset_name: str, fold: int, cache: bool = False) -> Tuple[List[Datapoint], List[Datapoint]]:
+@contextmanager
+def dummy_context():
+    class Dummy:
+        def __enter__(self):
+            ...
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            ...
+
+        def update(self):
+            ...
+    yield Dummy()
+
+
+def get_preprocessed_datapoints(dataset_name: str, fold: int,
+                                cache: bool = False, verbose=True) -> Tuple[List[Datapoint], List[Datapoint]]:
     """
     Returns the datapoints of preprocessed cases.
     :param dataset_name:
     :param fold:
     :return: Train points, Val points.
     """
+
     case_label_mapping = None
     train_root = f"{PREPROCESSED_ROOT}/{dataset_name}/fold_{fold}/train"
     val_root = f"{PREPROCESSED_ROOT}/{dataset_name}/fold_{fold}/val"
-    logging.info("Reading dataset paths.")
+    if verbose:
+        logging.info("Reading dataset paths.")
     mode = get_dataset_mode_from_name(dataset_name)
     if mode == SEGMENTATION:
         val_paths = glob.glob(f"{val_root}/imagesTr/*")
@@ -225,10 +243,13 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int, cache: bool = Fals
         val_paths = glob.glob(f"{val_root}/*")
         train_paths = glob.glob(f"{train_root}/*")
 
-    logging.info("Paths reading has completed.")
+    if verbose:
+        logging.info("Paths reading has completed.")
     sample_paths = val_paths + train_paths
     train_datapoints, val_datapoints = [], []
-    with tqdm(total=len(sample_paths), desc="Preparing datapoints") as pbar:
+    context = tqdm(total=len(sample_paths), desc=f"Preparing datapoints with{'' if cache else 'out'} cache") if verbose \
+        else dummy_context()
+    with context as pbar:
         for path in train_paths:
             name = path.split('/')[-1].split('.')[0]
             # -12 is sentinel value for segmentation labels to ensure intention.
@@ -240,7 +261,12 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int, cache: bool = Fals
             else:
                 label = None
             train_datapoints.append(
-                Datapoint(path, label, case_name=name, dataset_name=dataset_name, cache=cache))
+                Datapoint(path,
+                          label,
+                          case_name=name,
+                          dataset_name=dataset_name,
+                          cache=cache)
+            )
             pbar.update()
         for path in val_paths:
             name = path.split('/')[-1].split('.')[0]
@@ -251,7 +277,8 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int, cache: bool = Fals
             elif mode == CLASSIFICATION:
                 label = case_label_mapping[name]
             val_datapoints.append(
-                Datapoint(path, label, case_name=name, dataset_name=dataset_name, cache=cache))
+                Datapoint(path, label, case_name=name, dataset_name=dataset_name, cache=cache)
+            )
             pbar.update()
 
     return train_datapoints, val_datapoints
@@ -330,6 +357,7 @@ def get_dataloaders_from_fold(dataset_name: str,
                               preprocessed_data: bool = True,
                               store_metadata: bool = False,
                               config_name="config",
+                              cache=False,
                               **kwargs) -> Tuple[DataLoader, DataLoader]:
     """
     Returns the train and val dataloaders for a specific dataset fold.
@@ -343,9 +371,10 @@ def get_dataloaders_from_fold(dataset_name: str,
     :param kwargs: Can overwrite some settings.
     :return: Train and val dataloaders.
     """
+
     config = get_config_from_dataset(dataset_name, config_name)
 
-    train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=kwargs.get("cache", False)) if preprocessed_data \
+    train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=cache) if preprocessed_data \
         else get_raw_datapoints_folded(dataset_name, fold)
 
     train_dataset = PipelineDataset(train_points, dataset_name, train_transforms,
@@ -370,7 +399,7 @@ def get_dataloaders_from_fold(dataset_name: str,
         batch_size=batch_size,
         num_workers=config['processes'],
         shuffle=train_sampler is None,
-        pin_memory=True,
+        pin_memory=not cache,
         collate_fn=batch_collate_fn,
         sampler=train_sampler,
         persistent_workers=True
@@ -381,7 +410,7 @@ def get_dataloaders_from_fold(dataset_name: str,
         batch_size=batch_size,
         num_workers=config['processes'],
         shuffle=False,
-        pin_memory=True,
+        pin_memory=not cache,
         collate_fn=batch_collate_fn,
         sampler=val_sampler,
         persistent_workers=True
