@@ -2,11 +2,12 @@ import os.path
 import os.path
 import time
 import warnings
-from abc import abstractmethod
 from typing import Dict, Union, Tuple
 
 import numpy as np
 from PIL import ImageFile
+from tqdm import tqdm
+
 from classeg.preprocessing.splitting import Splitter
 from classeg.preprocessing.utils import maybe_make_preprocessed
 from classeg.utils.constants import *
@@ -19,12 +20,16 @@ from classeg.utils.utils import (
     get_labels_from_raw,
     get_dataset_mode_from_name
 )
-from tqdm import tqdm
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class Preprocessor:
+    """
+    The Preprocessor class is responsible for preprocessing the dataset. It includes methods for normalizing data,
+    building configuration, preprocessing classification, segmentation, and ssl, storing case label mapping for
+    classification, verifying dataset integrity, getting folds, preparing fold directories, and processing folds.
+    """
     def __init__(
             self,
             dataset_id: str,
@@ -35,19 +40,21 @@ class Preprocessor:
             **kwargs
     ):
         """
-        :param folds: How many folds to generate.
-        :param processes: How many processes should be used.
-        :param normalize: Should normalized data be saved.
-        :param dataset_id: The id of the dataset.
+       Initialize the Preprocessor object.
 
-        This is the main driver for preprocessing.
-        """
-        self.mode = None
+       :param dataset_id: The id of the dataset.
+       :param folds: How many folds to generate.
+       :param processes: How many processes should be used.
+       :param normalize: Should normalized data be saved.
+       :param dataset_desc: The description of the dataset.
+       """
         self.dataset_name = get_dataset_name_from_id(dataset_id, name=dataset_desc)
+        self.mode = None  # late initialization in process
         self.processes = processes
         self.normalize = normalize
         self.datapoints = None
         self.folds = folds
+        self.skip_zscore_norm = False
         made_output = check_raw_exists(self.dataset_name)
         if made_output:
             print(f"Made folder {RAW_ROOT}/{self.dataset_name}")
@@ -56,6 +63,11 @@ class Preprocessor:
         self._build_config()
 
     def get_config(self) -> Dict:
+        """
+        Get the configuration for the dataset.
+
+        :return: A dictionary containing the configuration.
+        """
         return {
             "batch_size": 32,
             "processes": DEFAULT_PROCESSES,
@@ -69,7 +81,6 @@ class Preprocessor:
     def _build_config(self) -> None:
         """
         Creates the config.json file that should contain training hyperparameters. Hardcode default values here.
-        :return: None
         """
         config = self.get_config()
         write_json(config, f"{PREPROCESSED_ROOT}/{self.dataset_name}/config.json")
@@ -77,6 +88,9 @@ class Preprocessor:
     def normalize_function(self, data: np.array) -> np.array:
         """
         Perform normalization. z-score normalization will still always occur for classification and segmentation
+
+        :param data: The data to be normalized.
+        :return: The normalized data.
         """
         if self.mode == SELF_SUPERVISED:
             print("Default self supervised normalization scales to [-1, 1]")
@@ -84,7 +98,13 @@ class Preprocessor:
         return data
 
     def _preprocess_classification(self):
-        def map_labels_to_id(return_inverse: bool = False) -> Union[Tuple[Dict[str, int], Dict[int, str]], Dict[str, int]]:
+        """
+       Preprocess the data for classification.
+       """
+        def map_labels_to_id(return_inverse: bool = False) -> Union[
+                Tuple[Dict[str, int], Dict[int, str]],
+                Dict[str, int]
+        ]:
             """
             :param return_inverse: If true returns id:name as well as name:id mapping.
             :return: Dict that maps label name to id.
@@ -105,10 +125,32 @@ class Preprocessor:
         write_json(id_to_label_mapping, f"{PREPROCESSED_ROOT}/{self.dataset_name}/id_to_label.json")
         # Label stuff done, start with fetching data. We will also save a case to label mapping.
 
+    def _store_case_label_mapping_for_classification(self):
+        """
+        Store the case to label mapping for classification.
+        """
+        def get_case_to_label_mapping() -> Dict[str, int]:
+            """
+            Given a list of datapoints, we create a mapping of label name to label id.
+            :return:
+            """
+            mapping = {}
+            for point in self.datapoints:
+                mapping[point.case_name] = point.label
+            return mapping
+
+        write_json(get_case_to_label_mapping(), f"{PREPROCESSED_ROOT}/{self.dataset_name}/case_label_mapping.json")
+
     def _preprocess_segmentation(self):
+        """
+        Preprocess the data for segmentation.
+        """
         ...
 
-    def _preprocess_diffusion(self):
+    def _preprocess_ssl(self):
+        """
+        Preprocess the data for diffusion.
+        """
         ...
 
     def post_preprocessing(self):
@@ -124,19 +166,30 @@ class Preprocessor:
         ...
 
     def _ensure_raw_exists(self):
+        """
+        Ensure the raw data exists in RAW_ROOT.
+        """
         if not os.path.exists(f"{RAW_ROOT}/{self.dataset_name}"):
             raise ValueError("The raw folder does not exist!")
 
     def process(self) -> None:
+        """
+        Process the data.
+
+        This is the entry point for the preprocessing pipeline.
+        Override this method in subclasses to implement total custom preprocessing.
+        """
         # Here we will find what labels are present in the dataset. We will also map them to int labels, and save the
         # mappings.
         self.pre_preprocessing()
         self._ensure_raw_exists()
         self.mode = get_dataset_mode_from_name(self.dataset_name)
         print(f"Dataset mode detected through RAW_ROOT is {self.mode}.")
+        if self.mode == SEGMENTATION:
+            warnings.warn("Default preprocessor converts all segmentations to binary when inside process_fold!")
         {
             SEGMENTATION: self._preprocess_segmentation,
-            SELF_SUPERVISED: self._preprocess_diffusion,
+            SELF_SUPERVISED: self._preprocess_ssl,
             CLASSIFICATION: self._preprocess_classification
         }[self.mode]()
         self.datapoints = get_raw_datapoints(self.dataset_name)
@@ -144,19 +197,8 @@ class Preprocessor:
         print(f"Found {len(self.datapoints)} samples.")
         # There is some circular dependency here regarding case to label mapping requiring datapoints
         # and datapoints requiring the result of _preprocess_classification
-        # TODO move this hoe to _preprocess_classification
         if self.mode == CLASSIFICATION:
-            def get_case_to_label_mapping() -> Dict[str, int]:
-                """
-                Given a list of datapoints, we create a mapping of label name to label id.
-                :return:
-                """
-                mapping = {}
-                for point in self.datapoints:
-                    mapping[point.case_name] = point.label
-                return mapping
-
-            write_json(get_case_to_label_mapping(), f"{PREPROCESSED_ROOT}/{self.dataset_name}/case_label_mapping.json")
+            self._store_case_label_mapping_for_classification()
 
         # Label stuff done, start with fetching data. We will also save a case to label mapping.
         splits_map = self.get_folds(self.folds)
@@ -183,16 +225,44 @@ class Preprocessor:
         Gets random fold at 80/20 split. Returns in a map.
         :param k: How many folds for kfold cross validation.
         :return: Folds map
+
+        {
+            0: {
+                train: [case_xxxxx, ....],
+                val: [case_xxxxx, ....]
+            },
+            1: {...},
+            .
+            .
+            .
+        }
+
         """
         splitter = Splitter(self.datapoints, k)
         return splitter.get_split_map()
+
+    def _prep_fold_dirs(self, fold: int) -> None:
+        """
+        Prepares the folders for a fold.
+
+        :param fold: The fold to prepare.
+        """
+        # prep dirs
+        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}")
+        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train")
+        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val")
+        if self.mode == SEGMENTATION:
+            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/imagesTr")
+            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/imagesTr")
+            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/labelsTr")
+            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/labelsTr")
 
     def process_fold(self, fold: int) -> None:
         """
         Preprocesses a fold. This method indirectly triggers saving of metadata if necessary,
         writes data to proper folder, and will perform any other future preprocessing.
+
         :param fold: The fold that we are currently preprocessing.
-        :return: Nothing.
         """
         print(f"Now starting with fold {fold}...")
         time.sleep(1)
@@ -203,24 +273,14 @@ class Preprocessor:
             batch_size=1,
             shuffle=False,
             store_metadata=True,
-            preload=False,
+            cache=False,
         )
         # prep dirs
-        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}")
-        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train")
-        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val")
-        if self.mode == SEGMENTATION:
-            warnings.warn("Default preprocessor converts all segmentations to binary!")
-
-        if self.mode == SEGMENTATION:
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/imagesTr")
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/imagesTr")
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/labelsTr")
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/labelsTr")
+        self._prep_fold_dirs(fold)
         # start saving preprocessed stuff
-        if self.mode in [CLASSIFICATION, SEGMENTATION]:
-            if self.normalize:
-                print("Performing z-score normalization")
+        if self.mode in [CLASSIFICATION, SEGMENTATION] and not self.skip_zscore_norm and self.normalize:
+
+            print("Performing z-score normalization")
             train_loader = train_loader.dataset[0][2].normalizer(train_loader, active=self.normalize)
             val_loader = val_loader.dataset[0][2].normalizer(val_loader, active=self.normalize, calculate_early=False)
             val_loader.sync(train_loader)
@@ -232,38 +292,30 @@ class Preprocessor:
                 write_json(mean_json, f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/mean_std.json")
 
         for _set in ["train", "val"]:
-            for images, labels, points in tqdm(
-                    train_loader if _set == "train" else val_loader,
-                    desc=f"Preprocessing {_set} set",
-            ):
+            loader = train_loader if _set == "train" else val_loader
+            for images, labels, points in tqdm(loader, desc=f"Preprocessing {_set} set"):
+                # Data is batched
                 point = points[0]
-                writer = point.reader_writer
-                images = images[0].float()  # Take 0 cause batched
+                images = images[0]
                 labels = labels[0]
-                if images.shape[-1] == 3 and len(images.shape) == 3:
-                    # move channel first
-                    images = np.transpose(images, (2, 0, 1))
-                elif images.shape[-1] == 1 and len(images.shape) == 4:
-                    images = np.transpose(images, (3, 0, 1, 2))
+
+                writer = point.reader_writer
+
                 if self.normalize:
                     images = self.normalize_function(images)
-                image_path = f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/imagesTr/{point.case_name}.{point.extension if point.extension == 'nii.gz' else 'npy'}"
+
+                image_path = (f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/imagesTr/"
+                              f"{point.case_name}.{point.extension if point.extension == 'nii.gz' else 'npy'}")
                 if self.mode in [CLASSIFICATION, SELF_SUPERVISED]:
                     image_path = image_path.replace("/imagesTr", "")
+
                 writer.write(
                     images,
-                    image_path,
-                    standardize=True
+                    image_path
                 )
                 if self.mode == SEGMENTATION:
                     labels[labels != 0] = 1
-                    if labels.shape[-1] == 1 and len(labels.shape) == 3:
-                        labels = np.transpose(labels, (2, 0, 1))
-                    elif labels.shape[-1] == 1 and len(labels.shape) == 4:
-                        labels = np.transpose(labels, (3, 0, 1, 2))
                     writer.write(
                         labels,
-                        f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/labelsTr/{point.case_name}."
-                        f"{point.extension if point.extension == 'nii.gz' else 'npy'}",
-                        standardize=True
+                        image_path.replace("imagesTr", "labelsTr")
                     )

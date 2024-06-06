@@ -9,22 +9,34 @@ from classeg.training.trainer import Trainer, log
 
 
 class SelfSupervisedTrainer(Trainer):
+    """
+    The Self-Supervised Trainer is a class that is used to train models in a self-supervised manner.
+    """
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
-        Trainer class for training and checkpointing of networks.
+        Initializes the SelfSupervisedTrainer object.
+
         :param dataset_name: The name of the dataset to use.
         :param fold: The fold in the dataset to use.
-        :param save_latest: If we should save a checkpoint each epoch
         :param model_path: The path to the json that defines the architecture.
         :param gpu_id: The gpu for this process to use.
-        :param checkpoint_name: None if we should train from scratch, otherwise the model weights that should be used.
+        :param unique_folder_name: Unique name for the folder.
+        :param config_name: Name of the configuration.
+        :param resume: Boolean indicating whether to resume training or not.
+        :param cache: Boolean indicating whether to cache or not.
+        :param world_size: Size of the world.
         """
 
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, cache,
                          world_size)
 
     def get_augmentations(self) -> Tuple[Any, Any]:
+        """
+       Returns the augmentations for training and validation.
+
+       :return: Tuple containing the training and validation augmentations.
+       """
         train_transforms = transforms.Compose([
             transforms.Resize(self.config["target_size"]),
             transforms.RandomRotation(degrees=30),
@@ -38,7 +50,9 @@ class SelfSupervisedTrainer(Trainer):
 
     def train_single_epoch(self, epoch) -> float:
         """
-        The training of each epoch is done here.
+        Trains the model for a single epoch.
+
+        :param epoch: The current epoch number.
         :return: The mean loss of the epoch.
         """
         log_image = epoch % 10 == 0
@@ -70,8 +84,10 @@ class SelfSupervisedTrainer(Trainer):
     # noinspection PyTypeChecker
     def eval_single_epoch(self, epoch) -> float:
         """
-        Runs evaluation for a single epoch.
-        :return: The mean loss and mean accuracy respectively.
+        Evaluates the model for a single epoch.
+
+        :param epoch: The current epoch number.
+        :return: The mean loss of the epoch.
         """
 
         running_loss = 0.
@@ -90,7 +106,8 @@ class SelfSupervisedTrainer(Trainer):
 
     def get_loss(self) -> nn.Module:
         """
-        Build the criterion object.
+        Returns the loss function to be used.
+
         :return: The loss function to be used.
         """
         if self.device == 0:

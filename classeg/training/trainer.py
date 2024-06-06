@@ -7,6 +7,7 @@ import time
 from abc import abstractmethod
 from typing import Tuple, Any
 
+import multiprocessing_logging
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -29,6 +30,9 @@ class ForkedPdb(pdb.Pdb):
     """
 
     def interaction(self, *args, **kwargs):
+        """
+        Overrides the interaction method of pdb.Pdb to allow interaction from a forked multiprocessing child.
+        """
         _stdin = sys.stdin
         try:
             sys.stdin = open("/dev/stdin")
@@ -38,19 +42,29 @@ class ForkedPdb(pdb.Pdb):
 
 
 class Trainer:
+    """
+    Trainer class for training and checkpointing of networks.
+    """
+
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
-        Trainer class for training and checkpointing of networks.
+        Initializes the Trainer class.
+
         :param dataset_name: The name of the dataset to use.
         :param fold: The fold in the dataset to use.
         :param model_path: The path to the json that defines the architecture.
         :param gpu_id: The gpu for this process to use.
+        :param unique_folder_name: Unique name for the output directory.
+        :param config_name: The name of the configuration to use.
         :param resume: None if we should train from scratch, otherwise the model weights that should be used.
+        :param cache: If True, cache the dataset to memory.
+        :param world_size: The number of processes for distributed training.
         """
         assert (
             torch.cuda.is_available()
         ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
+
         self.cache = cache
         self.dataset_name = dataset_name
         self.mode = get_dataset_mode_from_name(self.dataset_name)
@@ -91,7 +105,6 @@ class Trainer:
         """
         Ensures that the preprocess folder exists for the current dataset,
         and that the fold specified has been processed.
-        :return: None
         """
         preprocess_dir = f"{PREPROCESSED_ROOT}/{self.dataset_name}"
         assert os.path.exists(preprocess_dir), (
@@ -103,6 +116,10 @@ class Trainer:
         ), f"The preprocessed data path for fold {self.fold} does not exist. womp womp"
 
     def _save_self_file(self):
+        """
+        Copies the current file and the model file to the output directory.
+        Also writes the configuration to a json file in the output directory.
+        """
         shutil.copy(__file__, f"{self.output_dir}/trainer_code.py")
         if os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
@@ -111,11 +128,13 @@ class Trainer:
     def _prepare_output_directory(self, session_id: str) -> str:
         """
         Prepares the output directory, and sets up logging to it.
+
+        :param session_id: Unique identifier for the session.
         :return: str which is the output directory.
         """
         output_dir = f"{RESULTS_ROOT}/{self.dataset_name}/fold_{self.fold}/{session_id}"
         os.makedirs(output_dir, exist_ok=True)
-        logging.basicConfig(level=logging.INFO, filename=f"{output_dir}/logs.txt")
+        logging.basicConfig(level=logging.INFO, filename=f"{output_dir}/logs.txt", force=True)
         if self.device == 0:
             print(f"Sending logging and outputs to {output_dir}")
         return output_dir
@@ -132,6 +151,7 @@ class Trainer:
     def _get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
         """
         This method is responsible for creating the augmentation and then fetching dataloaders.
+
         :return: Train and val dataloaders.
         """
         train_transforms, val_transforms = self.get_augmentations()
@@ -151,12 +171,9 @@ class Trainer:
     def train_single_epoch(self, epoch: int) -> float:
         """
         The training of each epoch is done here.
-        :return: The mean loss of the epoch.
 
-        optimizer: self.optim
-        loss: self.loss
-        logger: self.log_helper
-        model: self.model
+        :param epoch: The current epoch number.
+        :return: The mean loss of the epoch.
         """
         ...
 
@@ -164,24 +181,25 @@ class Trainer:
     def eval_single_epoch(self, epoch: int) -> float:
         """
         Runs evaluation for a single epoch.
-        :return: The mean loss and mean accuracy respectively.
 
-        optimizer: self.optim
-        loss: self.loss
-        logger: self.log_helper
-        model: self.model
+        :param epoch: The current epoch number.
+        :return: The mean loss and mean accuracy respectively.
         """
         ...
 
     def post_epoch(self, epoch: int) -> None:
         """
         Executed after each epoch
+
+        :param epoch: The current epoch number.
         """
         ...
 
     def post_epoch_log(self, epoch: int) -> Tuple:
         """
         Executed after each default logging cycle
+
+        :param epoch: The current epoch number.
         """
         ...
 
@@ -194,7 +212,6 @@ class Trainer:
     def train(self) -> None:
         """
         Starts the training process.
-        :return: None
         """
         epochs = self.config["epochs"]
         start_time = time.time()
@@ -268,8 +285,8 @@ class Trainer:
     def _save_model_weights(self, save_name: str) -> None:
         """
         Save the weights of the model, only if the current device is 0.
+
         :param save_name: The name of the checkpoint to save.
-        :return: None
         """
         if self.device == 0:
             checkpoint = {}
@@ -284,6 +301,11 @@ class Trainer:
             torch.save(checkpoint, path)
 
     def get_lr_scheduler(self):
+        """
+        Creates and returns a learning rate scheduler.
+
+        :return: Learning rate scheduler.
+        """
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
@@ -292,6 +314,7 @@ class Trainer:
     def get_optim(self) -> torch.optim:
         """
         Instantiates and returns the optimizer.
+
         :return: Optimizer object.
         """
         from torch.optim import Adam

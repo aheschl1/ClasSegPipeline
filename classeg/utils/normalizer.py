@@ -76,16 +76,12 @@ class NaturalImageNormalizer(Normalizer):
             assert data.shape[0] == 1, "Expected batch size 1 for mean std calculations. Womp womp"
             if shape_len is None:
                 shape_len = len(data.shape)
-            if data.shape[1] == 1 or data.shape[1] == 3:
-                # channels last
-                data = data.permute(0, 2, 3, 1)
-            assert data.shape[3] == 3 or data.shape[3] == 1, \
-                f"NaturalImageNormalizer requires three or one channels, and shape [b, h, w, c] or [b, h, w]. Got {data.shape}"
+            data = torch.moveaxis(data, 1, -1)
             assert shape_len == len(data.shape), "Some images are grayscale, some are RGB!!"
             if means is None:
-                means = torch.mean(data.float(), dim=[0, 1, 2])
+                means = torch.mean(data.float(), dim=[i for i in range(shape_len)])
             else:
-                means += torch.mean(data.float(), dim=[0, 1, 2])
+                means += torch.mean(data.float(), dim=[i for i in range(shape_len)])
             total += 1
 
         means /= total
@@ -94,9 +90,8 @@ class NaturalImageNormalizer(Normalizer):
         total = 0
         for data, _, _ in tqdm(dataloader, desc="Calculating std"):
             assert data.shape[0] == 1, "Expected batch size 1 for mean std calculations. Womp womp"
-            if data.shape[1] == 1 or data.shape[1] == 3:
-                data = data.permute(0, 2, 3, 1)
-            var = torch.mean((data - mu_rgb) ** 2, dim=[0, 1, 2])
+            data = torch.moveaxis(data, 1, -1)
+            var = torch.mean((data - mu_rgb) ** 2, dim=[i for i in range(len(data.shape))])
             if variances is None:
                 variances = var
             else:
@@ -178,7 +173,7 @@ class CTNormalizer(Normalizer):
         :param point:
         :return: Normalized data and other two points
         """
-        return Normalize(mean=self.mean, std=self.std)(data.float().permute(0, 3, 1, 2)), label, point
+        return Normalize(mean=self.mean, std=self.std)(data.float()), label, point
 
 
 def get_normalizer(norm: str) -> Type[Normalizer]:

@@ -10,17 +10,24 @@ from tqdm import tqdm
 
 
 class ClassificationTrainer(Trainer):
+    """
+    This class is a subclass of the Trainer class and is used for training and checkpointing of networks.
+    """
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
-        Trainer class for training and checkpointing of networks.
-        :param dataset_name: The name of the dataset to use.
-        :param fold: The fold in the dataset to use.
-        :param save_latest: If we should save a checkpoint each epoch
-        :param model_path: The path to the json that defines the architecture.
-        :param gpu_id: The gpu for this process to use.
-        :param checkpoint_name: None if we should train from scratch, otherwise the model weights that should be used.
-        """
+         Initializes the ClassificationTrainer object.
+
+         :param dataset_name: The name of the dataset to use.
+         :param fold: The fold in the dataset to use.
+         :param model_path: The path to the json that defines the architecture.
+         :param gpu_id: The gpu for this process to use.
+         :param unique_folder_name: Unique name for the folder.
+         :param config_name: Name of the configuration.
+         :param resume: Boolean indicating whether to resume training or not.
+         :param cache: Boolean indicating whether to cache or not.
+         :param world_size: Size of the world.
+         """
 
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, cache,
                          world_size)
@@ -31,6 +38,11 @@ class ClassificationTrainer(Trainer):
         self.softmax = nn.Softmax(dim=1)
 
     def get_augmentations(self) -> Tuple[Any, Any]:
+        """
+        Returns the augmentations for training and validation.
+
+        :return: Tuple containing the training and validation augmentations.
+        """
         train_aug = transforms.Compose([
             transforms.Resize(self.config.get('target_size', [512, 512]), antialias=True),
             transforms.RandomRotation(degrees=30),
@@ -47,7 +59,9 @@ class ClassificationTrainer(Trainer):
 
     def train_single_epoch(self, epoch) -> float:
         """
-        The training of each epoch is done here.
+        Trains the model for a single epoch.
+
+        :param epoch: The current epoch number.
         :return: The mean loss of the epoch.
         """
         running_loss = 0.
@@ -76,7 +90,10 @@ class ClassificationTrainer(Trainer):
 
     def post_epoch_log(self, epoch: int) -> Tuple:
         """
-        Executed after each default logging cycle
+        Logs the information after each epoch.
+
+        :param epoch: The current epoch number.
+        :return: Tuple containing the log message.
         """
         message = f"Val accuracy: {self._val_accuracy} --change-- {self._val_accuracy - self._last_val_accuracy}"
         self._last_val_accuracy = self._val_accuracy
@@ -85,17 +102,23 @@ class ClassificationTrainer(Trainer):
     # noinspection PyTypeChecker
     def eval_single_epoch(self, epoch) -> float:
         """
-        Runs evaluation for a single epoch.
-        :return: The mean loss and mean accuracy respectively.
+        Evaluates the model for a single epoch.
+
+        :param epoch: The current epoch number.
+        :return: The mean loss of the epoch.
         """
 
         running_loss = 0.
         correct_count = 0.
         total_items = 0
         all_predictions, all_labels = [], []
+        i = 0
         for data, labels, _ in tqdm(self.val_dataloader):
+            i += 1
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
+            if i == 1:
+                self.log_helper.log_net_structure(self.model, data)
             batch_size = data.shape[0]
             # do prediction and calculate loss
             predictions = self.model(data)
@@ -114,7 +137,8 @@ class ClassificationTrainer(Trainer):
 
     def get_loss(self) -> nn.Module:
         """
-        Build the criterion object.
+        Returns the loss function to be used.
+
         :return: The loss function to be used.
         """
         if self.device == 0:

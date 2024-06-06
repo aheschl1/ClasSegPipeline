@@ -7,11 +7,22 @@ import torch
 
 from classeg.utils.constants import *
 from PIL import Image
-from overrides import override
 
 
 class BaseReaderWriter:
+    """
+    Base class for reading and writing data. This class should not be used directly.
+    Instead, use a subclass that overrides the necessary methods.
+    """
+
     def __init__(self, case_name: str, dataset_name: str = None):
+        """
+        Initialize a BaseReaderWriter object.
+
+        Parameters:
+        case_name (str): The name of the case.
+        dataset_name (str, optional): The name of the dataset. Defaults to None.
+        """
         super().__init__()
         self.direction = None
         self.spacing = None
@@ -20,34 +31,61 @@ class BaseReaderWriter:
         self.case_name = case_name
         self.dataset_name = dataset_name
 
-    def __verify_extension(self, extension: str) -> None:
+    def _verify_extension(self, extension: str) -> None:
+        """
+        Verify the file extension. This method should be overridden by subclasses.
+
+        Parameters:
+        extension (str): The file extension.
+        """
         raise NotImplementedError("Do not use BaseReader, but instead use a subclass that overrides read.")
 
     def read(self, path: str, **kwargs) -> np.array:
+        """
+        Read data from a file. This method should be overridden by subclasses.
+
+        Parameters:
+        path (str): The path to the file.
+
+        Returns:
+        np.array: The data read from the file.
+        """
         raise NotImplementedError("Do not use BaseReader, but instead use a subclass that overrides read.")
 
-    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str, standardize=False) -> None:
+    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
+        """
+        Write data to a file. This method should be overridden by subclasses.
+
+        Parameters:
+        data (Union[Type[np.array], Type[torch.Tensor]]): The data to write.
+        path (str): The path to the file.
+        """
         raise NotImplementedError("Do not use BaseWriter, but instead use a subclass that overrides write.")
 
-    def standardize(self, data: Union[Type[np.array], Type[torch.Tensor]]) -> Union[Type[np.array], Type[torch.Tensor]]:
-        raise NotImplementedError("Do not use BaseReader, but instead use a subclass that overrides standardize.")
-
-    def __store_metadata(self) -> None: ...
+    def _store_metadata(self) -> None:
+        """
+        Store metadata. This method should be overridden by subclasses.
+        """
+        ...
 
     @property
     def image_dimensions(self) -> int:
         """
-        Number of SPACIAL dimensions that this read/writer manages. Ignores channels.
+        Get the number of spatial dimensions that this reader/writer manages, ignoring channels.
+        This method should be overridden by subclasses.
+
+        Returns:
+        int: The number of spatial dimensions.
         """
         raise NotImplementedError("Do not use BaseWriter, but instead use a subclass that overrides write.")
 
 
 class SimpleITKReaderWriter(BaseReaderWriter):
 
-    def __verify_extension(self, extension: str) -> None:
-        assert extension == 'nii.gz', f'Invalid extension {extension} for reader SimpleITKReader.'
+    def _verify_extension(self, extension: str) -> None:
+        assert extension in ['nii.gz', 'nrrd'], f'Invalid extension {extension} for reader SimpleITKReader.'
 
-    def __store_metadata(self) -> None:
+    def _store_metadata(self) -> None:
         assert self.dataset_name is not None, "Can not store metadata from SimpleITK reader/writer without knowing " \
                                               "dataset name."
         expected_folder = f"{PREPROCESSED_ROOT}/{self.dataset_name}/metadata"
@@ -60,34 +98,21 @@ class SimpleITKReaderWriter(BaseReaderWriter):
         }
         if os.path.exists(expected_file):
             os.remove(expected_file)
-        if not os.path.exists(expected_folder):
-            try:
-                os.makedirs(expected_folder)
-            except FileExistsError:
-                pass
+        os.makedirs(expected_folder, exist_ok=True)
+
         with open(expected_file, 'wb') as file:
-            return pickle.dump(data, file)
+            pickle.dump(data, file)
 
     def read(self, path: str, store_metadata: bool = False, **kwargs) -> np.array:
         self.has_read = True
-        self.__verify_extension('.'.join(path.split('.')[1:]))
+        self._verify_extension('.'.join(path.split('.')[1:]))
         image = sitk.ReadImage(path)
         self.spacing = image.GetSpacing()
         self.direction = image.GetDirection()
         self.origin = image.GetOrigin()
         if store_metadata:
-            self.__store_metadata()
+            self._store_metadata()
         return sitk.GetArrayFromImage(image)
-
-    def standardize(self, data: Union[Type[np.array], Type[torch.Tensor]]) -> Union[Type[np.array], Type[torch.Tensor]]:
-        if len(data.shape) == 3:
-            return data[np.newaxis, ...]
-        elif len(data.shape) == 4:
-            if data.shape[-1] in [1]:
-                data = np.transpose(data, (3, 0, 1, 2))
-            return data
-        else:
-            raise ValueError(f"Invalid shape {data.shape} for standardization in SimpleITKReaderWriter.")
 
     def check_for_metadata_folder(self) -> Union[dict, None]:
         expected_folder = f"{PREPROCESSED_ROOT}/{self.dataset_name}/metadata"
@@ -97,9 +122,7 @@ class SimpleITKReaderWriter(BaseReaderWriter):
                 return pickle.load(file)
         return None
 
-    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str, standardize=False) -> None:
-        if standardize:
-            data = self.standardize(data)
+    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
         if not self.has_read:
             meta = self.check_for_metadata_folder()
             if meta is None:
@@ -111,7 +134,7 @@ class SimpleITKReaderWriter(BaseReaderWriter):
                 self.origin = meta['origin']
             except KeyError:
                 raise ValueError(f'Invalid metadata found for {self.case_name} in SimpleITKReaderWriter.')
-        self.__verify_extension('.'.join(path.split('.')[1:]))
+        self._verify_extension('.'.join(path.split('.')[1:]))
         if isinstance(data, torch.Tensor):
             data = np.array(data.detach().cpu())
         image = sitk.GetImageFromArray(data)
@@ -127,41 +150,23 @@ class SimpleITKReaderWriter(BaseReaderWriter):
 
 class NaturalReaderWriter(BaseReaderWriter):
 
-    def __verify_extension(self, extension: str) -> None:
+    def _verify_extension(self, extension: str) -> None:
         assert extension in ['png', 'jpg', 'npy', 'jpeg', 'JPEG'], (f'Invalid extension {extension} for reader '
                                                                     f'NaturalReaderWriter.')
 
     def read(self, path: str, store_metadata: bool = False, **kwargs) -> np.array:
         name = path.split('/')[-1]
         extension = '.'.join(name.split('.')[1:])
-        self.__verify_extension(extension)
+        self._verify_extension(extension)
         if extension == 'npy':
-            image = np.load(path, allow_pickle=True)
+            image = np.load(path)
         else:
             image = np.array(Image.open(path))
         return image
 
-    def standardize(self, data: Union[Type[np.array], Type[torch.Tensor]]) -> Union[Type[np.array], Type[torch.Tensor]]:
-        """
-        Standardizes the data to the format expected by the pipeline.
-
-        Channel first
-        """
-        if len(data.shape) == 2:
-            return data[np.newaxis, ...]
-        elif len(data.shape) == 3:
-            if data.shape[-1] in [1, 3]:
-                return np.transpose(data, (2, 0, 1))
-            else:
-                return data
-        else:
-            raise ValueError(f"Invalid shape {data.shape} for standardization in NaturalImages.")
-
-    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str, standardize=False) -> None:
-        if standardize:
-            data = self.standardize(data)
+    def write(self, data: Union[Type[np.array], Type[torch.Tensor]], path: str) -> None:
         name = path.split('/')[-1]
-        self.__verify_extension('.'.join(name.split('.')[1:]))
+        self._verify_extension('.'.join(name.split('.')[1:]))
         if isinstance(data, torch.Tensor):
             data = np.array(data.detach().cpu())
         np.save(path, data)
@@ -172,7 +177,7 @@ class NaturalReaderWriter(BaseReaderWriter):
 
 
 def get_reader_writer(io: str) -> Type[BaseReaderWriter]:
-    assert io in [SIMPLE_ITK], f'Unrecognized reader/writer {io}.'
+    assert io in [SIMPLE_ITK, NATURAL], f'Unrecognized reader/writer {io}.'
     reader_writer_mapping = {
         SIMPLE_ITK: SimpleITKReaderWriter,
         NATURAL: NaturalReaderWriter
@@ -181,9 +186,9 @@ def get_reader_writer(io: str) -> Type[BaseReaderWriter]:
 
 
 def get_reader_writer_from_extension(extension: str) -> Type[BaseReaderWriter]:
-    # TODO better imagenet detection for reader writer
     mapping = {
         'nii.gz': SimpleITKReaderWriter,
+        'nrrd': SimpleITKReaderWriter,
         'png': NaturalReaderWriter,
         'jpg': NaturalReaderWriter,
         'jpeg': NaturalReaderWriter,

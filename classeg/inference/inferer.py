@@ -24,7 +24,7 @@ class Inferer:
             name: str,
             weights: str,
             input_root: str,
-            late_model_instantiation = False,
+            late_model_instantiation=False,
             **kwargs
     ):
         """
@@ -74,7 +74,7 @@ class Inferer:
         """
         save_path = f'{self.lookup_root}/inference'
         while os.path.exists(save_path):
-            new_name = input("To avoid overwriting old inference, enter a name for the output folder")
+            new_name = input("To avoid overwriting old inference, enter a name for the output folder: ")
             save_path = '/'.join(save_path.split("/")[0:-1])
             save_path = f"{save_path}/{new_name}"
 
@@ -132,6 +132,9 @@ class Inferer:
         self.post_infer()
 
     def _get_datapoints(self):
-        paths = glob.glob(f"{self.input_root}/*")
+        paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
+        print(f"Found {len(paths)} images to infer on.")
+        if len(paths) == 0:
+            raise SystemExit
         datapoints = [Datapoint(x, None) for x in paths]
         return datapoints

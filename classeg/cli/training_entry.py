@@ -33,7 +33,6 @@ def cleanup(dataset_name, fold, cache):
             ...
 
 
-
 def setup_ddp(rank: int, world_size: int) -> None:
     """
     Prepares the ddp on a specific process.
@@ -128,9 +127,7 @@ def main(
     :param dataset_desc: Dataset description
     :return:
     """
-    if cache:
-        warnings.warn("Caching is under development. Use at your own risk.")
-    # multiprocessing_logging.install_mp_handler()
+    multiprocessing_logging.install_mp_handler()
     if 'json' not in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]

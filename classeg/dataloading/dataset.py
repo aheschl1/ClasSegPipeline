@@ -1,12 +1,12 @@
+import json
 from typing import List, Callable, Tuple
 
 import albumentations
 import torch
 from torch.utils.data import Dataset
+
 from classeg.dataloading.datapoint import Datapoint
-import glob
-from classeg.utils.constants import RAW_ROOT, CLASSIFICATION, SEGMENTATION, SELF_SUPERVISED, PREPROCESSED_ROOT
-import json
+from classeg.utils.constants import CLASSIFICATION, PREPROCESSED_ROOT
 
 
 class PipelineDataset(Dataset):
@@ -37,10 +37,10 @@ class PipelineDataset(Dataset):
         Checks how many classes there are based on classes of datapoints.
         :return: Number of classes in dataset.
         """
-        if self.mode is not CLASSIFICATION:
-            raise ValueError("Cannot query for number of classes outside of classification mode.")
         if self._num_classes is not None:
             return self._num_classes
+        if self.mode is not CLASSIFICATION:
+            raise ValueError("Cannot query for number of classes outside of classification mode.")
         with open(f"{PREPROCESSED_ROOT}/{self.dataset_name}/case_label_mapping.json", "r") as f:
             mapping = json.load(f)
         num_classes = len(set(mapping.values()))
@@ -63,18 +63,11 @@ class PipelineDataset(Dataset):
 
         point = self.datapoints[idx]
         image, label = point.get_data(store_metadata=self.store_metadata, )
-
-        # TODO take a closer look at how we can handle dimension mismatch!
-        # Preprocess saves arrays as channel first, but for inference, we don't really know
-        # TODO Maybe for inference, we can preprocess first :thinking:
-        if image.shape[-1] in [1, 3]:
-            # perhaps it is still channel last?
-            image = image.transpose((2, 0, 1))
-        if label is not None and len(label.shape) > 1 and label.shape[-1] in [1]:
-            label = label.transpose((2, 0, 1))
+        # [C, ...]
 
         if self.transforms is not None:
             if isinstance(self.transforms, albumentations.Compose):
+                # Albumentations takes [H, W, C]
                 result = self.transforms(
                     image=image.transpose((1, 2, 0)),
                     mask=label.transpose((1, 2, 0))
@@ -82,6 +75,7 @@ class PipelineDataset(Dataset):
                 image = result["image"].transpose((2, 0, 1))
                 label = result["mask"].transpose((2, 0, 1))
             else:
+                # Torchvision and monai transforms take [C, ...]
                 image = self.transforms(torch.from_numpy(image))
 
         if not isinstance(image, torch.Tensor):
