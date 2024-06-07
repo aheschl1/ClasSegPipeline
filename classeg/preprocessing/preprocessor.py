@@ -111,7 +111,8 @@ class Preprocessor:
             """
             mapping = {}
             inverse = {}
-            for i, label in enumerate(labels):
+            sorted_labels = sorted(labels)
+            for i, label in enumerate(sorted_labels):
                 mapping[label] = i
                 inverse[i] = label
             if return_inverse:
