@@ -1,12 +1,11 @@
-import copy
 import os.path
 import warnings
-from multiprocessing.managers import SharedMemoryManager
 from multiprocessing.shared_memory import SharedMemory
 from typing import Tuple, Union
 
 import numpy as np
 import torch
+
 from classeg.utils.constants import SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 from classeg.utils.normalizer import get_normalizer_from_extension
 from classeg.utils.reader_writer import get_reader_writer, get_reader_writer_from_extension
@@ -58,14 +57,15 @@ class Datapoint:
         self.cache = cache
         self._shape = None
         self._dtype = None
-        self._shared_mem = self._cache(self.standardize(self.reader_writer.read(self.im_path))) if cache else None
+        self._shared_mem = self._cache(Datapoint.standardize(self.reader_writer.read(self.im_path))) if cache else None
 
         self.mode = _get_mode_from_label(label)
 
         self.normalizer = get_normalizer_from_extension(self.extension)
         self._case_name = case_name
 
-    def standardize(self, data: np.array) -> np.array:
+    @staticmethod
+    def standardize(data: np.array) -> np.array:
         """
         Standardize the data. If the data shape is missing a channel, it is added as the first dimension.
         If the data shape does not match the reader/writer's image dimensions, a ValueError is raised.
@@ -111,11 +111,11 @@ class Datapoint:
             image = self._get_cached()
         else:
             image = self.reader_writer.read(self.im_path, **kwargs)
-            image = self.standardize(image)
+            image = Datapoint.standardize(image)
         label = None
         if self.mode == SEGMENTATION:
             label = self.reader_writer.read(self.label, **kwargs)
-            label = self.standardize(label)
+            label = Datapoint.standardize(label)
         elif self.mode == CLASSIFICATION:
             label = np.array(int(self.label))
 

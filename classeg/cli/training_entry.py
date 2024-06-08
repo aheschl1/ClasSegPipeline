@@ -1,24 +1,23 @@
+import datetime
+import glob
 import importlib
-import warnings
-from multiprocessing.managers import SharedMemoryManager
+import os.path
+import shutil
 from multiprocessing.shared_memory import SharedMemory
 from typing import Type
+
+import click
+import multiprocessing_logging
+import torch.multiprocessing as mp
+from torch.distributed import init_process_group, destroy_process_group
 
 from classeg.training.default_trainers.classification_trainer import ClassificationTrainer
 from classeg.training.default_trainers.segmentation_trainer import SegmentationTrainer
 from classeg.training.default_trainers.self_supervised_trainer import SelfSupervisedTrainer
 from classeg.training.trainer import Trainer
-import glob
-import os.path
-import click
-import multiprocessing_logging
-import shutil
 from classeg.utils.constants import *
 from classeg.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name, \
     get_preprocessed_datapoints
-import torch.multiprocessing as mp
-from torch.distributed import init_process_group, destroy_process_group
-import datetime
 
 
 def cleanup(dataset_name, fold, cache):
@@ -93,7 +92,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.command()
 @click.option("-fold", "-f", help="Which fold to train.", type=int, required=True)
 @click.option("-dataset_id", "-d", help="The dataset id to train.", type=str, required=True)
-@click.option("-model", "-m", help="Path to model json definition.", type=str, required=True)
+@click.option("-model", "-m", help="Path to model json definition, or name of the model class.", type=str, required=True)
 @click.option("-gpus", "-g", help="How many gpus for ddp", type=int, default=1)
 @click.option("--resume", "--r", help="Resume training from latest", type=bool, is_flag=True)
 @click.option("-config", "-c", help="Name of the config file to utilize.", type=str, default="config")
@@ -128,7 +127,7 @@ def main(
     :return:
     """
     multiprocessing_logging.install_mp_handler()
-    if 'json' not in model:
+    if not os.path.exists(model) and "json" in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
         for model_path in available_models:
@@ -136,11 +135,17 @@ def main(
                 print(model_path.split('/')[-1].split('.')[0])
                 model = model_path
                 break
-
-    if not os.path.exists(model):
-        raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in "
-                         "the default model bucket."
-                         "It is indeed not.")
+    # elif "json" in model:
+    #     # warnings.warn("You are using a model path that doesn't exist. We will try to load the model anyway.")
+    #     config_content = read_json(f"{PREPROCESSED_ROOT}/{dataset_name}/{config}.json")
+    #     if "model_args" not in config_content:
+    #         raise ValueError("You must specify the model arguments in the config file.")
+    #
+    #
+    # if not os.path.exists(model):
+    #     raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in "
+    #                      "the default model bucket."
+    #                      "It is indeed not.")
 
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id, dataset_desc))
     if extension is not None:
