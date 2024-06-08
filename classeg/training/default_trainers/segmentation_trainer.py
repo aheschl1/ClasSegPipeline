@@ -137,3 +137,6 @@ class SegmentationTrainer(Trainer):
             softmax=True,
             to_onehot_y=True
         )
+
+    def get_model(self, path: str) -> nn.Module:
+        super().get_model(path)

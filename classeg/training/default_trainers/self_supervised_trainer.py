@@ -113,3 +113,6 @@ class SelfSupervisedTrainer(Trainer):
         if self.device == 0:
             log("Loss being used is nn.MSELoss()")
         return nn.MSELoss()
+
+    def get_model(self, path: str) -> nn.Module:
+        super().get_model(path)

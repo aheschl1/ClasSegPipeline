@@ -144,3 +144,6 @@ class ClassificationTrainer(Trainer):
         if self.device == 0:
             log("Loss being used is nn.CrossEntropyLoss()")
         return nn.CrossEntropyLoss()
+
+    def get_model(self, path: str) -> nn.Module:
+        super().get_model(path)
