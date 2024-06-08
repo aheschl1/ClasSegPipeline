@@ -394,6 +394,6 @@ def log(*messages):
     :param messages: The messages to display and log.
     :return: None
     """
-    print(*messages)
     for message in messages:
+        print(message)
         logging.info(f"{message} ")
