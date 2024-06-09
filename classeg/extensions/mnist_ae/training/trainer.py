@@ -10,7 +10,7 @@ from classeg.training.trainer import Trainer, log
 
 class MnistAE(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
+                 config_name: str, resume: bool = False, cache: bool = True, world_size: int = 1):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -18,7 +18,7 @@ class MnistAE(Trainer):
         :param model_path: The path to the json that defines the architecture.
         :param gpu_id: The gpu for this process to use.
         """
-        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, preload,
+        super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, cache,
                          world_size)
 
     def get_augmentations(self) -> Tuple[Any, Any]:

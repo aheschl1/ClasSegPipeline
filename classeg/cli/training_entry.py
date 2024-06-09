@@ -128,7 +128,7 @@ def main(
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
         for model_path in available_models:
-            if model_path.split('/')[-1].split('.')[0] == model:
+            if model_path.split('/')[-1] == model:
                 print(model_path.split('/')[-1].split('.')[0])
                 model = model_path
                 break
