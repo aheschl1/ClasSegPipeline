@@ -115,4 +115,4 @@ class SelfSupervisedTrainer(Trainer):
         return nn.MSELoss()
 
     def get_model(self, path: str) -> nn.Module:
-        super().get_model(path)
+        return super().get_model(path)

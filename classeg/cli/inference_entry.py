@@ -1,13 +1,8 @@
-import importlib
 from typing import List
 
 import click
 
-from classeg.inference.default_inferers.classification_inferer import ClassificationInferer
-from classeg.inference.default_inferers.segmentation_inferer import SegmentationInferer
-from classeg.inference.default_inferers.self_supervised_inferer import SelfSupervisedInferer
-from classeg.utils.constants import CLASSIFICATION, SEGMENTATION, SELF_SUPERVISED
-from classeg.utils.utils import get_dataset_name_from_id, get_dataset_mode_from_name, import_from_recursive
+from classeg.utils.utils import get_dataset_name_from_id, get_inferer_from_extension
 
 
 @click.command()
@@ -33,18 +28,8 @@ def main(dataset_id: str, fold: int, name: str, input_folder: str, weights: str,
         kwargs[key] = value
 
     dataset_name = get_dataset_name_from_id(dataset_id, name=dataset_desc)
-    mode = get_dataset_mode_from_name(dataset_name)
 
-    if extension is not None:
-        module = importlib.import_module(f"classeg.extensions.{extension}")
-        inferer_name = getattr(module, "INFERER_CLASS_NAME")
-        inferer_class = import_from_recursive(f"classeg.extensions.{extension}.inference", inferer_name)
-    else:
-        inferer_class = {
-            CLASSIFICATION: ClassificationInferer,
-            SEGMENTATION: SegmentationInferer,
-            SELF_SUPERVISED: SelfSupervisedInferer
-        }[mode]
+    inferer_class = get_inferer_from_extension(extension, dataset_name)
 
     inferer = inferer_class(dataset_name, fold, name, weights, input_folder, **kwargs)
     inferer.infer()

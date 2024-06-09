@@ -10,14 +10,10 @@ import click
 import multiprocessing_logging
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
-
-from classeg.training.default_trainers.classification_trainer import ClassificationTrainer
-from classeg.training.default_trainers.segmentation_trainer import SegmentationTrainer
-from classeg.training.default_trainers.self_supervised_trainer import SelfSupervisedTrainer
 from classeg.training.trainer import Trainer
 from classeg.utils.constants import *
 from classeg.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name, \
-    get_preprocessed_datapoints
+    get_preprocessed_datapoints, get_trainer_from_extension
 
 
 def cleanup(dataset_name, fold, cache):
@@ -127,6 +123,7 @@ def main(
     :return:
     """
     multiprocessing_logging.install_mp_handler()
+    dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
     if not os.path.exists(model) and "json" in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
@@ -135,29 +132,9 @@ def main(
                 print(model_path.split('/')[-1].split('.')[0])
                 model = model_path
                 break
-    # elif "json" in model:
-    #     # warnings.warn("You are using a model path that doesn't exist. We will try to load the model anyway.")
-    #     config_content = read_json(f"{PREPROCESSED_ROOT}/{dataset_name}/{config}.json")
-    #     if "model_args" not in config_content:
-    #         raise ValueError("You must specify the model arguments in the config file.")
-    #
-    #
-    # if not os.path.exists(model):
-    #     raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in "
-    #                      "the default model bucket."
-    #                      "It is indeed not.")
 
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id, dataset_desc))
-    if extension is not None:
-        module = importlib.import_module(f"classeg.extensions.{extension}")
-        trainer_name = getattr(module, "TRAINER_CLASS_NAME")
-        trainer_class = import_from_recursive(f"classeg.extensions.{extension}.training", trainer_name)
-    else:
-        trainer_class = {
-            SEGMENTATION: SegmentationTrainer,
-            SELF_SUPERVISED: SelfSupervisedTrainer,
-            CLASSIFICATION: ClassificationTrainer
-        }[mode]
+    trainer_class = get_trainer_from_extension(extension, dataset_name)
     print(f"Training detected mode {mode}")
     # This sets the behavior of some modules in json models utils.
     session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name
@@ -180,7 +157,6 @@ def main(
             join=True,
         )
     elif gpus == 1:
-        dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
         trainer = None
         try:
             trainer = trainer_class(

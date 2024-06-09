@@ -1,25 +1,9 @@
-import importlib
-import warnings
-from typing import Type, List
+from typing import List
 
 import click
 
-from classeg.preprocessing.preprocessor import Preprocessor
 from classeg.utils.constants import *
-from classeg.utils.utils import import_from_recursive
-
-
-def get_preprocessor_from_extension(name: str) -> Type[Preprocessor]:
-    if name is None:
-        return Preprocessor
-    try:
-        module = importlib.import_module(f"classeg.extensions.{name}")
-        preprocessor_name = getattr(module, "PREPROCESSOR_CLASS_NAME")
-        return import_from_recursive(f"classeg.extensions.{name}.preprocessing", preprocessor_name)
-    except ImportError as e:
-        print(e)
-        print(f"Ensure you create the extension {name}")
-        raise SystemExit
+from classeg.utils.utils import get_preprocessor_from_extension, get_dataset_name_from_id
 
 
 @click.command()
@@ -38,7 +22,7 @@ def main(folds: int, processes: int, normalize: bool, dataset_id: str, extension
         key, value = arg.split('=')
         kwargs[key] = value
 
-    preprocessor = get_preprocessor_from_extension(extension)
+    preprocessor = get_preprocessor_from_extension(extension, get_dataset_name_from_id(dataset_id, dataset_description))
     preprocessor = preprocessor(
         dataset_id=dataset_id, normalize=normalize, folds=folds, processes=processes, dataset_desc=dataset_description, **kwargs
     )

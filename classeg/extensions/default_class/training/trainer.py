@@ -146,4 +146,4 @@ class ClassificationTrainer(Trainer):
         return nn.CrossEntropyLoss()
 
     def get_model(self, path: str) -> nn.Module:
-        super().get_model(path)
+        return super().get_model(path)

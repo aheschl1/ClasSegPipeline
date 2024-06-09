@@ -1,23 +1,25 @@
 import os
 import shutil
-import sys
+
 from classeg.utils.constants import SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED, EXTENSIONS_DIR
 
 # ../../extensions
 # classeg.extensions
-TEMPLATES_TRAINING = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'training/default_trainers')
-TEMPLATES_INFERENCE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'inference/default_inferers')
-TEMPLATE_PREPROCESSING = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    'preprocessing/templates/preprocessor.py'
-)
+TEMPLATE_TRAINING = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'extensions/*/training/trainer.py')
+TEMPLATE_INFERENCE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'extensions/*/inference/inferer.py')
+TEMPLATE_PREPROCESSING = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'extensions/*/preprocessing/preprocessor.py')
 
 
 def copy_templates(template_type, root_path):
-    assert template_type in [SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED], "Invalid template type"
-    shutil.copy(f"{TEMPLATES_TRAINING}/{template_type}_trainer.py", f"{root_path}/training/trainer.py")
-    shutil.copy(TEMPLATE_PREPROCESSING, f"{root_path}/preprocessing")
-    shutil.copy(f"{TEMPLATES_INFERENCE}/{template_type}_inferer.py", f"{root_path}/inference/inferer.py")
+    assert template_type in [SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED], f"Invalid template type {template_type}"
+    star_replacement = {
+        SEGMENTATION: "default_seg",
+        CLASSIFICATION: "default_class",
+        SELF_SUPERVISED: "default_ssl"
+    }[template_type]
+    shutil.copy(TEMPLATE_TRAINING.replace("*", star_replacement), f"{root_path}/training/trainer.py")
+    shutil.copy(TEMPLATE_PREPROCESSING.replace("*", star_replacement), f"{root_path}/preprocessing")
+    shutil.copy(TEMPLATE_INFERENCE.replace("*", star_replacement), f"{root_path}/inference/inferer.py")
 
 
 def create_extension(name, template_type):
@@ -43,7 +45,7 @@ def create_extension(name, template_type):
                     f'PREPROCESSOR_CLASS_NAME = "ExtensionPreprocessor"\n'
                     f'INFERER_CLASS_NAME = "{inferer_class_name}"\n')
     else:
-        print(f"Extension '{name}' already exists.")
+        raise SystemExit(f"Extension '{name}' already exists.")
 
     trainer_path = f"{extension_path}/training"
     preprocess_path = f"{extension_path}/preprocessing"
