@@ -9,9 +9,9 @@ from overrides import override
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
-from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
+from classeg.extensions.Latent_Diffusion.inference.inferer import LatentDiffusionInferer
 from classeg.training.trainer import Trainer, log
-from classeg.extensions.unstable_diffusion.utils.utils import (
+from classeg.extensions.Latent_Diffusion.utils.utils import (
     get_forward_diffuser_from_config,
     get_autoencoder_from_config,
 )
@@ -34,7 +34,7 @@ class ForkedPdb(pdb.Pdb):
 
 class LatentDiffusionTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
+                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1, cache: bool =False):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -82,7 +82,7 @@ class LatentDiffusionTrainer(Trainer):
         return train_transforms, val_transforms
 
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
-        self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
+        self._inferer = LatentDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
 
     @override
     def train_single_epoch(self, epoch) -> float:

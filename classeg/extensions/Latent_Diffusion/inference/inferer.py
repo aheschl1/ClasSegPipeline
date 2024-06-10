@@ -12,7 +12,7 @@ from classeg.extensions.Latent_Diffusion.model.autoencoder.autoencoder import VQ
 
 
 from classeg.dataloading.datapoint import Datapoint
-from classeg.extensions.unstable_diffusion.utils.utils import get_forward_diffuser_from_config, get_autoencoder_from_config
+from classeg.extensions.Latent_Diffusion.utils.utils import get_forward_diffuser_from_config, get_autoencoder_from_config
 from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
@@ -34,7 +34,7 @@ class LatentDiffusionInferer(Inferer):
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self.autoencoder = self.get_autoencoder_from_config(self.config)
+        self.autoencoder = get_autoencoder_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
         self.model_json = read_json(f"{self.lookup_root}/model.json")

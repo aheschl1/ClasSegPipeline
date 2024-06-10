@@ -4,6 +4,6 @@
 This extension is a more in depth use case regarding a diffusion/segmentation pipeline built on top of this repository.
 """
 
-TRAINER_CLASS_NAME = "UnstableDiffusionTrainer"
+TRAINER_CLASS_NAME = "LatentDiffusionTrainer"
 PREPROCESSOR_CLASS_NAME = "ExtensionPreprocessor"
-INFERER_CLASS_NAME = "UnstableDiffusionInferer"
+INFERER_CLASS_NAME = "LatentDiffusionInferer"
