@@ -10,9 +10,9 @@ from tqdm import tqdm
 from PIL import Image
 from classeg.extensions.Latent_Diffusion.model.autoencoder.autoencoder import VQModel
 
-
 from classeg.dataloading.datapoint import Datapoint
 from classeg.extensions.Latent_Diffusion.utils.utils import get_forward_diffuser_from_config, get_autoencoder_from_config
+from classeg.extensions.Latent_Diffusion.model.latent_diffusion import LatentDiffusion
 from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
@@ -126,3 +126,15 @@ class LatentDiffusionInferer(Inferer):
         (or not, if you did something else)
         """
         ...
+
+    def _get_model(self):
+        """
+        Loads the model and weights.
+        :return:
+        """
+        checkpoint = torch.load(
+            f"{self.lookup_root}/{self.weights}.pth"
+        )
+        model = LatentDiffusion(self, 4, 4, layer_depth=2, channels=None, time_emb_dim=100, shared_encoder=False, apply_zero_conv=False, apply_scale_u=True,)
+        model.load_state_dict(checkpoint["weights"])
+        return model.to(self.device)

@@ -17,13 +17,13 @@ def get_forward_diffuser_from_config(config) -> Diffuser:
     return diffuser_mapping[config["diffuser"]](config["max_timestep"], min_beta, max_beta)
 
 
-def get_autoencoder_from_config(self, config) -> VQModel:
+def get_autoencoder_from_config(config) -> VQModel:
     path = f'{AUTOENCODER}/{config.get("autoencoder", "vq-f8-n256")}'
     if not os.path.exists(path):
         raise ValueError #dont know what to raise
     config = OmegaConf.load(f'{path}/config.yaml')
     model = VQModel(**config.model.params)
-    sd = torch.load(f'{path}/model.ckpt', map_location=self.device)["state_dict"]
+    sd = torch.load(f'{path}/model.ckpt')["state_dict"]
     missing, unexpected = model.load_state_dict(sd, strict=False)
     return model.eval()
 

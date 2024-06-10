@@ -162,4 +162,5 @@ cython_debug/
 .idea/
 .DS_Store
 Autoencoders
-classeg/extensions/Latent_Diffusion/model/taming
+**/taming
+taming

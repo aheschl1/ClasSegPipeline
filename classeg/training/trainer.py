@@ -61,9 +61,9 @@ class Trainer:
         :param cache: If True, cache the dataset to memory.
         :param world_size: The number of processes for distributed training.
         """
-        assert (
-            torch.cuda.is_available()
-        ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
+        # assert (
+        #     torch.cuda.is_available()
+        # ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
         if not torch.cuda.is_available():
             if world_size > 1:
                 raise SystemExit("Distributed training is not supported on CPU, and no GPU is available.")
@@ -125,6 +125,7 @@ class Trainer:
         Also writes the configuration to a json file in the output directory.
         """
         shutil.copy(__file__, f"{self.output_dir}/trainer_code.py")
+        print("????????????????????????????????????????????????????????????????????????????????????",self.model_path)
         if os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
         write_json(self.config, f"{self.output_dir}/config.json")

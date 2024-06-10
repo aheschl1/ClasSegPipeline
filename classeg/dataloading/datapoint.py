@@ -44,6 +44,7 @@ class Datapoint:
         writer (str, optional): Overwrite writer class. Defaults to None.
         cache (bool, optional): If enabled, stores data in shared memory. Defaults to False.
         """
+        cache = False
         if cache:
             warnings.warn("Caching is under development. Use at your own risk.")
 

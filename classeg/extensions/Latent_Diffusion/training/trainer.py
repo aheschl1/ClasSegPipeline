@@ -10,6 +10,8 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
 from classeg.extensions.Latent_Diffusion.inference.inferer import LatentDiffusionInferer
+from classeg.extensions.Latent_Diffusion.model.latent_diffusion import LatentDiffusion
+
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.Latent_Diffusion.utils.utils import (
     get_forward_diffuser_from_config,
@@ -196,3 +198,12 @@ class LatentDiffusionTrainer(Trainer):
         if self.device == 0:
             log("Loss being used is nn.MSELoss()")
         return nn.MSELoss()
+    
+    @override
+    def get_model(self, path: str) -> nn.Module:
+        """
+        :param path: The path to the json architecture definition.
+        :return: The pytorch network module.
+        """
+        model = LatentDiffusion( 4,4,2,None,100,False,False,True)
+        return model
