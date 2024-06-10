@@ -8,13 +8,16 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Normalize, Compose, Resize, Lambda, RandomGrayscale
 from classeg.dataloading.datapoint import Datapoint
 from classeg.dataloading.dataset import PipelineDataset
+from classeg.state import State
 from classeg.utils.utils import read_json
 from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT
+
 
 def process(x):
     if len(x.shape) == 2:
         x = x.unsqueeze(2)
     return x.float().permute(2, 0, 1)
+
 
 def get_dataset_from_folder(folder_path: str, dataset_name: str, fold: int, config: dict) -> PipelineDataset:
     """
@@ -46,5 +49,4 @@ def get_dataset_from_folder(folder_path: str, dataset_name: str, fold: int, conf
         print(f"Normalizing the data with {mean_data}")
         transform_list.append(Normalize(mean=mean_data['mean'], std=mean_data['std']))
     transforms = Compose(transform_list)
-    return PipelineDataset(datapoints, transforms)
-
+    return State.getDatasetClass()(datapoints, transforms)

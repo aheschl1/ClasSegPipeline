@@ -17,9 +17,9 @@ from classeg.utils.utils import (
     check_raw_exists,
     get_raw_datapoints,
     get_dataloaders_from_fold,
-    get_labels_from_raw,
-    get_dataset_mode_from_name
+    get_labels_from_raw
 )
+from classeg.utils.import_utils import get_dataset_mode_from_name
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 

@@ -1,5 +1,4 @@
 import glob
-import os
 from abc import abstractmethod
 from typing import Tuple
 
@@ -10,9 +9,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from classeg.dataloading.datapoint import Datapoint
-from classeg.dataloading.dataset import PipelineDataset
+from classeg.state import State
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataset_name_from_id, batch_collate_fn
+from classeg.utils.utils import batch_collate_fn
 from classeg.utils.utils import read_json
 
 
@@ -111,7 +110,7 @@ class Inferer:
 
     def get_dataloader(self) -> DataLoader:
         datapoints = self._get_datapoints()
-        dataset = PipelineDataset(datapoints, self.dataset_name, transforms=self.get_augmentations())
+        dataset = State.getDatasetClass()(datapoints, self.dataset_name, transforms=self.get_augmentations())
         return DataLoader(
             dataset=dataset,
             pin_memory=True,
@@ -136,5 +135,5 @@ class Inferer:
         print(f"Found {len(paths)} images to infer on.")
         if len(paths) == 0:
             raise SystemExit
-        datapoints = [Datapoint(x, None) for x in paths]
+        datapoints = [State.getDatapointClass()(x, None) for x in paths]
         return datapoints

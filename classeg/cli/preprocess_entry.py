@@ -2,8 +2,9 @@ from typing import List
 
 import click
 
+from classeg.state import State
 from classeg.utils.constants import *
-from classeg.utils.utils import get_preprocessor_from_extension, get_dataset_name_from_id
+from classeg.utils.utils import get_dataset_name_from_id
 
 
 @click.command()
@@ -15,6 +16,9 @@ from classeg.utils.utils import get_preprocessor_from_extension, get_dataset_nam
 @click.option("-extension", "-ext", help="Name of the extension you want to use. Default behavior is available")
 @click.argument('extra_args', nargs=-1)
 def main(folds: int, processes: int, normalize: bool, dataset_id: str, extension: str, dataset_description: str, extra_args: List[str]):
+    dataset_name = get_dataset_name_from_id(dataset_id, name=dataset_description)
+    State(extension, dataset_name)
+
     kwargs = {}
     for arg in extra_args:
         if "=" not in arg:
@@ -22,7 +26,7 @@ def main(folds: int, processes: int, normalize: bool, dataset_id: str, extension
         key, value = arg.split('=')
         kwargs[key] = value
 
-    preprocessor = get_preprocessor_from_extension(extension, get_dataset_name_from_id(dataset_id, dataset_description))
+    preprocessor = State.getPreprocessorClass()
     preprocessor = preprocessor(
         dataset_id=dataset_id, normalize=normalize, folds=folds, processes=processes, dataset_desc=dataset_description, **kwargs
     )

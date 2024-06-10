@@ -2,95 +2,17 @@ import glob
 import json
 import logging
 import os
-import pkgutil
 from contextlib import contextmanager
-from typing import Dict, List, Union, Tuple, Any
+from typing import Dict, List, Union, Tuple
 
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from classeg.dataloading.datapoint import Datapoint
-from classeg.dataloading.dataset import PipelineDataset
-from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
-import importlib
-
-
-def import_from_recursive(from_package: str, class_name: str) -> Any:
-    module = importlib.import_module(from_package)
-    # Iterate through all modules in the package
-    for loader, name, is_pkg in pkgutil.walk_packages(module.__path__):
-        # Import module
-        submodule = importlib.import_module(f"{from_package}.{name}")
-        # Check if class_name exists in the module
-        if hasattr(submodule, class_name):
-            return getattr(submodule, class_name)
-
-    # If class is not found in any submodule, raise ImportError
-    raise ImportError(f"Class '{class_name}' not found in package '{from_package}'")
-
-
-def get_trainer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
-    """
-    Given an extension, returns the trainer class.
-    :param extension: The extension to fetch.
-    :param dataset_name: The name of the dataset.
-    :return: The trainer class.
-    """
-    if extension is None:
-        if dataset_name is None:
-            raise ValueError("You must provide either an extension or a dataset name.")
-        extension = {
-            CLASSIFICATION: "default_class",
-            SEGMENTATION: "default_seg",
-            SELF_SUPERVISED: "default_ssl"
-        }[get_dataset_mode_from_name(dataset_name)]
-    module = importlib.import_module(f"classeg.extensions.{extension}")
-    trainer_name = getattr(module, "TRAINER_CLASS_NAME")
-    trainer_class = import_from_recursive(f"classeg.extensions.{extension}.training", trainer_name)
-    return trainer_class
-
-
-def get_preprocessor_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
-    """
-    Given an extension, returns the preprocessor class.
-    :param extension: The extension to fetch.
-    :param dataset_name: The name of the dataset.
-    :return: The preprocessor class.
-    """
-    if extension is None:
-        if dataset_name is None:
-            raise ValueError("You must provide either an extension or a dataset name.")
-        extension = {
-            CLASSIFICATION: "default_class",
-            SEGMENTATION: "default_seg",
-            SELF_SUPERVISED: "default_ssl"
-        }[get_dataset_mode_from_name(dataset_name)]
-    module = importlib.import_module(f"classeg.extensions.{extension}")
-    preprocessor_name = getattr(module, "PREPROCESSOR_CLASS_NAME")
-    preprocessor_class = import_from_recursive(f"classeg.extensions.{extension}.preprocessing", preprocessor_name)
-    return preprocessor_class
-
-
-def get_inferer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
-    """
-    Given an extension, returns the inferer class.
-    :param extension: The extension to fetch.
-    :param dataset_name: The name of the dataset.
-    :return: The inferer class.
-    """
-    if extension is None:
-        if dataset_name is None:
-            raise ValueError("You must provide either an extension or a dataset name.")
-        extension = {
-            CLASSIFICATION: "default_class",
-            SEGMENTATION: "default_seg",
-            SELF_SUPERVISED: "default_ssl"
-        }[get_dataset_mode_from_name(dataset_name)]
-    module = importlib.import_module(f"classeg.extensions.{extension}")
-    inferer_name = getattr(module, "INFERER_CLASS_NAME")
-    inferer_class = import_from_recursive(f"classeg.extensions.{extension}.inference", inferer_name)
-    return inferer_class
+from classeg.dataloading.datapoint import Datapoint as DatapointType
+from classeg.state import State
+from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION
+from classeg.utils.import_utils import get_dataset_mode_from_name
 
 
 def write_json(data: Union[Dict, List], path: str, create_folder: bool = False) -> None:
@@ -178,37 +100,7 @@ def verify_case_name(case_name: str) -> None:
                                                "should be format case_xxxxx, with >= 5 x's"
 
 
-def get_dataset_mode_from_name(dataset_name: str):
-    """
-    Based on raw or preprocessed structure, can determine the dataset mode.
-    :param dataset_name:
-    :return:
-    """
-    print(dataset_name)
-    raw_root = f"{RAW_ROOT}/{dataset_name}"
-    preprocessed_root = f"{PREPROCESSED_ROOT}/{dataset_name}"
-    if os.path.exists(raw_root):
-        first_level = glob.glob(f"{raw_root}/*")
-        if not os.path.isdir(first_level[0]):
-            mode = SELF_SUPERVISED
-        elif len(first_level) == 2 and "imagesTr" in [first_level[i].split("/")[-1] for i in [0, 1]]:
-            mode = SEGMENTATION
-        else:
-            mode = CLASSIFICATION
-    else:
-        first_level = glob.glob(f"{preprocessed_root}/*")
-        if "id_to_label.json" in [x.split('/')[-1] for x in first_level]:
-            mode = CLASSIFICATION
-        else:
-            second_level = glob.glob(f"{preprocessed_root}/fold_0/train/*")
-            if os.path.isdir(second_level[0]):
-                mode = SEGMENTATION
-            else:
-                mode = SELF_SUPERVISED
-    return mode
-
-
-def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
+def get_raw_datapoints(dataset_name: str) -> List[DatapointType]:
     """
     Given the name of a dataset, gets a list of datapoint objects.
     :param dataset_name: The name of the dataset.
@@ -238,7 +130,7 @@ def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
         else:
             label = None
 
-        datapoints.append(Datapoint(path, label, case_name=case_name, dataset_name=dataset_name))
+        datapoints.append(State.getDatapointClass()(path, label, case_name=case_name, dataset_name=dataset_name))
 
     return datapoints
 
@@ -279,12 +171,13 @@ def dummy_context():
     yield Dummy()
 
 
-def get_preprocessed_datapoints(dataset_name: str, fold: int,
-                                cache: bool = False, verbose=True) -> Tuple[List[Datapoint], List[Datapoint]]:
+def get_preprocessed_datapoints(dataset_name: str, fold: int, cache: bool = False, verbose=True) -> Tuple[List[DatapointType], List[DatapointType]]:
     """
     Returns the datapoints of preprocessed cases.
     :param dataset_name:
     :param fold:
+    :param cache:
+    :param verbose:
     :return: Train points, Val points.
     """
 
@@ -309,6 +202,8 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
     train_datapoints, val_datapoints = [], []
     context = tqdm(total=len(sample_paths), desc=f"Preparing datapoints with{'' if cache else 'out'} cache") if verbose \
         else dummy_context()
+
+    datapoint_class = State.getDatapointClass()
     with context as pbar:
         for path in train_paths:
             name = path.split('/')[-1].split('.')[0]
@@ -321,11 +216,11 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
             else:
                 label = None
             train_datapoints.append(
-                Datapoint(path,
-                          label,
-                          case_name=name,
-                          dataset_name=dataset_name,
-                          cache=cache)
+                datapoint_class(path,
+                                label,
+                                case_name=name,
+                                dataset_name=dataset_name,
+                                cache=cache)
             )
             pbar.update()
         for path in val_paths:
@@ -337,14 +232,14 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
             elif mode == CLASSIFICATION:
                 label = case_label_mapping[name]
             val_datapoints.append(
-                Datapoint(path, label, case_name=name, dataset_name=dataset_name, cache=cache)
+                datapoint_class(path, label, case_name=name, dataset_name=dataset_name, cache=cache)
             )
             pbar.update()
 
     return train_datapoints, val_datapoints
 
 
-def get_raw_datapoints_folded(dataset_name: str, fold: int) -> Tuple[List[Datapoint], List[Datapoint]]:
+def get_raw_datapoints_folded(dataset_name: str, fold: int) -> Tuple[List[DatapointType], List[DatapointType]]:
     """
     Given a dataset name, returns the train and val points given a fold.
     :param dataset_name: The name of the dataset.
@@ -389,7 +284,7 @@ def get_config_from_dataset(dataset_name: str, config_name: str = 'config', outp
     return read_json(path)
 
 
-def batch_collate_fn(batch: List[Tuple[torch.Tensor, Datapoint]]):
+def batch_collate_fn(batch: List[Tuple[torch.Tensor, DatapointType]]):
     """
     Combines data fetched by dataloader into proper format.
     :param batch: List of data points from loader.
@@ -437,10 +332,10 @@ def get_dataloaders_from_fold(dataset_name: str,
     train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=cache) if preprocessed_data \
         else get_raw_datapoints_folded(dataset_name, fold)
 
-    train_dataset = PipelineDataset(train_points, dataset_name, train_transforms,
-                                    store_metadata=store_metadata)
-    val_dataset = PipelineDataset(val_points, dataset_name, val_transforms,
-                                  store_metadata=store_metadata)
+    train_dataset = State.getDatasetClass()(train_points, dataset_name, train_transforms,
+                                            store_metadata=store_metadata)
+    val_dataset = State.getDatasetClass()(val_points, dataset_name, val_transforms,
+                                          store_metadata=store_metadata)
     train_sampler, val_sampler = None, None
     if 'sampler' in kwargs and kwargs['sampler'] is not None:
         assert 'rank' in kwargs and 'world_size' in kwargs, \

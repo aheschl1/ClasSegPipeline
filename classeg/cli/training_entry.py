@@ -1,6 +1,5 @@
 import datetime
 import glob
-import importlib
 import os.path
 import shutil
 from multiprocessing.shared_memory import SharedMemory
@@ -10,10 +9,12 @@ import click
 import multiprocessing_logging
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+
+from classeg.state import State
 from classeg.training.trainer import Trainer
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name, \
-    get_preprocessed_datapoints, get_trainer_from_extension
+from classeg.utils.import_utils import get_dataset_mode_from_name
+from classeg.utils.utils import get_dataset_name_from_id, get_preprocessed_datapoints
 
 
 def cleanup(dataset_name, fold, cache):
@@ -124,6 +125,8 @@ def main(
     """
     multiprocessing_logging.install_mp_handler()
     dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
+    State(extension, dataset_name)
+
     if not os.path.exists(model) and "json" in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
@@ -134,7 +137,7 @@ def main(
                 break
 
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id, dataset_desc))
-    trainer_class = get_trainer_from_extension(extension, dataset_name)
+    trainer_class = State.getTrainerClass()
     print(f"Training detected mode {mode}")
     # This sets the behavior of some modules in json models utils.
     session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name

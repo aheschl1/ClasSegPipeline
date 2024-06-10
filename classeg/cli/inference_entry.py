@@ -2,7 +2,8 @@ from typing import List
 
 import click
 
-from classeg.utils.utils import get_dataset_name_from_id, get_inferer_from_extension
+from classeg.state import State
+from classeg.utils.utils import get_dataset_name_from_id
 
 
 @click.command()
@@ -17,6 +18,8 @@ from classeg.utils.utils import get_dataset_name_from_id, get_inferer_from_exten
 @click.argument('extra_args', nargs=-1)
 def main(dataset_id: str, fold: int, name: str, input_folder: str, weights: str, extension: str,
          dataset_desc: str, extra_args: List[str]) -> None:
+    dataset_name = get_dataset_name_from_id(dataset_id, name=dataset_desc)
+    State(extension, dataset_name)
 
     kwargs = {}
     for arg in extra_args:
@@ -27,9 +30,7 @@ def main(dataset_id: str, fold: int, name: str, input_folder: str, weights: str,
         key, value = arg.split('=')
         kwargs[key] = value
 
-    dataset_name = get_dataset_name_from_id(dataset_id, name=dataset_desc)
-
-    inferer_class = get_inferer_from_extension(extension, dataset_name)
+    inferer_class = State.getInfererClass()
 
     inferer = inferer_class(dataset_name, fold, name, weights, input_folder, **kwargs)
     inferer.infer()

@@ -18,7 +18,8 @@ from torch.utils.data.distributed import DistributedSampler
 
 from classeg.logging.logging import LogHelper
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name
+from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset
+from classeg.utils.import_utils import get_dataset_mode_from_name
 from classeg.utils.utils import write_json
 
 

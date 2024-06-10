@@ -9,7 +9,7 @@ if not os.path.exists(os.path.expanduser("~/.classegrc")):
     default_config = {
         "best_epoch_celebration": "That is a new best epoch, saving the state!",
         "default_processes": os.cpu_count(),
-        "model_bucket_directory": f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions"
+        "model_bucket_directory": f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions",
     }
     with open(os.path.expanduser("~/.classegrc"), "w+") as config_file:
         json.dump(default_config, config_file, indent=4)
