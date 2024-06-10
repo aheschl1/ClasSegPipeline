@@ -4,6 +4,7 @@ import pdb
 import shutil
 import sys
 import time
+import warnings
 from abc import abstractmethod
 from typing import Tuple, Any
 
@@ -63,7 +64,11 @@ class Trainer:
         assert (
             torch.cuda.is_available()
         ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
-
+        if not torch.cuda.is_available():
+            if world_size > 1:
+                raise SystemExit("Distributed training is not supported on CPU, and no GPU is available.")
+            warnings.warn("Training on CPU is not recommended, but not GPU is available!")
+            gpu_id = "cpu"
         self.cache = cache
         self.dataset_name = dataset_name
         self.mode = get_dataset_mode_from_name(self.dataset_name)
@@ -75,7 +80,7 @@ class Trainer:
         self.log_helper = LogHelper(self.output_dir)
         self.config = get_config_from_dataset(dataset_name, config_name)
         self._assert_preprocess_ready_for_train()
-        if gpu_id == 0:
+        if gpu_id in [0, "cpu"]:
             log("Config:", self.config)
         self.seperator = (
             "======================================================================="
@@ -91,7 +96,7 @@ class Trainer:
         self.loss = self.get_loss()
         self.optim: torch.optim = self.get_optim()
         self.lr_scheduler = self.get_lr_scheduler()
-        if self.device == 0:
+        if self.device in [0, "cpu"]:
             log(f"Optim being used is {self.optim}")
         self._save_self_file()
         if resume:
@@ -134,7 +139,7 @@ class Trainer:
         output_dir = f"{RESULTS_ROOT}/{self.dataset_name}/fold_{self.fold}/{session_id}"
         os.makedirs(output_dir, exist_ok=True)
         logging.basicConfig(level=logging.INFO, filename=f"{output_dir}/logs.txt", force=True)
-        if self.device == 0:
+        if self.device in [0, "cpu"]:
             print(f"Sending logging and outputs to {output_dir}")
         return output_dir
 
@@ -225,7 +230,7 @@ class Trainer:
             if self.world_size > 1:
                 self.train_dataloader.sampler.set_epoch(epoch)
                 self.val_dataloader.sampler.set_epoch(epoch)
-            if self.device == 0:
+            if self.device in [0, "cpu"]:
                 log(self.seperator)
                 log(f"Epoch {epoch}/{epochs - 1} running...")
                 if epoch == 0 and self.world_size > 1:
@@ -236,7 +241,7 @@ class Trainer:
             with torch.no_grad():
                 mean_val_loss = self.eval_single_epoch(epoch)
             self._save_model_weights("latest")  # saving model every epoch
-            if self.device == 0:
+            if self.device in [0, "cpu"]:
                 log("Learning rate: ", self.lr_scheduler.optimizer.param_groups[0]["lr"])
                 log(f"Train loss: {mean_train_loss} --change-- {mean_train_loss - last_train_loss}")
                 log(f"Val loss: {mean_val_loss} --change-- {mean_val_loss - last_val_loss}")
@@ -249,12 +254,12 @@ class Trainer:
             last_val_loss = mean_val_loss
             # If best model, save!
             if mean_val_loss < best_val_loss:
-                if self.device == 0:
+                if self.device in [0, "cpu"]:
                     log(BEST_EPOCH_CELEBRATION)
                 best_val_loss = mean_val_loss
                 self._save_model_weights("best")
             epoch_end_time = time.time()
-            if self.device == 0:
+            if self.device in [0, "cpu"]:
                 log(f"Process {self.device} took {epoch_end_time - epoch_start_time} seconds.")
                 self.log_helper.epoch_end(
                     mean_train_loss,
@@ -273,7 +278,7 @@ class Trainer:
         self.post_training()
         end_time = time.time()
         seconds_taken = end_time - start_time
-        if self.device == 0:
+        if self.device in [0, "cpu"]:
             log(self.seperator)
             log(f"Finished training {epochs} epochs.")
             log(f"{seconds_taken} seconds")
@@ -287,7 +292,7 @@ class Trainer:
 
         :param save_name: The name of the checkpoint to save.
         """
-        if self.device == 0:
+        if self.device in [0, "cpu"]:
             checkpoint = {}
             path = f"{self.output_dir}/{save_name}.pth"
             if self.world_size > 1:
@@ -306,7 +311,7 @@ class Trainer:
         :return: Learning rate scheduler.
         """
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
-        if self.device == 0:
+        if self.device in [0, "cpu"]:
             log(f"Scheduler being used is {scheduler}")
         return scheduler
 
@@ -341,7 +346,7 @@ class Trainer:
         model = factory.get_model().to(self.device)
         log(factory.log_kwargs)
 
-        if self.device == 0:
+        if self.device in [0, "cpu"]:
             log(f"Loaded model {path}")
             all_params = sum(param.numel() for param in model.parameters())
             trainable_params = sum(
