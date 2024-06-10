@@ -1,21 +1,34 @@
-import copy
 import os.path
 import warnings
-from multiprocessing.managers import SharedMemoryManager
 from multiprocessing.shared_memory import SharedMemory
 from typing import Tuple, Union
 
 import numpy as np
 import torch
+
 from classeg.utils.constants import SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 from classeg.utils.normalizer import get_normalizer_from_extension
 from classeg.utils.reader_writer import get_reader_writer, get_reader_writer_from_extension
 
 
+def _get_mode_from_label(label: Union[str, None]) -> Union[SELF_SUPERVISED, SEGMENTATION, CLASSIFICATION]:
+    """
+    Determine the mode of the datapoint based on the label. If the label is None, it is self-supervised. If the
+    label is a path to a file, it is segmentation. Otherwise, it is classification.
+    """
+    if label is None:
+        mode = SELF_SUPERVISED
+    elif isinstance(label, str) and os.path.exists(label) and not os.path.isdir(label):
+        mode = SEGMENTATION
+    else:
+        mode = CLASSIFICATION
+    return mode
+
+
 class Datapoint:
     def __init__(self,
                  im_path: str,
-                 label: Union[None, str, torch.Tensor],
+                 label: Union[None, str, torch.Tensor, np.array],
                  dataset_name: str = None,
                  case_name: str = None,
                  writer: str = None,
@@ -31,40 +44,40 @@ class Datapoint:
         writer (str, optional): Overwrite writer class. Defaults to None.
         cache (bool, optional): If enabled, stores data in shared memory. Defaults to False.
         """
-        self._shared_mem = None
+        if cache:
+            warnings.warn("Caching is under development. Use at your own risk.")
+
         self.im_path = im_path
         self.label = label
-        if label is None:
-            self.mode = SELF_SUPERVISED
-        elif isinstance(label, str) and os.path.exists(label) and not os.path.isdir(label):
-            self.mode = SEGMENTATION
-        else:
-            self.mode = CLASSIFICATION
-        self.cache = cache
-        if cache:
-            warnings.filterwarnings("ignore", category=UserWarning)
-
         self.num_classes = None
-        self._shared_mem: Union[SharedMemory, None] = None
-
+        # reader
+        io_class = get_reader_writer_from_extension(self.extension) if writer is None else get_reader_writer(writer)
+        self.reader_writer = io_class(case_name=case_name, dataset_name=dataset_name)
+        # cache
+        self.cache = cache
         self._shape = None
         self._dtype = None
-        # reader
-        if writer is not None:
-            self.reader_writer = get_reader_writer(writer)
-        else:
-            self.reader_writer = get_reader_writer_from_extension(self.extension)
+        self._shared_mem = self._cache(Datapoint.standardize(self.reader_writer.read(self.im_path))) if cache else None
+
+        self.mode = _get_mode_from_label(label)
+
         self.normalizer = get_normalizer_from_extension(self.extension)
-        self.reader_writer = self.reader_writer(case_name=case_name, dataset_name=dataset_name)
         self._case_name = case_name
 
-        if cache:
-            self._shared_mem = self._cache(self._standardize(self.reader_writer.read(self.im_path)))
-
-    def _standardize(self, data: np.array) -> np.array:
+    @staticmethod
+    def standardize(data: np.array) -> np.array:
         """
-        Standardize the data. If the data shape is missing a channel, it is added. If the data shape does not match
-        the reader/writer's image dimensions, a ValueError is raised.
+        Standardize the data. If the data shape is missing a channel, it is added as the first dimension.
+        If the data shape does not match the reader/writer's image dimensions, a ValueError is raised.
+
+        If the array has only two dimensions, we add a channel.
+
+        We treat any dimension of size [1, 10] as a channel, if that shape exists only once.
+        If the data has no channel, we add one of size 1.
+
+        [1, 10, 10] has a channel
+        [10, 10, 10] has no channel
+        [10, 12, 12] has a channel
 
         Parameters:
         data (np.array): The data to be standardized.
@@ -72,13 +85,16 @@ class Datapoint:
         Returns:
         np.array: The standardized data.
         """
-        if len(data.shape) == self.reader_writer.image_dimensions:
-            # Add channels in - it is missing
-            data = data[..., np.newaxis]
-        if len(data.shape) - 1 != self.reader_writer.image_dimensions:
-            raise ValueError(f"There is a shape mismatch. The reader/writer indicates "
-                             f"{self.reader_writer.image_dimensions} spacial dimensions. "
-                             f"With channels, your data shape is {data.shape}.")
+        shape = list(data.shape)
+        if len(shape) == 2:
+            data = data[np.newaxis, ...]
+        shape = list(data.shape)
+        if not any([shape.count(i) == 1 for i in range(1, 11)]):
+            data = data[np.newaxis, ...]
+        shape = list(data.shape)
+        if shape.index(min(shape)) != 0:
+            data = np.moveaxis(data, shape.index(min(shape)), 0)
+
         return data.astype(np.float32)
 
     def get_data(self, **kwargs) -> Tuple[np.array, np.array]:
@@ -94,13 +110,12 @@ class Datapoint:
         if self.cache:
             image = self._get_cached()
         else:
-            image = self.reader_writer.read(self.im_path, **kwargs).astype(np.float32)
-            # Enforce [H, W, C] or [H, W, D, C]
-            image = self._standardize(image)
+            image = self.reader_writer.read(self.im_path, **kwargs)
+            image = Datapoint.standardize(image)
         label = None
         if self.mode == SEGMENTATION:
             label = self.reader_writer.read(self.label, **kwargs)
-            label = self._standardize(label)
+            label = Datapoint.standardize(label)
         elif self.mode == CLASSIFICATION:
             label = np.array(int(self.label))
 
@@ -163,5 +178,5 @@ class Datapoint:
         return '.'.join(name.split('.')[1:])
 
     def __del__(self):
-        if self._shared_mem is not None:
+        if "_shared_mem" in self.__dict__ and self._shared_mem is not None:
             self._shared_mem.close()

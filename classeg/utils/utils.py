@@ -30,8 +30,67 @@ def import_from_recursive(from_package: str, class_name: str) -> Any:
     raise ImportError(f"Class '{class_name}' not found in package '{from_package}'")
 
 
-if __name__ == "__main__":
-    import_from_recursive("classeg.preprocessing.custom_preprocessors", "MnistPreprocessor")
+def get_trainer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
+    """
+    Given an extension, returns the trainer class.
+    :param extension: The extension to fetch.
+    :param dataset_name: The name of the dataset.
+    :return: The trainer class.
+    """
+    if extension is None:
+        if dataset_name is None:
+            raise ValueError("You must provide either an extension or a dataset name.")
+        extension = {
+            CLASSIFICATION: "default_class",
+            SEGMENTATION: "default_seg",
+            SELF_SUPERVISED: "default_ssl"
+        }[get_dataset_mode_from_name(dataset_name)]
+    module = importlib.import_module(f"classeg.extensions.{extension}")
+    trainer_name = getattr(module, "TRAINER_CLASS_NAME")
+    trainer_class = import_from_recursive(f"classeg.extensions.{extension}.training", trainer_name)
+    return trainer_class
+
+
+def get_preprocessor_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
+    """
+    Given an extension, returns the preprocessor class.
+    :param extension: The extension to fetch.
+    :param dataset_name: The name of the dataset.
+    :return: The preprocessor class.
+    """
+    if extension is None:
+        if dataset_name is None:
+            raise ValueError("You must provide either an extension or a dataset name.")
+        extension = {
+            CLASSIFICATION: "default_class",
+            SEGMENTATION: "default_seg",
+            SELF_SUPERVISED: "default_ssl"
+        }[get_dataset_mode_from_name(dataset_name)]
+    module = importlib.import_module(f"classeg.extensions.{extension}")
+    preprocessor_name = getattr(module, "PREPROCESSOR_CLASS_NAME")
+    preprocessor_class = import_from_recursive(f"classeg.extensions.{extension}.preprocessing", preprocessor_name)
+    return preprocessor_class
+
+
+def get_inferer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
+    """
+    Given an extension, returns the inferer class.
+    :param extension: The extension to fetch.
+    :param dataset_name: The name of the dataset.
+    :return: The inferer class.
+    """
+    if extension is None:
+        if dataset_name is None:
+            raise ValueError("You must provide either an extension or a dataset name.")
+        extension = {
+            CLASSIFICATION: "default_class",
+            SEGMENTATION: "default_seg",
+            SELF_SUPERVISED: "default_ssl"
+        }[get_dataset_mode_from_name(dataset_name)]
+    module = importlib.import_module(f"classeg.extensions.{extension}")
+    inferer_name = getattr(module, "INFERER_CLASS_NAME")
+    inferer_class = import_from_recursive(f"classeg.extensions.{extension}.inference", inferer_name)
+    return inferer_class
 
 
 def write_json(data: Union[Dict, List], path: str, create_folder: bool = False) -> None:
@@ -216,6 +275,7 @@ def dummy_context():
 
         def update(self):
             ...
+
     yield Dummy()
 
 

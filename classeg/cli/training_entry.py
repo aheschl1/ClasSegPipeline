@@ -1,24 +1,19 @@
+import datetime
+import glob
 import importlib
-import warnings
-from multiprocessing.managers import SharedMemoryManager
+import os.path
+import shutil
 from multiprocessing.shared_memory import SharedMemory
 from typing import Type
 
-from classeg.training.default_trainers.classification_trainer import ClassificationTrainer
-from classeg.training.default_trainers.segmentation_trainer import SegmentationTrainer
-from classeg.training.default_trainers.self_supervised_trainer import SelfSupervisedTrainer
-from classeg.training.trainer import Trainer
-import glob
-import os.path
 import click
 import multiprocessing_logging
-import shutil
-from classeg.utils.constants import *
-from classeg.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name, \
-    get_preprocessed_datapoints
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
-import datetime
+from classeg.training.trainer import Trainer
+from classeg.utils.constants import *
+from classeg.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name, \
+    get_preprocessed_datapoints, get_trainer_from_extension
 
 
 def cleanup(dataset_name, fold, cache):
@@ -31,7 +26,6 @@ def cleanup(dataset_name, fold, cache):
             SharedMemory(point.case_name).unlink()
         except FileNotFoundError:
             ...
-
 
 
 def setup_ddp(rank: int, world_size: int) -> None:
@@ -94,8 +88,8 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.command()
 @click.option("-fold", "-f", help="Which fold to train.", type=int, required=True)
 @click.option("-dataset_id", "-d", help="The dataset id to train.", type=str, required=True)
-@click.option("-model", "-m", help="Path to model json definition.", type=str, required=True)
-@click.option("--gpus", "-g", help="How many gpus for ddp", type=int, default=1)
+@click.option("-model", "-m", help="Path to model json definition, or name of the model class.", type=str, required=True)
+@click.option("-gpus", "-g", help="How many gpus for ddp", type=int, default=1)
 @click.option("--resume", "--r", help="Resume training from latest", type=bool, is_flag=True)
 @click.option("-config", "-c", help="Name of the config file to utilize.", type=str, default="config")
 @click.option("-name", "-n", help="Output folder name.", type=str, default=None)
@@ -128,34 +122,19 @@ def main(
     :param dataset_desc: Dataset description
     :return:
     """
-    if cache:
-        warnings.warn("Caching is under development. Use at your own risk.")
-    # multiprocessing_logging.install_mp_handler()
-    if 'json' not in model:
+    multiprocessing_logging.install_mp_handler()
+    dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
+    if not os.path.exists(model) and "json" in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
         for model_path in available_models:
-            if model_path.split('/')[-1].split('.')[0] == model:
+            if model_path.split('/')[-1] == model:
                 print(model_path.split('/')[-1].split('.')[0])
                 model = model_path
                 break
 
-    if not os.path.exists(model):
-        raise ValueError("The model you specified doesn't exist. We checked if it was a full path, and if it is in "
-                         "the default model bucket."
-                         "It is indeed not.")
-
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id, dataset_desc))
-    if extension is not None:
-        module = importlib.import_module(f"classeg.extensions.{extension}")
-        trainer_name = getattr(module, "TRAINER_CLASS_NAME")
-        trainer_class = import_from_recursive(f"classeg.extensions.{extension}.training", trainer_name)
-    else:
-        trainer_class = {
-            SEGMENTATION: SegmentationTrainer,
-            SELF_SUPERVISED: SelfSupervisedTrainer,
-            CLASSIFICATION: ClassificationTrainer
-        }[mode]
+    trainer_class = get_trainer_from_extension(extension, dataset_name)
     print(f"Training detected mode {mode}")
     # This sets the behavior of some modules in json models utils.
     session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name
@@ -178,7 +157,6 @@ def main(
             join=True,
         )
     elif gpus == 1:
-        dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
         trainer = None
         try:
             trainer = trainer_class(

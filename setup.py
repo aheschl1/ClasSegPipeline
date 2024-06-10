@@ -7,7 +7,7 @@ setup(
     install_requires=[
         "torch",
         "numpy~=1.26.3",
-        "matplotlib~=3.8.0",
+        "matplotlib",
         "torchvision~=0.17.0",
         "pillow~=10.2.0",
         "overrides~=7.4.0",

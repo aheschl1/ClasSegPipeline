@@ -2,7 +2,7 @@
   "Tag": "Autoencoder model",
   "Children": [
     {
-      "ComponentClass": "pipe.models.autoencoder.Autoencoder",
+      "ComponentClass": "classeg.models.autoencoder.Autoencoder",
       "args": {
         "in_channels": 1,
         "depth": 3,

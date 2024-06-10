@@ -6,7 +6,7 @@ import tqdm
 from overrides import override
 from torchvision.datasets import MNIST
 
-from classeg.cli.preprocess_entry import Preprocessor
+from classeg.preprocessing.preprocessor import Preprocessor
 from classeg.utils.constants import RAW_ROOT, DEFAULT_PROCESSES
 from classeg.utils.utils import get_case_name_from_number, check_raw_exists
 

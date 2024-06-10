@@ -1,11 +1,11 @@
+import logging
 import os
 from typing import Any, List
 
-import torch
-from torch.utils.tensorboard import SummaryWriter
-from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sn
+from sklearn.metrics import confusion_matrix
+from torch.utils.tensorboard import SummaryWriter
 
 
 class LogHelper:
@@ -50,7 +50,7 @@ class LogHelper:
         self.epoch += 1
         self.summary_writer.flush()
 
-    def plot_confusion_matrix(self, predictions: List, labels: List, class_names):
+    def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
         cm = confusion_matrix(labels, predictions, normalize='true', labels=[i for i in range(len(class_names))])
         plt.figure(figsize=(11, 11))
         heatmap = sn.heatmap(cm, annot=True, fmt='.2%', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
@@ -58,8 +58,9 @@ class LogHelper:
         plt.ylabel("True")
         fig = heatmap.get_figure()
 
-        self.summary_writer.add_figure("Metrics/confusion", fig, self.epoch)
+        self.summary_writer.add_figure(f"Metrics/confusion/{set_name}", fig, self.epoch)
         plt.close(fig)
+        del fig
         self.summary_writer.flush()
 
     def log_augmented_image(self, image: Any, mask: Any = None):
@@ -69,13 +70,21 @@ class LogHelper:
         self.image_step += 1
         self.summary_writer.flush()
 
-    def log_net_structure(self, net, images, t):
-        self.summary_writer.add_graph(net, [images, t])
+    def log_net_structure(self, net, *inputs):
+        try:
+            self.summary_writer.add_graph(net, list(inputs))
+            logging.info(f"Logged network structure.")
+            print("Logged network structure.")
+        except Exception as e:
+            logging.info(f"Failed to log network structure: {e}")
+            print(f"Failed to log network structure")
+        self.summary_writer.flush()
 
     def log_parameters(self, total, trainable):
         self.summary_writer.add_scalars(
             "Network/params", {"total": total, "trainable": trainable}
         )
+        self.summary_writer.flush()
 
     def log_image_infered(self, image, epoch, **kwargs):
         self.summary_writer.add_image(
@@ -89,6 +98,7 @@ class LogHelper:
                 value,
                 epoch
             )
+        self.summary_writer.flush()
 
     def log_image_mask(self, image, mask, epoch):
         self.summary_writer.add_image(
@@ -101,6 +111,7 @@ class LogHelper:
             mask,
             epoch
         )
+        self.summary_writer.flush()
 
     def __del__(self):
         self.summary_writer.flush()
