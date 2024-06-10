@@ -61,9 +61,6 @@ class Trainer:
         :param cache: If True, cache the dataset to memory.
         :param world_size: The number of processes for distributed training.
         """
-        assert (
-            torch.cuda.is_available()
-        ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
         if not torch.cuda.is_available():
             if world_size > 1:
                 raise SystemExit("Distributed training is not supported on CPU, and no GPU is available.")
