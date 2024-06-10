@@ -1,5 +1,4 @@
 import glob
-import os
 from abc import abstractmethod
 from typing import Tuple
 
@@ -12,7 +11,7 @@ from tqdm import tqdm
 from classeg.dataloading.datapoint import Datapoint
 from classeg.dataloading.dataset import PipelineDataset
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataset_name_from_id, batch_collate_fn
+from classeg.utils.utils import batch_collate_fn
 from classeg.utils.utils import read_json
 
 

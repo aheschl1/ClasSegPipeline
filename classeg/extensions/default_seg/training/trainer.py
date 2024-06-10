@@ -2,6 +2,8 @@ from typing import Tuple, Any
 
 import torch
 import torch.nn as nn
+from monai.data import DataLoader
+
 from classeg.training.trainer import Trainer, log
 import albumentations as A
 from monai.losses import DiceCELoss
@@ -105,9 +107,13 @@ class SegmentationTrainer(Trainer):
         correct_count = 0.
         total_items = 0
         all_predictions, all_labels = [], []
+        i = 0
         for data, labels, _ in self.val_dataloader:
+            i += 1
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
+            if i == 1 and epoch % 10 == 0:
+                self.log_helper.log_net_structure(self.model, data)
             batch_size = data.shape[0]
             # do prediction and calculate loss
             predictions = self.model(data)
@@ -137,6 +143,9 @@ class SegmentationTrainer(Trainer):
             softmax=True,
             to_onehot_y=True
         )
+
+    def get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
+        return super().get_dataloaders()
 
     def get_model(self, path: str) -> nn.Module:
         return super().get_model(path)

@@ -82,7 +82,7 @@ class Trainer:
         )
         # Start on important stuff here
         self.train_transforms, _ = self.get_augmentations()
-        self.train_dataloader, self.val_dataloader = self._get_dataloaders()
+        self.train_dataloader, self.val_dataloader = self.get_dataloaders()
         self._current_epoch = 0
         self.model_path = model_path
         self.model = self.get_model(model_path)
@@ -147,7 +147,7 @@ class Trainer:
         """
         ...
 
-    def _get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
+    def get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
         """
         This method is responsible for creating the augmentation and then fetching dataloaders.
 

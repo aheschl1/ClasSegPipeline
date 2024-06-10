@@ -50,7 +50,7 @@ class LogHelper:
         self.epoch += 1
         self.summary_writer.flush()
 
-    def plot_confusion_matrix(self, predictions: List, labels: List, class_names):
+    def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
         cm = confusion_matrix(labels, predictions, normalize='true', labels=[i for i in range(len(class_names))])
         plt.figure(figsize=(11, 11))
         heatmap = sn.heatmap(cm, annot=True, fmt='.2%', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
@@ -58,7 +58,7 @@ class LogHelper:
         plt.ylabel("True")
         fig = heatmap.get_figure()
 
-        self.summary_writer.add_figure("Metrics/confusion", fig, self.epoch)
+        self.summary_writer.add_figure(f"Metrics/confusion/{set_name}", fig, self.epoch)
         plt.close(fig)
         del fig
         self.summary_writer.flush()

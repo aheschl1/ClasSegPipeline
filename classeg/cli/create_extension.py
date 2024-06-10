@@ -40,7 +40,10 @@ def create_extension(name, template_type):
     if not os.path.exists(extension_path):
         os.makedirs(extension_path)
         with open(os.path.join(extension_path, '__init__.py'), 'w') as f:
-            f.write(f'# {name} extension\n')
+            f.write(f'# {name} extension\n\n')
+            f.write('# This file is used to define the trainer, preprocessor and inferer class names for the extension.\n\n'
+                    '# Note that you can define your custom dataset by overriding get_dataloaders() in trainer, and writing a custom\n'
+                    '# preprocessing scheme. More centralized dataset definitions will come.\n\n')
             f.write(f'TRAINER_CLASS_NAME = "{trainer_class_name}"\n'
                     f'PREPROCESSOR_CLASS_NAME = "ExtensionPreprocessor"\n'
                     f'INFERER_CLASS_NAME = "{inferer_class_name}"\n')

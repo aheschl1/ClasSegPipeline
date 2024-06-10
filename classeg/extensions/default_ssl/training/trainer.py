@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import tqdm
+from torch.utils.data import DataLoader
+
 from classeg.training.trainer import Trainer, log
 
 
@@ -92,8 +94,12 @@ class SelfSupervisedTrainer(Trainer):
 
         running_loss = 0.
         total_items = 0
+        i = 0
         for data, _, _ in tqdm.tqdm(self.val_dataloader):
+            i += 1
             data = data.to(self.device)
+            if i == 1 and epoch % 10 == 0:
+                self.log_helper.log_net_structure(self.model, data)
             batch_size = data.shape[0]
             predictions = self.model(data)
             index = random.randint(0, data.shape[0]-1)
@@ -113,6 +119,9 @@ class SelfSupervisedTrainer(Trainer):
         if self.device == 0:
             log("Loss being used is nn.MSELoss()")
         return nn.MSELoss()
+
+    def get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
+        return super().get_dataloaders()
 
     def get_model(self, path: str) -> nn.Module:
         return super().get_model(path)

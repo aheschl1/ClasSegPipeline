@@ -2,6 +2,8 @@ from typing import Tuple, Any
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
+
 from classeg.training.trainer import Trainer, log
 import torchvision.transforms as transforms
 from classeg.utils.constants import PREPROCESSED_ROOT
@@ -13,6 +15,7 @@ class ClassificationTrainer(Trainer):
     """
     This class is a subclass of the Trainer class and is used for training and checkpointing of networks.
     """
+
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
@@ -33,8 +36,12 @@ class ClassificationTrainer(Trainer):
                          world_size)
         class_names = read_json(f"{PREPROCESSED_ROOT}/{self.dataset_name}/id_to_label.json")
         self.class_names = [i for i in sorted(class_names.values())]
+
         self._last_val_accuracy = 0.
         self._val_accuracy = 0.
+        self._train_accuracy = 0.
+        self._last_train_accuracy = 0.
+
         self.softmax = nn.Softmax(dim=1)
 
     def get_augmentations(self) -> Tuple[Any, Any]:
@@ -66,6 +73,9 @@ class ClassificationTrainer(Trainer):
         """
         running_loss = 0.
         total_items = 0
+        correct_count = 0
+        all_predictions, all_labels = [], []
+
         # ForkedPdb().set_trace()
         log_image = epoch % 10 == 0
         for data, labels, _ in tqdm(self.train_dataloader):
@@ -82,10 +92,15 @@ class ClassificationTrainer(Trainer):
             # update model
             loss.backward()
             self.optim.step()
+            predictions = torch.argmax(predictions, dim=1)
+            correct_count += torch.sum(predictions == labels)
+            all_labels.extend(labels.tolist())
+            all_predictions.extend(predictions.tolist())
             # gather data
             running_loss += loss.item() * batch_size
             total_items += batch_size
-
+        self.log_helper.plot_confusion_matrix(all_predictions, all_labels, self.class_names, set_name="train")
+        self._train_accuracy = correct_count / total_items
         return running_loss / total_items
 
     def post_epoch_log(self, epoch: int) -> Tuple:
@@ -95,9 +110,11 @@ class ClassificationTrainer(Trainer):
         :param epoch: The current epoch number.
         :return: Tuple containing the log message.
         """
-        message = f"Val accuracy: {self._val_accuracy} --change-- {self._val_accuracy - self._last_val_accuracy}"
+        messagea = f"Val accuracy: {self._val_accuracy} --change-- {self._val_accuracy - self._last_val_accuracy}"
+        messageb = f"Train accuracy: {self._train_accuracy} --change-- {self._train_accuracy - self._last_train_accuracy}"
         self._last_val_accuracy = self._val_accuracy
-        return message,
+        self._last_train_accuracy = self._train_accuracy
+        return messagea, messageb
 
     # noinspection PyTypeChecker
     def eval_single_epoch(self, epoch) -> float:
@@ -117,7 +134,7 @@ class ClassificationTrainer(Trainer):
             i += 1
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
-            if i == 1:
+            if i == 1 and epoch % 10 == 0:
                 self.log_helper.log_net_structure(self.model, data)
             batch_size = data.shape[0]
             # do prediction and calculate loss
@@ -131,7 +148,7 @@ class ClassificationTrainer(Trainer):
             all_labels.extend(labels.tolist())
             correct_count += torch.sum(predictions == labels)
             total_items += batch_size
-        self.log_helper.plot_confusion_matrix(all_predictions, all_labels, self.class_names)
+        self.log_helper.plot_confusion_matrix(all_predictions, all_labels, self.class_names, set_name="val")
         self._val_accuracy = correct_count / total_items
         return running_loss / total_items
 
@@ -144,6 +161,9 @@ class ClassificationTrainer(Trainer):
         if self.device == 0:
             log("Loss being used is nn.CrossEntropyLoss()")
         return nn.CrossEntropyLoss()
+
+    def get_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
+        return super().get_dataloaders()
 
     def get_model(self, path: str) -> nn.Module:
         return super().get_model(path)
