@@ -13,6 +13,7 @@ from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiff
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
+    get_autoencoder_from_config,
 )
 
 
@@ -46,6 +47,7 @@ class LatentDiffusionTrainer(Trainer):
                          preload, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
+        self.autoencoder = get_autoencoder_from_config(self.config)
         self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
 
@@ -96,7 +98,6 @@ class LatentDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
-        # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
@@ -104,6 +105,10 @@ class LatentDiffusionTrainer(Trainer):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 
+            # Encode both images and segmentations using our decoder
+            images = self.autoencoder.encode(images)
+            segmentations = self.autoencoder.encode(segmentations)
+            
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
@@ -135,6 +140,11 @@ class LatentDiffusionTrainer(Trainer):
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
+
+            # Encode both images and segmentations using our decoder
+            images = self.autoencoder.encode(images)
+            print(segmentations.shape)
+            segmentations = self.autoencoder.encode(segmentations)
 
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 

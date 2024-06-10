@@ -1,11 +1,10 @@
-import sys
 from typing import Tuple, List
 
-from classeg.extensions.unstable_diffusion.utils.utils import make_zero_conv
+from classeg.extensions.Latent_Diffusion.utils.utils import make_zero_conv
 import torch
 import torch.nn as nn
-from classeg.extensions.unstable_diffusion.model.modules import ScaleULayer
-
+from classeg.extensions.Latent_Diffusion.model.modules import ScaleULayer
+from classeg.extensions.Latent_Diffusion.model.autoencoder.autoencoder import get_vqgan
 
 class LateInitializationLayerNorm(nn.Module):
     def __init__(self, **kwargs):
@@ -437,11 +436,13 @@ class LatentDiffusion(nn.Module):
 
         super(LatentDiffusion, self).__init__()
         self.apply_scale_u = apply_scale_u
+        self.apply_zero_conv = apply_zero_conv
+
         assert (
             not shared_encoder or not apply_zero_conv
         ), "Zero conv requires separate encoders"
-        self.apply_zero_conv = apply_zero_conv
         self.time_emb_dim = time_emb_dim
+
         if channels is None:
             channels = [16, 32, 64]
         layers = len(channels)
@@ -459,6 +460,7 @@ class LatentDiffusion(nn.Module):
             nn.Linear(time_emb_dim, time_emb_dim),
         )
 
+        # Initial Convolution
         self.im_conv_in = nn.Conv2d(
             in_channels=im_channels,
             out_channels=channels[0],
@@ -616,6 +618,7 @@ class LatentDiffusion(nn.Module):
         # ======== TIME ========
         t = self._sinusoidal_embedding(t)
         t = self.t_proj(t)
+
         # ======== ENTRY ========
         im_out = self.im_conv_in(im)
         seg_out = self.seg_conv_in(seg)

@@ -7,14 +7,17 @@ import torch
 from matplotlib import pyplot as plt
 from torchvision.utils import make_grid
 from tqdm import tqdm
+from PIL import Image
+from classeg.extensions.Latent_Diffusion.model.autoencoder.autoencoder import VQModel
+
 
 from classeg.dataloading.datapoint import Datapoint
-from classeg.extensions.unstable_diffusion.utils.utils import get_forward_diffuser_from_config
+from classeg.extensions.unstable_diffusion.utils.utils import get_forward_diffuser_from_config, get_autoencoder_from_config
 from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
 
-class UnstableDiffusionInferer(Inferer):
+class LatentDiffusionInferer(Inferer):
     def __init__(self,
                  dataset_id: str,
                  fold: int,
@@ -31,6 +34,7 @@ class UnstableDiffusionInferer(Inferer):
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
+        self.autoencoder = self.get_autoencoder_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
         self.model_json = read_json(f"{self.lookup_root}/model.json")
@@ -58,8 +62,6 @@ class UnstableDiffusionInferer(Inferer):
         grid_size = int(self.kwargs.get("g", 1))
         grid_size = int(self.kwargs.get("grid_size", grid_size))
 
-        save_process = self.kwargs.get("save_process", False) in [True, '1', 1, 't', 'T']
-
         save_path = self.pre_infer()
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
@@ -69,15 +71,15 @@ class UnstableDiffusionInferer(Inferer):
             xt_im = torch.randn(
                 (
                     grid_size ** 2,
-                    self.model_json["Children"][0]["args"]["im_channels"],
-                    *self.config["target_size"],
+                    self.config["latent_channels"],
+                    *self.config["latent_size"],
                 )
             )
             xt_seg = torch.randn(
                 (
                     grid_size ** 2,
-                    self.model_json["Children"][0]["args"]["seg_channels"],
-                    *self.config["target_size"],
+                    self.config["latent_channels"],
+                    *self.config["latent_size"],
                 )
             )
             xt_im = xt_im.to(self.device)
@@ -96,24 +98,25 @@ class UnstableDiffusionInferer(Inferer):
                     t,
                     clamp=False,
                 )
-                grid_im = make_grid(xt_im, nrow=grid_size)
-                if save_process or t == 0:
-                    grid_im = grid_im.cpu().permute(1, 2, 0).numpy()
-                    grid_im -= grid_im.min()
-                    grid_im *= 255 / grid_im.max()
-                    grid_im = grid_im.astype(np.uint8)
-                    plt.imsave(f"{save_path}/x0_{t}_im.png", grid_im)
-                grid_seg = make_grid(xt_seg, nrow=grid_size)
-                if save_process or t == 0:
-                    grid_seg = grid_seg.cpu().permute(1, 2, 0).numpy()
-                    grid_seg -= grid_seg.min()
-                    grid_seg *= 255 / grid_seg.max()
-                    grid_seg = grid_seg.astype(np.uint8)
-                    plt.imsave(f"{save_path}/x0_{t}_seg.png", grid_seg)
-        xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
-        xt_seg = xt_seg.cpu()[0].permute(1, 2, 0).numpy()
-
+            xt_im = self.autoencoder.decode(xt_im)
+            xt_seg = self.autoencoder.decode(xt_seg)
+            grid_im = make_grid(xt_im, nrow=grid_size)
+            grid_seg = make_grid(xt_seg, nrow=grid_size)
+            self.save_tensor("Images.jpg", grid_im)
+            self.save_tensor("Masks.jpg", grid_seg)
         return xt_im, xt_seg
+
+    def save_tensor(path, x):
+        x = x.detach().cpu()
+        x -= x.min()
+        x *= 255 / x.max()
+        x = x.permute(1,2,0).numpy()
+        x = x.astype(np.uint8)
+        x = Image.fromarray(x)
+        if not x.mode == "RGB":
+          x = x.convert("RGB")
+        x.save(path)
+        return
 
     def post_infer(self):
         """
