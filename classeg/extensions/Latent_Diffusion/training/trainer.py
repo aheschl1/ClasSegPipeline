@@ -107,6 +107,7 @@ class LatentDiffusionTrainer(Trainer):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 
+            
             # Encode both images and segmentations using our decoder
             images = self.autoencoder.encode(images)
             segmentations = self.autoencoder.encode(segmentations)
