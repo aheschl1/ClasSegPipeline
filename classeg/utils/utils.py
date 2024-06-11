@@ -3,11 +3,13 @@ import json
 import logging
 import os
 import pkgutil
+import warnings
 from contextlib import contextmanager
 from typing import Dict, List, Union, Tuple, Any
 
+import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler, WeightedRandomSampler
 from tqdm import tqdm
 
 from classeg.dataloading.datapoint import Datapoint
@@ -285,6 +287,8 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
     Returns the datapoints of preprocessed cases.
     :param dataset_name:
     :param fold:
+    :param cache:
+    :param verbose: If true, will print progress.
     :return: Train points, Val points.
     """
 
@@ -418,6 +422,7 @@ def get_dataloaders_from_fold(dataset_name: str,
                               store_metadata: bool = False,
                               config_name="config",
                               cache=False,
+                              sampler = None,
                               **kwargs) -> Tuple[DataLoader, DataLoader]:
     """
     Returns the train and val dataloaders for a specific dataset fold.
@@ -429,6 +434,8 @@ def get_dataloaders_from_fold(dataset_name: str,
     :param preprocessed_data: If true, grabs the preprocessed data,if false grabs the raw data.
     :param store_metadata: If true, will tell the datapoints reader/writer to save metadata on read.
     :param kwargs: Can overwrite some settings.
+    :param cache: If true, will cache the data.
+    :param sampler: If not None, will use this sampler.
     :return: Train and val dataloaders.
     """
 
@@ -442,13 +449,24 @@ def get_dataloaders_from_fold(dataset_name: str,
     val_dataset = PipelineDataset(val_points, dataset_name, val_transforms,
                                   store_metadata=store_metadata)
     train_sampler, val_sampler = None, None
-    if 'sampler' in kwargs and kwargs['sampler'] is not None:
-        assert 'rank' in kwargs and 'world_size' in kwargs, \
-            "If supplying 'sampler' you must also supply 'world_size' and 'rank'"
-        train_sampler = kwargs['sampler'](train_dataset, rank=kwargs['rank'],
-                                          num_replicas=kwargs['world_size'], shuffle=True)
-        val_sampler = kwargs['sampler'](val_dataset, rank=kwargs['rank'],
-                                        num_replicas=kwargs['world_size'], shuffle=False)
+    if sampler is not None:
+        if sampler == DistributedSampler:
+            assert 'rank' in kwargs and 'world_size' in kwargs, \
+                "If supplying 'sampler' DistributedSampler as you must also supply 'world_size' and 'rank'"
+            train_sampler = DistributedSampler(train_dataset, rank=kwargs['rank'],
+                                               num_replicas=kwargs['world_size'], shuffle=True)
+            val_sampler = DistributedSampler(val_dataset, rank=kwargs['rank'],
+                                             num_replicas=kwargs['world_size'], shuffle=False)
+        elif sampler == WeightedRandomSampler:
+            print("Using weighted sampler")
+            train_classes = [x.label for x in train_dataset.datapoints]
+            class_sample_count = np.array([len(np.where(train_classes == t)[0]) for t in np.unique(train_classes)])
+            weight = 1. / class_sample_count
+            samples_weight = np.array([weight[t] for t in train_classes])
+            samples_weight = torch.from_numpy(samples_weight)
+            train_sampler = WeightedRandomSampler(samples_weight.type('torch.DoubleTensor'), len(samples_weight))
+        else:
+            warnings.warn(f"Unsupported sampler type {type(kwargs['sampler'])}. Note you should pass the type, not an instance.")
 
     batch_size = kwargs.get('batch_size', config['batch_size'])
     if 'world_size' in kwargs:
