@@ -551,24 +551,5 @@ class IdentityFirstStage(torch.nn.Module):
     def forward(self, x, *args, **kwargs):
         return x
 
-from omegaconf import OmegaConf
-import yaml
-    
-# Make from name
-def get_vqgan(config_path, checkpoint_path):
-    vqgan = load_vqgan(load_config(config_path), ckpt_path=checkpoint_path).to("cpu")
-    return vqgan
-
-def load_vqgan(config, ckpt_path=None, is_gumbel=False):
-    model = VQModel(**config.model.params)
-    sd = torch.load(ckpt_path, map_location="cpu")["state_dict"]
-    missing, unexpected = model.load_state_dict(sd, strict=False)
-    return model.eval()
-
-def load_config(config_path, display=False):
-    config = OmegaConf.load(config_path)
-    if display:
-        print(yaml.dump(OmegaConf.to_container(config)))
-    return config
     
 

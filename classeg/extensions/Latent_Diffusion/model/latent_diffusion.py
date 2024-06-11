@@ -4,7 +4,6 @@ from classeg.extensions.Latent_Diffusion.utils.utils import make_zero_conv
 import torch
 import torch.nn as nn
 from classeg.extensions.Latent_Diffusion.model.modules import ScaleULayer
-from classeg.extensions.Latent_Diffusion.model.autoencoder.autoencoder import get_vqgan
 
 class LateInitializationLayerNorm(nn.Module):
     def __init__(self, **kwargs):

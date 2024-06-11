@@ -37,7 +37,9 @@ class LatentDiffusionInferer(Inferer):
         self.autoencoder = get_autoencoder_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
-        self.model_json = read_json(f"{self.lookup_root}/model.json")
+        try:
+            self.model_json = read_json(f"{self.lookup_root}/model.json")
+        except:...
 
     def get_augmentations(self):
         ...
@@ -71,14 +73,12 @@ class LatentDiffusionInferer(Inferer):
             xt_im = torch.randn(
                 (
                     grid_size ** 2,
-                    self.config["latent_channels"],
                     *self.config["latent_size"],
                 )
             )
             xt_seg = torch.randn(
                 (
                     grid_size ** 2,
-                    self.config["latent_channels"],
                     *self.config["latent_size"],
                 )
             )
@@ -135,6 +135,24 @@ class LatentDiffusionInferer(Inferer):
         checkpoint = torch.load(
             f"{self.lookup_root}/{self.weights}.pth"
         )
-        model = LatentDiffusion(self, 4, 4, layer_depth=2, channels=None, time_emb_dim=100, shared_encoder=False, apply_zero_conv=False, apply_scale_u=True,)
+        in_channels = self.config.get('latent_size')[0]
+        layer_depth = self.config.get('layer_depth')
+        channels = self.config.get('channels')
+        time_emb_dim = self.config.get('time_emb_dim')
+        apply_scale_u = self.config.get('apply_scale_u')
+        apply_zero_conv = self.config.get('apply_zero_conv')
+        shared_encoder = self.config.get('shared_encoder')
+
+        model = LatentDiffusion( 
+            in_channels,
+            in_channels,
+            layer_depth,
+            channels,
+            time_emb_dim,
+            shared_encoder,
+            apply_zero_conv,
+            apply_scale_u
+        )
         model.load_state_dict(checkpoint["weights"])
         return model.to(self.device)
+    

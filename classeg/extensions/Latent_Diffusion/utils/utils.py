@@ -1,4 +1,4 @@
-from classeg.extensions.unstable_diffusion.forward_diffusers.diffusers import Diffuser, LinearDiffuser, CosDiffuser
+from classeg.extensions.Latent_Diffusion.forward_diffusers.diffusers import Diffuser, LinearDiffuser, CosDiffuser
 import os
 from classeg.utils.constants import AUTOENCODER
 from omegaconf import OmegaConf
@@ -25,7 +25,7 @@ def get_autoencoder_from_config(config) -> VQModel:
     model = VQModel(**config.model.params)
     sd = torch.load(f'{path}/model.ckpt')["state_dict"]
     missing, unexpected = model.load_state_dict(sd, strict=False)
-    return model.eval()
+    return model.eval().cuda()
 
 
 def make_zero_conv(channels, conv_op):

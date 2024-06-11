@@ -50,7 +50,7 @@ class Inferer:
         else:
             self.model = None
         assert os.path.exists(self.lookup_root)
-        assert torch.cuda.is_available(), "No gpu available."
+        #assert torch.cuda.is_available(), "No gpu available."
 
     def _get_model(self) -> nn.Module:
         """

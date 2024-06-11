@@ -50,8 +50,8 @@ class LatentDiffusionTrainer(Trainer):
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.autoencoder = get_autoencoder_from_config(self.config)
-        self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
-        self.infer_every: int = 10
+        # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
+        self.infer_every: int = 1000000
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
@@ -104,13 +104,17 @@ class LatentDiffusionTrainer(Trainer):
             self.optim.zero_grad()
             if log_image:
                 self.log_helper.log_augmented_image(images[0], segmentations[0])
+            
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 
+            segmentations = segmentations.repeat(1,3,1,1)
+
+            # Encode both images and segmentations using our vqgan pretrained encoder
+            with torch.no_grad():
+                images, _, [_, _, indices] = self.autoencoder.encode(images)
+                segmentations, _, [_, _, indices] = self.autoencoder.encode(segmentations)
             
-            # Encode both images and segmentations using our decoder
-            images = self.autoencoder.encode(images)
-            segmentations = self.autoencoder.encode(segmentations)
             
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
@@ -144,10 +148,12 @@ class LatentDiffusionTrainer(Trainer):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
 
-            # Encode both images and segmentations using our decoder
-            images = self.autoencoder.encode(images)
-            print(segmentations.shape)
-            segmentations = self.autoencoder.encode(segmentations)
+            segmentations = segmentations.repeat(1,3,1,1)
+
+            # Encode both images and segmentations using our vqgan pretrained encoder
+            with torch.no_grad():
+                images, _, [_, _, indices] = self.autoencoder.encode(images)
+                segmentations, _, [_, _, indices] = self.autoencoder.encode(segmentations)
 
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
@@ -161,10 +167,11 @@ class LatentDiffusionTrainer(Trainer):
 
     @override
     def post_epoch(self, epoch: int) -> None:
-        if epoch % self.infer_every == 0 and self.device == 0:
-            print("Running inference to log")
-            result_im, result_seg = self._inferer.infer()
-            self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+        ...
+        # if epoch % self.infer_every == 0 and self.device == 0:
+        #     print("Running inference to log")
+        #     result_im, result_seg = self._inferer.infer()
+        #     self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
 
     def get_lr_scheduler(self):
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
@@ -206,5 +213,22 @@ class LatentDiffusionTrainer(Trainer):
         :param path: The path to the json architecture definition.
         :return: The pytorch network module.
         """
-        model = LatentDiffusion( 4,4,2,None,100,False,False,True)
-        return model
+        in_channels = self.config.get('latent_size')[0]
+        layer_depth = self.config.get('layer_depth')
+        channels = self.config.get('channels')
+        time_emb_dim = self.config.get('time_emb_dim')
+        apply_scale_u = self.config.get('apply_scale_u')
+        apply_zero_conv = self.config.get('apply_zero_conv')
+        shared_encoder = self.config.get('shared_encoder')
+
+        model = LatentDiffusion( 
+            in_channels,
+            in_channels,
+            layer_depth,
+            channels,
+            time_emb_dim,
+            shared_encoder,
+            apply_zero_conv,
+            apply_scale_u
+        )
+        return model.to(self.device)

@@ -12,7 +12,6 @@ import torchvision.transforms as T
 from classeg.extensions.Latent_Diffusion.model.autoencoder.autoencoder import VQModel
 import yaml
 
-
 from omegaconf import OmegaConf
 
 def load_config(config_path, display=False):
@@ -26,7 +25,7 @@ def preprocess_vqgan(x):
   return x
 
 
-def preprocess(img, target_image_size=256):
+def preprocess(img, target_image_size=1024):
     s = min(img.size)
     
     if s < target_image_size:
@@ -46,6 +45,7 @@ def preprocess(img, target_image_size=256):
 
 def reconstruct_with_vqgan(x, model):
   # could also use model(x) for reconstruction but use explicit encoding and decoding here
+  x = x.to("cuda")
   z, _, [_, _, indices] = model.encode(x)
   print(f"VQGAN --- {model.__class__.__name__}: latent shape: {z.shape}")
   xrec = model.decode(z)
@@ -53,17 +53,17 @@ def reconstruct_with_vqgan(x, model):
 
 def load_vqgan(config, ckpt_path=None, is_gumbel=False):
   model = VQModel(**config.model.params)
-  sd = torch.load(ckpt_path, map_location="cpu")["state_dict"]
+  sd = torch.load(ckpt_path)["state_dict"]
   missing, unexpected = model.load_state_dict(sd, strict=False)
-  return model.eval()
+  return model.eval().cuda()
 
-config_path = "/home/mauricio.murillo/Diffusion_ClasSeg/classeg/extensions/Latent_Diffusion/model/autoencoder/auto_config.yaml"
-model32x32 = load_vqgan(load_config(config_path), ckpt_path="/home/mauricio.murillo/Diffusion_ClasSeg/classeg/extensions/Latent_Diffusion/model/Autoencoder_Checkpoint/model.ckpt").to("cpu")
+config_path = "/home/mauricio.murillo/Diffusion_ClasSeg/Autoencoders/vq-f8-n256/config.yaml"
+model32x32 = load_vqgan(load_config(config_path), ckpt_path="/home/mauricio.murillo/Diffusion_ClasSeg/Autoencoders/vq-f8-n256/model.ckpt")
 
-def reconstruction_pipeline(image_path, size=256):
+def reconstruction_pipeline(image_path, size=1024):
   img = PIL.Image.open(image_path)
   x_vqgan = preprocess(img, target_image_size=size)
-  x_vqgan = x_vqgan.to("cpu")
+  x_vqgan = x_vqgan
   
   print(f"input is of size: {x_vqgan.shape}")
   x0 = reconstruct_with_vqgan(preprocess_vqgan(x_vqgan), model32x32)
@@ -87,11 +87,11 @@ img_r.save("real_img.jpg")
 mas_r = PIL.Image.open("/home/mauricio.murillo/SegmentationPipeline/data/oprediction/1/0/Mask.png")
 mas_r.save("real_mas.jpg")
 
-img = reconstruction_pipeline("/home/mauricio.murillo/SegmentationPipeline/data/oprediction/1/0/Image.jpg", size=256)
+img = reconstruction_pipeline("/home/mauricio.murillo/SegmentationPipeline/data/oprediction/1/0/Image.jpg", size=1024)
 img = custom_to_pil(img[0])
 img.save("rec_img.jpg")
 
-mas = reconstruction_pipeline("/home/mauricio.murillo/SegmentationPipeline/data/oprediction/1/0/Mask.png", size=256)
+mas = reconstruction_pipeline("/home/mauricio.murillo/SegmentationPipeline/data/oprediction/1/0/Mask.png", size=1024)
 mas = custom_to_pil(mas[0])
 mas.save("rec_mas.jpg")
 
