@@ -25,6 +25,8 @@ class LatentDiffusionInferer(Inferer):
                  weights: str,
                  input_root: str,
                  late_model_instantiation=True,
+                 model = None,
+                 ae = None,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -34,9 +36,11 @@ class LatentDiffusionInferer(Inferer):
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self.autoencoder = get_autoencoder_from_config(self.config)
+        self.autoencoder = get_autoencoder_from_config(self.config, device=self.device) if ae is None else ae
+        
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
+        self.model = model
         try:
             self.model_json = read_json(f"{self.lookup_root}/model.json")
         except:...
@@ -64,10 +68,10 @@ class LatentDiffusionInferer(Inferer):
         grid_size = int(self.kwargs.get("g", 1))
         grid_size = int(self.kwargs.get("grid_size", grid_size))
 
-        save_path = self.pre_infer()
-        if os.path.exists(save_path):
-            shutil.rmtree(save_path)
-        os.mkdir(save_path)
+        self.save_path = self.pre_infer()
+        if os.path.exists(self.save_path):
+            shutil.rmtree(self.save_path)
+        os.mkdir(self.save_path)
         self.model.eval()
         with torch.no_grad():
             xt_im = torch.randn(
@@ -102,11 +106,11 @@ class LatentDiffusionInferer(Inferer):
             xt_seg = self.autoencoder.decode(xt_seg)
             grid_im = make_grid(xt_im, nrow=grid_size)
             grid_seg = make_grid(xt_seg, nrow=grid_size)
-            self.save_tensor("Images.jpg", grid_im)
-            self.save_tensor("Masks.jpg", grid_seg)
+            self.save_tensor(f"{self.save_path}/Images.jpg", grid_im)
+            self.save_tensor(f"{self.save_path}/Masks.jpg", grid_seg)
         return xt_im, xt_seg
 
-    def save_tensor(path, x):
+    def save_tensor(self, path, x):
         x = x.detach().cpu()
         x -= x.min()
         x *= 255 / x.max()
@@ -132,6 +136,8 @@ class LatentDiffusionInferer(Inferer):
         Loads the model and weights.
         :return:
         """
+        if self.model is not None:
+            return self.model
         checkpoint = torch.load(
             f"{self.lookup_root}/{self.weights}.pth"
         )

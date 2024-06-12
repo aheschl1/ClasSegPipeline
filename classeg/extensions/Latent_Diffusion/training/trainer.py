@@ -49,8 +49,9 @@ class LatentDiffusionTrainer(Trainer):
                          preload, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self.autoencoder = get_autoencoder_from_config(self.config)
-        # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
+        dev = f'cuda:{self.device}' if isinstance(self.device, int) else self.device
+        self.autoencoder = get_autoencoder_from_config(self.config, device=dev)
+        #self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 1000000
 
     @override
@@ -84,7 +85,7 @@ class LatentDiffusionTrainer(Trainer):
         return train_transforms, val_transforms
 
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
-        self._inferer = LatentDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
+        self._inferer = LatentDiffusionInferer(dataset_name, fold, result_folder, "latest", None, model = self.model, ae = self.autoencoder)
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -151,9 +152,8 @@ class LatentDiffusionTrainer(Trainer):
             segmentations = segmentations.repeat(1,3,1,1)
 
             # Encode both images and segmentations using our vqgan pretrained encoder
-            with torch.no_grad():
-                images, _, [_, _, indices] = self.autoencoder.encode(images)
-                segmentations, _, [_, _, indices] = self.autoencoder.encode(segmentations)
+            images, _, [_, _, indices] = self.autoencoder.encode(images)
+            segmentations, _, [_, _, indices] = self.autoencoder.encode(segmentations)
 
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
@@ -168,10 +168,10 @@ class LatentDiffusionTrainer(Trainer):
     @override
     def post_epoch(self, epoch: int) -> None:
         ...
-        # if epoch % self.infer_every == 0 and self.device == 0:
-        #     print("Running inference to log")
-        #     result_im, result_seg = self._inferer.infer()
-        #     self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+        #if epoch % self.infer_every == 0 and self.device == 0:
+        #    print("Running inference to log")
+        #    result_im, result_seg = self._inferer.infer()
+        #    self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
 
     def get_lr_scheduler(self):
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
