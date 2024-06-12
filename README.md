@@ -1,9 +1,11 @@
 # ClasSeg - An Extendable Classification/Segmentation/SSL DL Pipeline
 ClasSeg is a pipeline which can handle multiple tasks and data types out of the box. This is a solid foundation for writing any type of deep learning project.
 This is setup so you only need one codebase for all of your DL projects and research. With capacity to handle multiple datasets with vastly different objectives,
-this pipeline is all you need to get efficient training with organized logging, results, and data management. (anything < 100% GPU utilization is **unacceptable:()**)
+this pipeline is all you need to get efficient training with organized logging, results, and data management.
 
 Still in an early stage of development, but feel free to fork and submit pull requests.
+
+Windows is not compatible currently because of path things. This will be fixed eventually, but Linux > Windows.
 # Default Supported Data Types
 1) Natural images (PNG, JPG, ....) grayscale and RGB
 2) Medical images (Dicom, NIfTI) 2d and 3d
