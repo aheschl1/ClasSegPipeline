@@ -75,10 +75,6 @@ def ddp_training(rank, world_size: int, dataset_id: int,
             world_size=world_size)
         trainer.train()
     except Exception as e:
-        if trainer is not None and trainer.output_dir is not None:
-            out_files = glob.glob(f"{trainer.output_dir}/*")
-            if len(out_files) < 4:
-                shutil.rmtree(trainer.output_dir, ignore_errors=True)
         cleanup(dataset_name, fold, cache)
         raise e
     destroy_process_group()
@@ -173,10 +169,6 @@ def main(
             trainer.train()
             cleanup(dataset_name, fold, cache)
         except Exception as e:
-            if trainer is not None and trainer.output_dir is not None:
-                out_files = glob.glob(f"{trainer.output_dir}/*")
-                if "latest.pth" not in out_files:
-                    shutil.rmtree(trainer.output_dir, ignore_errors=True)
             cleanup(dataset_name, fold, cache)
             raise e
     else:

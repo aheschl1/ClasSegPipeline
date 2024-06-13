@@ -171,7 +171,7 @@ class Preprocessor:
         Ensure the raw data exists in RAW_ROOT.
         """
         if not os.path.exists(f"{RAW_ROOT}/{self.dataset_name}"):
-            raise ValueError("The raw folder does not exist!")
+            raise ValueError(f"The raw folder for {self.dataset_name} does not exist :()")
 
     def process(self) -> None:
         """
