@@ -231,7 +231,7 @@ def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
         sample_paths = glob.glob(f"{dataset_root}/*")
     logging.info("Paths reading has completed.")
     for path in tqdm(sample_paths, desc="Preparing datapoints"):
-        case_name = path.split('/')[-1].split('.')[0]
+        case_name = os.path.split('/')[-1].split('.')[0]
         verify_case_name(case_name)
         if mode == SEGMENTATION:
             label = path.replace("imagesTr", "labelsTr")

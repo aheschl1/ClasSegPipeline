@@ -1,5 +1,9 @@
 import os
 import json
+import platform
+
+if platform.system() == 'Windows':
+    raise SystemExit('Windows is not supported (you should fix this and make a pull request, it is just paths)')
 
 SIMPLE_ITK = 'SimpleITK'
 NATURAL = 'NATURAL'
@@ -11,6 +15,7 @@ if not os.path.exists(os.path.expanduser("~/.classegrc")):
         "default_processes": os.cpu_count(),
         "model_bucket_directory": f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions"
     }
+
     with open(os.path.expanduser("~/.classegrc"), "w+") as config_file:
         json.dump(default_config, config_file, indent=4)
 
