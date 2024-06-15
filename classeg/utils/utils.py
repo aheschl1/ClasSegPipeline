@@ -231,7 +231,7 @@ def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
         sample_paths = glob.glob(f"{dataset_root}/*")
     logging.info("Paths reading has completed.")
     for path in tqdm(sample_paths, desc="Preparing datapoints"):
-        case_name = os.path.split('/')[-1].split('.')[0]
+        case_name = path.split('/')[-1].split('.')[0]
         verify_case_name(case_name)
         if mode == SEGMENTATION:
             label = path.replace("imagesTr", "labelsTr")
@@ -380,15 +380,13 @@ def get_folds_from_dataset(dataset_name: str) -> Dict[str, Dict[str, List[str]]]
     return read_json(path)
 
 
-def get_config_from_dataset(dataset_name: str, config_name: str = 'config', output_dir=None) -> Dict:
+def get_config_from_dataset(dataset_name: str, config_name: str = 'config') -> Dict:
     """
     Given a dataset name looks for a config file.
     :param config_name: Name of the config file to load
     :param dataset_name: The name of the dataset.
     :return: Config dictionary.
     """
-    if output_dir is not None:
-        return read_json(f"{output_dir}/config.json")
     path = f"{PREPROCESSED_ROOT}/{dataset_name}/{config_name}.json"
     return read_json(path)
 

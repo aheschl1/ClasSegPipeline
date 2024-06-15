@@ -134,6 +134,9 @@ def main(
         key, value = arg.split('=')
         kwargs[key] = value
 
+    if resume and name is None:
+        raise ValueError("You must provide a name for the session if you want to resume training.")
+
     multiprocessing_logging.install_mp_handler()
     dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
     if not os.path.exists(model) and "json" in model:

@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class LogHelper:
-    def __init__(self, output_dir: str, max_images: int = 10) -> None:
+    def __init__(self, output_dir: str, max_images: int = 10, current_epoch=0) -> None:
         """
         This class is for the storage and graphing of loss/accuracy data throughout training.
         :param output_dir: Folder on device where graphs should be output.
@@ -20,9 +20,12 @@ class LogHelper:
         self.output_dir = output_dir
         self.losses_train, self.losses_val = [], []
         self.summary_writer = SummaryWriter(log_dir=f"{self.output_dir}/tensorboard")
-        self.epoch = 0
+        self.epoch = current_epoch
         self.image_step = 0
         self.max_images = max_images
+
+    def set_current_epoch(self, epoch):
+        self.epoch = epoch
 
     def epoch_end(
             self, train_loss: float, val_loss: float, learning_rate: float, duration: float
