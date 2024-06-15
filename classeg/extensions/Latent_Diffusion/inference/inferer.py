@@ -60,56 +60,83 @@ class LatentDiffusionInferer(Inferer):
         """
         Returns the output directory, and creates dataloader
         """
-        save_path = f'{self.lookup_root}/inference'
+        folder_name = input("name the output folder")
+        self.save_path = f"{self.lookup_root}/inference/{folder_name}"
+
+        if not os.path.exists(f"{self.lookup_root}/inference"):
+            os.mkdir(f"{self.lookup_root}/inference")
         self.model = self._get_model()
-        return save_path
+        return self.save_path
 
     def infer(self):
-        grid_size = int(self.kwargs.get("g", 1))
-        grid_size = int(self.kwargs.get("grid_size", grid_size))
+        self.pre_infer()
+        to_folder = self.kwargs.get("to_folder", False) in [True, '1', 1, 't', 'T']
+        if to_folder:
+            self.infer_folder()
+        else:
+            self.infer_grid()
 
-        self.save_path = self.pre_infer()
-        if os.path.exists(self.save_path):
-            shutil.rmtree(self.save_path)
-        os.mkdir(self.save_path)
+    def infer_folder(self):
+        num_samples = int(self.kwargs.get("s", 100))
+
         self.model.eval()
         with torch.no_grad():
-            xt_im = torch.randn(
-                (
-                    grid_size ** 2,
-                    *self.config["latent_size"],
-                )
-            )
-            xt_seg = torch.randn(
-                (
-                    grid_size ** 2,
-                    *self.config["latent_size"],
-                )
-            )
-            xt_im = xt_im.to(self.device)
-            xt_seg = xt_seg.to(self.device)
-            for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
-                time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
-
-                noise_prediction_im, noise_prediciton_seg = self.model(
-                    xt_im, xt_seg, time_tensor
-                )
-                xt_im, xt_seg = self.forward_diffuser.inference_call(
-                    xt_im,
-                    xt_seg,
-                    noise_prediction_im,
-                    noise_prediciton_seg,
-                    t,
-                    clamp=False,
-                )
-            xt_im = self.autoencoder.decode(xt_im)
-            xt_seg = self.autoencoder.decode(xt_seg)
+            xt_im, xt_seg = self.progressive_denoise(num_samples)
+            os.mkdir(f'{self.save_path}/Images')
+            os.mkdir(f'{self.save_path}/Masks')
+            for i in range(xt_im.shape[0]):
+                self.save_tensor(f'{self.save_path}/Images/x0_{i}', xt_im[i])
+                self.save_tensor(f'{self.save_path}/Masks/x0_{i}', xt_seg[i])
+        return xt_im, xt_seg
+    
+    def infer_grid(self):
+        grid_size = int(self.kwargs.get("g", 1))
+        grid_size = int(self.kwargs.get("grid_size", grid_size))
+        
+        self.model.eval()
+        with torch.no_grad():
+            xt_im, xt_seg = self.progressive_denoise(grid_size**2)
             grid_im = make_grid(xt_im, nrow=grid_size)
             grid_seg = make_grid(xt_seg, nrow=grid_size)
             self.save_tensor(f"{self.save_path}/Images.jpg", grid_im)
             self.save_tensor(f"{self.save_path}/Masks.jpg", grid_seg)
         return xt_im, xt_seg
 
+
+    def progressive_denoise(self, num_samples):
+        xt_im = torch.randn(
+            (
+                num_samples,
+                *self.config["latent_size"],
+            )
+        )
+        xt_seg = torch.randn(
+            (
+                num_samples,
+                *self.config["latent_size"],
+            )
+        )
+        xt_im = xt_im.to(self.device)
+        xt_seg = xt_seg.to(self.device)
+        for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
+            time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
+
+            noise_prediction_im, noise_prediciton_seg = self.model(
+                xt_im, xt_seg, time_tensor
+            )
+            xt_im, xt_seg = self.forward_diffuser.inference_call(
+                xt_im,
+                xt_seg,
+                noise_prediction_im,
+                noise_prediciton_seg,
+                t,
+                clamp=False,
+            )
+        xt_im = self.autoencoder.decode(xt_im)
+        xt_seg = self.autoencoder.decode(xt_seg)
+        return xt_im, xt_seg
+
+    
     def save_tensor(self, path, x):
         x = x.detach().cpu()
         x -= x.min()
