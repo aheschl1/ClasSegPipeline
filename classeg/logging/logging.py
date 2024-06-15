@@ -88,14 +88,11 @@ class LogHelper:
 
     def log_graph(self, points: List[Tuple[float, float]], epoch, title="2D Graph"):
         fig = plt.figure()
-        # Unpack the points into two lists
         x_values, y_values = zip(*points)
-        # Create a scatter plot
-        plt.scatter(x_values, y_values)
-        # Add the figure to TensorBoard
+        plt.plot(x_values, y_values)
         self.summary_writer.add_figure(title, fig, epoch)
-        # Close the figure to free up memory
         plt.close(fig)
+        self.summary_writer.flush()
 
     def log_image_infered(self, image, epoch, **kwargs):
         self.summary_writer.add_image(
