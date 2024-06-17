@@ -21,6 +21,7 @@ def get_autoencoder_from_config(config, device="cuda") -> VQModel:
     path = f'{AUTOENCODER}/{config.get("autoencoder", "vq-f8-n256")}'
     if not os.path.exists(path):
         raise FileNotFoundError(f"{path} does not exist.") #dont know what to raise
+    print("Using Autoencoder at ", path)
     config = OmegaConf.load(f'{path}/config.yaml')
     model = VQModel(**config.model.params)
     sd = torch.load(f'{path}/model.ckpt', map_location=device)["state_dict"]
