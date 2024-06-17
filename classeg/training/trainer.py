@@ -19,7 +19,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 from classeg.logging.logging import LogHelper
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name
+from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json
 from classeg.utils.utils import write_json
 
 
@@ -61,9 +61,6 @@ class Trainer:
         :param cache: If True, cache the dataset to memory.
         :param world_size: The number of processes for distributed training.
         """
-        # assert (
-        #     torch.cuda.is_available()
-        # ), "This pipeline only supports GPU training. No GPU was detected, womp womp."
         if not torch.cuda.is_available():
             if world_size > 1:
                 raise SystemExit("Distributed training is not supported on CPU, and no GPU is available.")
@@ -78,7 +75,10 @@ class Trainer:
         self.config_name = config_name
         self.output_dir = self._prepare_output_directory(unique_folder_name)
         self.log_helper = LogHelper(self.output_dir)
-        self.config = get_config_from_dataset(dataset_name, config_name)
+        if resume:
+            self.config = read_json(f"{self.output_dir}/config.json")
+        else:
+            self.config = get_config_from_dataset(dataset_name, config_name)
         self._assert_preprocess_ready_for_train()
         if gpu_id in [0, "cpu"]:
             log("Config:", self.config)
@@ -101,6 +101,7 @@ class Trainer:
         self._save_self_file()
         if resume:
             self._load_checkpoint("latest")
+        self.log_helper.set_current_epoch(self._current_epoch)
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
             dist.barrier()

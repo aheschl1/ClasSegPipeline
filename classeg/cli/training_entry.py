@@ -4,7 +4,7 @@ import importlib
 import os.path
 import shutil
 from multiprocessing.shared_memory import SharedMemory
-from typing import Type
+from typing import Type, List
 
 import click
 import multiprocessing_logging
@@ -44,7 +44,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
                  fold: int, model: str,
                  session_id: str, resume: bool,
                  config: str, trainer_class: Type[Trainer], dataset_desc: str,
-                 cache: bool) -> None:
+                 cache: bool, kwargs: dict) -> None:
     """
     Launches training on a single process using pytorch ddp.
     :param config: The name of the config to load.
@@ -56,7 +56,9 @@ def ddp_training(rank, world_size: int, dataset_id: int,
     :param model: The path to the model json definition
     :param resume: Continue training from latest epoch
     :param trainer_class: Trainer class to use
-    :param dataset_desc: Trainer class to useZ
+    :param dataset_desc: Trainer class to useZ,
+    :param cache: Cache the data in memory
+    :param kwargs: Extra arguments to pass to the trainer
     :return: Nothing
     """
     setup_ddp(rank, world_size)
@@ -72,13 +74,11 @@ def ddp_training(rank, world_size: int, dataset_id: int,
             config,
             cache=cache,
             resume=resume,
-            world_size=world_size)
+            world_size=world_size,
+            **kwargs
+        )
         trainer.train()
     except Exception as e:
-        if trainer is not None and trainer.output_dir is not None:
-            out_files = glob.glob(f"{trainer.output_dir}/*")
-            if len(out_files) < 4:
-                shutil.rmtree(trainer.output_dir, ignore_errors=True)
         cleanup(dataset_name, fold, cache)
         raise e
     destroy_process_group()
@@ -97,6 +97,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("-dataset_desc", "-dd", required=False, default=None,
               help="Description of dataset. Useful if you have overlapping ids.")  # 10
 @click.option("--cache", help="Cache the data in memory.", type=bool, is_flag=True)
+@click.argument('extra_args', nargs=-1)
 def main(
         fold: int,
         dataset_id: str,
@@ -107,7 +108,8 @@ def main(
         name: str,
         extension: str,
         dataset_desc: str,
-        cache: bool
+        cache: bool,
+        extra_args: List[str]
 ) -> None:
     """
     Initializes training on multiple processes, and initializes logger.
@@ -120,8 +122,21 @@ def main(
     :param name: The name of the output folder. Will timestamp by default.
     :param extension: The name of the trainer class to use
     :param dataset_desc: Dataset description
+    :param cache: Cache the data in memory
+    :param extra_args: Extra arguments to pass to the extension.
     :return:
     """
+    kwargs = {}
+    for arg in extra_args:
+        if "=" not in arg:
+            raise ValueError(
+                "For preprocessing, all positional arguments must contain '='. They are used for passing arguments to extension preprocessors.")
+        key, value = arg.split('=')
+        kwargs[key] = value
+
+    if resume and name is None:
+        raise ValueError("You must provide a name for the session if you want to resume training.")
+
     multiprocessing_logging.install_mp_handler()
     dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
     if not os.path.exists(model) and "json" in model:
@@ -151,7 +166,8 @@ def main(
                 config,
                 trainer_class,
                 dataset_desc,
-                cache
+                cache,
+                kwargs
             ),
             nprocs=gpus,
             join=True,
@@ -168,15 +184,12 @@ def main(
                 config,
                 resume=resume,
                 cache=cache,
-                world_size=1
+                world_size=1,
+                **kwargs
             )
             trainer.train()
             cleanup(dataset_name, fold, cache)
         except Exception as e:
-            if trainer is not None and trainer.output_dir is not None:
-                out_files = glob.glob(f"{trainer.output_dir}/*")
-                if "latest.pth" not in out_files:
-                    shutil.rmtree(trainer.output_dir, ignore_errors=True)
             cleanup(dataset_name, fold, cache)
             raise e
     else:

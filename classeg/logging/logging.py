@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import matplotlib.pyplot as plt
 import seaborn as sn
@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class LogHelper:
-    def __init__(self, output_dir: str, max_images: int = 10) -> None:
+    def __init__(self, output_dir: str, max_images: int = 10, current_epoch=0) -> None:
         """
         This class is for the storage and graphing of loss/accuracy data throughout training.
         :param output_dir: Folder on device where graphs should be output.
@@ -20,9 +20,12 @@ class LogHelper:
         self.output_dir = output_dir
         self.losses_train, self.losses_val = [], []
         self.summary_writer = SummaryWriter(log_dir=f"{self.output_dir}/tensorboard")
-        self.epoch = 0
+        self.epoch = current_epoch
         self.image_step = 0
         self.max_images = max_images
+
+    def set_current_epoch(self, epoch):
+        self.epoch = epoch
 
     def epoch_end(
             self, train_loss: float, val_loss: float, learning_rate: float, duration: float
@@ -84,6 +87,14 @@ class LogHelper:
         self.summary_writer.add_scalars(
             "Network/params", {"total": total, "trainable": trainable}
         )
+        self.summary_writer.flush()
+
+    def log_graph(self, points: List[Tuple[float, float]], epoch, title="2D Graph"):
+        fig = plt.figure()
+        x_values, y_values = zip(*points)
+        plt.plot(x_values, y_values)
+        self.summary_writer.add_figure(title, fig, epoch)
+        plt.close(fig)
         self.summary_writer.flush()
 
     def log_image_infered(self, image, epoch, **kwargs):
