@@ -65,6 +65,7 @@ class LatentDiffusionInferer(Inferer):
 
         if not os.path.exists(f"{self.lookup_root}/inference"):
             os.mkdir(f"{self.lookup_root}/inference")
+        os.mkdir(self.save_path)
         self.model = self._get_model()
         return self.save_path
 
@@ -85,8 +86,8 @@ class LatentDiffusionInferer(Inferer):
             os.mkdir(f'{self.save_path}/Images')
             os.mkdir(f'{self.save_path}/Masks')
             for i in range(xt_im.shape[0]):
-                self.save_tensor(f'{self.save_path}/Images/x0_{i}', xt_im[i])
-                self.save_tensor(f'{self.save_path}/Masks/x0_{i}', xt_seg[i])
+                self.save_tensor(f'{self.save_path}/Images/x0_{i}.jpg', xt_im[i])
+                self.save_tensor(f'{self.save_path}/Masks/x0_{i}.jpg', xt_seg[i])
         return xt_im, xt_seg
     
     def infer_grid(self):
