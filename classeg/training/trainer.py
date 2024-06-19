@@ -90,7 +90,7 @@ class Trainer:
         self.train_dataloader, self.val_dataloader = self.get_dataloaders()
         self._current_epoch = 0
         self.model_path = model_path
-        self.model = self.get_model(model_path)
+        self.model = self.get_model(model_path).to(self.device)
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
         self.loss = self.get_loss()
