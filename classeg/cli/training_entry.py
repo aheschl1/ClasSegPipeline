@@ -3,6 +3,7 @@ import glob
 import importlib
 import os.path
 import shutil
+import warnings
 from multiprocessing.shared_memory import SharedMemory
 from typing import Type, List
 
@@ -88,7 +89,8 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.command()
 @click.option("-fold", "-f", help="Which fold to train.", type=int, required=True)
 @click.option("-dataset_id", "-d", help="The dataset id to train.", type=str, required=True)
-@click.option("-model", "-m", help="Path to model json definition, or name of the model class.", type=str, required=True)
+@click.option("-model", "-m", help="Path to model json definition, or name of the model class.",
+              type=str, required=False)
 @click.option("-gpus", "-g", help="How many gpus for ddp", type=int, default=1)
 @click.option("--resume", "--r", help="Resume training from latest", type=bool, is_flag=True)
 @click.option("-config", "-c", help="Name of the config file to utilize.", type=str, default="config")
@@ -139,7 +141,10 @@ def main(
 
     multiprocessing_logging.install_mp_handler()
     dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
-    if not os.path.exists(model) and "json" in model:
+    if model is None:
+        warnings.warn("No model provided. "
+                      "Make sure you use an extension that does not need an explicit model argument.")
+    if model is not None and not os.path.exists(model) and "json" in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
         for model_path in available_models:
