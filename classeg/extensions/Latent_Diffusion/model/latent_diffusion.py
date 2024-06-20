@@ -649,12 +649,12 @@ class LatentDiffusion(nn.Module):
 
 if __name__ == "__main__":
     torch.cuda.empty_cache()
-    in_shape = 32
+    in_shape = 64
     im = torch.randn(1, 4, in_shape, in_shape).float().cuda(0)
     seg = torch.randn(1, 4, in_shape, in_shape).float().cuda(0)
 
     model = LatentDiffusion( 
-        lat_channels=3,
+        lat_channels=4,
         layer_depth=2,
         channels=[16,32,64],
         attn_channels=[32,64],
@@ -673,5 +673,7 @@ if __name__ == "__main__":
     )
     print(f"Total parameters: {all_params}")
     print(f"Trainable params: {trainable_params}")
-    y =(im, seg, torch.rand((1)).cuda(0))
-    print(y.shape)
+    y_im, y_seg = model(im, seg, torch.rand((1)).cuda(0))
+    print(y_im.shape)
+    print(y_seg.shape)
+
