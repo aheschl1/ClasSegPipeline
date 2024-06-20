@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
 from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
+from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
@@ -33,7 +34,7 @@ class ForkedPdb(pdb.Pdb):
 
 class UnstableDiffusionTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
+                 config_name: str, resume: bool = False, world_size: int = 1, cache: bool =False):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -43,10 +44,10 @@ class UnstableDiffusionTrainer(Trainer):
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume,
-                         preload, world_size)
+                         cache, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
+        # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
 
     @override
@@ -148,10 +149,16 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def post_epoch(self, epoch: int) -> None:
+        return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
             result_im, result_seg = self._inferer.infer()
             self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+
+    @override
+    def get_model(self, path) -> nn.Module:
+        model = UnstableDiffusion(**self.config["model_args"])
+        return model.to(self.device)
 
     def get_lr_scheduler(self):
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)

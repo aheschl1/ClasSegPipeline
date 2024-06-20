@@ -13,6 +13,7 @@ from classeg.extensions.unstable_diffusion.utils.utils import get_forward_diffus
 from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
+from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 
 class UnstableDiffusionInferer(Inferer):
     def __init__(self,
@@ -33,10 +34,22 @@ class UnstableDiffusionInferer(Inferer):
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
-        self.model_json = read_json(f"{self.lookup_root}/model.json")
+        
+        # self.model_json = read_json(f"{self.lookup_root}/model.json")
 
     def get_augmentations(self):
         ...
+
+    def _get_model(self):
+        """
+        Loads the model and weights.
+        :return:
+        """
+        if self.model is not None:
+            return self.model
+        
+        model = UnstableDiffusion(**self.config["model_args"])
+        return model.to(self.device)
 
     def infer_single_sample(self, image: torch.Tensor, datapoint: Datapoint) -> None:
         """
@@ -51,7 +64,12 @@ class UnstableDiffusionInferer(Inferer):
         Returns the output directory, and creates dataloader
         """
         save_path = f'{self.lookup_root}/inference'
-        self.model = self._get_model()
+        self.model = self._get_model().cpu()
+        checkpoint = torch.load(
+            f"{self.lookup_root}/{self.weights}.pth"
+        )["weights"]
+        self.model.load_state_dict(checkpoint)
+        self.model = self.model.to(self.device)
         return save_path
 
     def infer(self):
@@ -69,14 +87,14 @@ class UnstableDiffusionInferer(Inferer):
             xt_im = torch.randn(
                 (
                     grid_size ** 2,
-                    self.model_json["Children"][0]["args"]["im_channels"],
+                    self.config["model_args"]["im_channels"],
                     *self.config["target_size"],
                 )
             )
             xt_seg = torch.randn(
                 (
                     grid_size ** 2,
-                    self.model_json["Children"][0]["args"]["seg_channels"],
+                    self.config["model_args"]["seg_channels"],
                     *self.config["target_size"],
                 )
             )
