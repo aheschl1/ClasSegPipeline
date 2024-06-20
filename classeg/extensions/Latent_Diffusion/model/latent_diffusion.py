@@ -423,10 +423,10 @@ class UpBlock(nn.Module):
 class LatentDiffusion(nn.Module):
     def __init__(
         self,
-        im_channels,
-        seg_channels,
+        lat_channels,
         layer_depth=2,
         channels=None,
+        attn_channels=None,
         time_emb_dim=100,
         shared_encoder=False,
         apply_zero_conv=False,
@@ -449,6 +449,7 @@ class LatentDiffusion(nn.Module):
         self.shared_encoder = shared_encoder
         self.layers = layers
         self.channels = channels
+        self.attn_channels = attn_channels
         self.time_emb_dim = time_emb_dim
         self.layer_depth = layer_depth
 
@@ -461,14 +462,14 @@ class LatentDiffusion(nn.Module):
 
         # Initial Convolution
         self.im_conv_in = nn.Conv2d(
-            in_channels=im_channels,
+            in_channels=lat_channels,
             out_channels=channels[0],
             kernel_size=3,
             stride=1,
             padding=1,
         )
         self.seg_conv_in = nn.Conv2d(
-            in_channels=seg_channels,
+            in_channels=lat_channels,
             out_channels=channels[0],
             kernel_size=3,
             stride=1,
@@ -499,6 +500,7 @@ class LatentDiffusion(nn.Module):
                     time_emb_dim=self.time_emb_dim,
                     upsample=True,
                     num_layers=layer_depth,
+                    attention=(in_channels in self.attn_channels)
                 )
             )
 
@@ -514,6 +516,7 @@ class LatentDiffusion(nn.Module):
                     time_emb_dim=self.time_emb_dim,
                     upsample=True,
                     num_layers=layer_depth,
+                    attention=(in_channels in self.attn_channels)
                 )
             )
 
@@ -522,7 +525,7 @@ class LatentDiffusion(nn.Module):
             nn.SiLU(),
             nn.Conv2d(
                 in_channels=channels[0],
-                out_channels=im_channels,
+                out_channels=lat_channels,
                 kernel_size=3,
                 padding=1,
             ),
@@ -533,7 +536,7 @@ class LatentDiffusion(nn.Module):
             nn.SiLU(),
             nn.Conv2d(
                 in_channels=channels[0],
-                out_channels=seg_channels,
+                out_channels=lat_channels,
                 kernel_size=3,
                 padding=1,
             ),
@@ -554,6 +557,7 @@ class LatentDiffusion(nn.Module):
                     num_layers=self.layer_depth,
                     apply_zero_conv=self.apply_zero_conv,
                     apply_scale_u=self.apply_scale_u,
+                    attention=(in_channels in self.attn_channels)
                 )
             )
         return encoder_layers
@@ -646,11 +650,28 @@ class LatentDiffusion(nn.Module):
 if __name__ == "__main__":
     torch.cuda.empty_cache()
     in_shape = 32
-    im = torch.randn(1, 3, in_shape, in_shape).float().cuda(0)
-    seg = torch.randn(1, 1, in_shape, in_shape).float().cuda(0)
+    im = torch.randn(1, 4, in_shape, in_shape).float().cuda(0)
+    seg = torch.randn(1, 4, in_shape, in_shape).float().cuda(0)
 
-    unet = LatentDiffusion(
-        im_channels=3, seg_channels=1, channels=[32, 64], layer_depth=2
+    model = LatentDiffusion( 
+        lat_channels=3,
+        layer_depth=2,
+        channels=[16,32,64],
+        attn_channels=[32,64],
+        time_emb_dim=128,
+        shared_encoder=False,
+        apply_zero_conv=False,
+        apply_scale_u=True
     ).cuda(0)
-    # y = down(z, torch.randn(1, 8, 64*2, 64*2).cuda(), torch.ones(100).float().cuda())
-    y = unet(im, seg, torch.rand((1)).cuda(0))
+
+    print("---------------")
+    print(model)
+    print("---------------")
+    all_params = sum(param.numel() for param in model.parameters())
+    trainable_params = sum(
+        p.numel() for p in model.parameters() if p.requires_grad
+    )
+    print(f"Total parameters: {all_params}")
+    print(f"Trainable params: {trainable_params}")
+    y =(im, seg, torch.rand((1)).cuda(0))
+    print(y.shape)
