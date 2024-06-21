@@ -169,19 +169,20 @@ class LatentDiffusionInferer(Inferer):
         checkpoint = torch.load(
             f"{self.lookup_root}/{self.weights}.pth"
         )
-        in_channels = self.config.get('latent_size')[0]
-        layer_depth = self.config.get('layer_depth')
-        channels = self.config.get('channels')
-        time_emb_dim = self.config.get('time_emb_dim')
-        apply_scale_u = self.config.get('apply_scale_u')
+        lat_channels     = self.config.get('latent_size')[0]
+        layer_depth     = self.config.get('layer_depth')
+        channels        = self.config.get('channels')
+        attn_channels   = self.config.get('attn_channels')
+        time_emb_dim    = self.config.get('time_emb_dim')
+        apply_scale_u   = self.config.get('apply_scale_u')
         apply_zero_conv = self.config.get('apply_zero_conv')
-        shared_encoder = self.config.get('shared_encoder')
+        shared_encoder  = self.config.get('shared_encoder')
 
         model = LatentDiffusion( 
-            in_channels,
-            in_channels,
+            lat_channels,
             layer_depth,
             channels,
+            attn_channels,
             time_emb_dim,
             shared_encoder,
             apply_zero_conv,
