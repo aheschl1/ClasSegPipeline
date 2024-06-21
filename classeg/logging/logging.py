@@ -123,6 +123,10 @@ class LogHelper:
             epoch
         )
         self.summary_writer.flush()
+    
+    def log_scalar(self, name, value, epoch):
+        self.summary_writer.add_scalar(name, value, epoch)
+        self.summary_writer.flush()
 
     def __del__(self):
         self.summary_writer.flush()

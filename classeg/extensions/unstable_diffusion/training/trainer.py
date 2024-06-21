@@ -15,6 +15,7 @@ from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
+import torch.functional as F
 
 
 class ForkedPdb(pdb.Pdb):
@@ -109,6 +110,7 @@ class UnstableDiffusionTrainer(Trainer):
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             loss = 0.5 * self.loss(predicted_noise_im, im_noise) + 0.5 * self.loss(predicted_noise_seg, seg_noise)
+
             # update model
             loss.backward()
             self.optim.step()
@@ -132,7 +134,8 @@ class UnstableDiffusionTrainer(Trainer):
         """
         running_loss = 0.0
         total_items = 0
-
+        total_divergence = 0
+        
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
@@ -141,10 +144,13 @@ class UnstableDiffusionTrainer(Trainer):
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             loss = 0.5 * self.loss(predicted_noise_im, noise_im) + 0.5 * self.loss(predicted_noise_seg, noise_seg)
+            total_divergence += F.kl_div(predicted_noise_im, predicted_noise_seg, reduction='batchmean')
+
             # gather data
             running_loss += loss.item() * images.shape[0]
             total_items += images.shape[0]
 
+        self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
         return running_loss / total_items
 
     @override
@@ -184,12 +190,32 @@ class UnstableDiffusionTrainer(Trainer):
             log(f"Optim being used is {optim}")
         return optim
 
+    class MSEWithKLDivergenceLoss(nn.Module):
+        def __init__(self, kl_weight=0.1):
+            super().__init__()
+            self.kl_weight = kl_weight
+            self.mse_loss = nn.MSELoss()
+            self.kl_div_loss = nn.KLDivLoss()
+        
+        def forward(self, predicted, target):
+            mse_loss = self.mse_loss(predicted, target)
+            kl_div_loss = self.kl_div_loss(predicted, target)
+            return mse_loss + self.kl_weight * kl_div_loss
+
+
     @override
     def get_loss(self) -> nn.Module:
         """
         Build the criterion object.
         :return: The loss function to be used.
         """
-        if self.device == 0:
-            log("Loss being used is nn.MSELoss()")
-        return nn.MSELoss()
+        if self.config.get("loss", "mse") == "mse":
+            if self.device == 0:
+                log("Loss being used is nn.MSELoss()")
+            return nn.MSELoss()
+        elif self.config.get("loss", "mse") == "mse_kl":
+            if self.device == 0:
+                log("Loss being used is MSEWithKLDivergenceLoss()")
+            return self.MSEWithKLDivergenceLoss()
+        else:
+            raise SystemExit(f"Loss {self.config.get('loss', 'mse')} not supported")
