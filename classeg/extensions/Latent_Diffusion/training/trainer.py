@@ -213,7 +213,7 @@ class LatentDiffusionTrainer(Trainer):
         :param path: The path to the json architecture definition.
         :return: The pytorch network module.
         """
-        in_channels     = self.config.get('latent_size')[0]
+        lat_channels     = self.config.get('latent_size')[0]
         layer_depth     = self.config.get('layer_depth')
         channels        = self.config.get('channels')
         attn_channels   = self.config.get('attn_channels')
@@ -223,8 +223,7 @@ class LatentDiffusionTrainer(Trainer):
         shared_encoder  = self.config.get('shared_encoder')
 
         model = LatentDiffusion( 
-            in_channels,
-            in_channels,
+            lat_channels,
             layer_depth,
             channels,
             attn_channels,

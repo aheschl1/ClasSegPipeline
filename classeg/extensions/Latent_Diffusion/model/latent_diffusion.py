@@ -449,6 +449,9 @@ class LatentDiffusion(nn.Module):
         self.shared_encoder = shared_encoder
         self.layers = layers
         self.channels = channels
+
+        if attn_channels is None:
+            attn_channels = []
         self.attn_channels = attn_channels
         self.time_emb_dim = time_emb_dim
         self.layer_depth = layer_depth

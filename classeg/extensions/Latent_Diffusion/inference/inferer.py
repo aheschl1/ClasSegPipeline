@@ -41,9 +41,6 @@ class LatentDiffusionInferer(Inferer):
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
         self.model = model
-        try:
-            self.model_json = read_json(f"{self.lookup_root}/model.json")
-        except:...
 
     def get_augmentations(self):
         ...
@@ -94,17 +91,20 @@ class LatentDiffusionInferer(Inferer):
         grid_size = int(self.kwargs.get("g", 1))
         grid_size = int(self.kwargs.get("grid_size", grid_size))
         
+        save_process = self.kwargs.get("save", False) in [True, '1', 1, 't', 'T']
+        
+        if save_process:
+            os.mkdir(f'{self.save_path}/Images')
+            os.mkdir(f'{self.save_path}/Masks')
+        
         self.model.eval()
         with torch.no_grad():
-            xt_im, xt_seg = self.progressive_denoise(grid_size**2)
-            grid_im = make_grid(xt_im, nrow=grid_size)
-            grid_seg = make_grid(xt_seg, nrow=grid_size)
-            self.save_tensor(f"{self.save_path}/Images.jpg", grid_im)
-            self.save_tensor(f"{self.save_path}/Masks.jpg", grid_seg)
+            xt_im, xt_seg = self.progressive_denoise(grid_size**2, save_process)
+            self.save_as_grid(self.save_path, "grid", xt_im, xt_seg, grid_size)
         return xt_im, xt_seg
 
 
-    def progressive_denoise(self, num_samples):
+    def progressive_denoise(self, num_samples, save_process=False):
         xt_im = torch.randn(
             (
                 num_samples,
@@ -133,11 +133,15 @@ class LatentDiffusionInferer(Inferer):
                 t,
                 clamp=False,
             )
+            if save_process and (t%2==0):
+                im_dec = self.autoencoder.decode(xt_im)
+                seg_dec = self.autoencoder.decode(xt_seg)
+                self.save_as_grid(self.save_path, 1000-t, im_dec, seg_dec, int(num_samples**0.5))
         xt_im = self.autoencoder.decode(xt_im)
         xt_seg = self.autoencoder.decode(xt_seg)
         return xt_im, xt_seg
 
-    
+
     def save_tensor(self, path, x):
         x = x.detach().cpu()
         x -= x.min()
@@ -150,6 +154,12 @@ class LatentDiffusionInferer(Inferer):
         x.save(path)
         return
 
+    def save_as_grid(self, path, name,  images, masks, grid_size):
+        grid_im = make_grid(images, nrow=grid_size)
+        grid_seg = make_grid(masks, nrow=grid_size)
+        self.save_tensor(f'{path}/Images/im_{name}.jpg', grid_im)
+        self.save_tensor(f'{path}/Masks/ma_{name}.jpg', grid_seg)
+        
     def post_infer(self):
         """
         Here, inference has run on every sample.
@@ -169,19 +179,20 @@ class LatentDiffusionInferer(Inferer):
         checkpoint = torch.load(
             f"{self.lookup_root}/{self.weights}.pth"
         )
-        in_channels = self.config.get('latent_size')[0]
-        layer_depth = self.config.get('layer_depth')
-        channels = self.config.get('channels')
-        time_emb_dim = self.config.get('time_emb_dim')
-        apply_scale_u = self.config.get('apply_scale_u')
+        lat_channels     = self.config.get('latent_size')[0]
+        layer_depth     = self.config.get('layer_depth')
+        channels        = self.config.get('channels')
+        attn_channels   = self.config.get('attn_channels')
+        time_emb_dim    = self.config.get('time_emb_dim')
+        apply_scale_u   = self.config.get('apply_scale_u')
         apply_zero_conv = self.config.get('apply_zero_conv')
-        shared_encoder = self.config.get('shared_encoder')
+        shared_encoder  = self.config.get('shared_encoder')
 
         model = LatentDiffusion( 
-            in_channels,
-            in_channels,
+            lat_channels,
             layer_depth,
             channels,
+            attn_channels,
             time_emb_dim,
             shared_encoder,
             apply_zero_conv,
