@@ -10,10 +10,12 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
 from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
+from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
+import torch.functional as F
 
 
 class ForkedPdb(pdb.Pdb):
@@ -33,7 +35,7 @@ class ForkedPdb(pdb.Pdb):
 
 class UnstableDiffusionTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, preload: bool = True, world_size: int = 1):
+                 config_name: str, resume: bool = False, world_size: int = 1, cache: bool =False):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -43,10 +45,10 @@ class UnstableDiffusionTrainer(Trainer):
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume,
-                         preload, world_size)
+                         cache, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
+        # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
 
     @override
@@ -108,6 +110,7 @@ class UnstableDiffusionTrainer(Trainer):
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             loss = 0.5 * self.loss(predicted_noise_im, im_noise) + 0.5 * self.loss(predicted_noise_seg, seg_noise)
+
             # update model
             loss.backward()
             self.optim.step()
@@ -131,7 +134,8 @@ class UnstableDiffusionTrainer(Trainer):
         """
         running_loss = 0.0
         total_items = 0
-
+        total_divergence = 0
+        
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
@@ -140,18 +144,27 @@ class UnstableDiffusionTrainer(Trainer):
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             loss = 0.5 * self.loss(predicted_noise_im, noise_im) + 0.5 * self.loss(predicted_noise_seg, noise_seg)
+            total_divergence += F.kl_div(predicted_noise_im, predicted_noise_seg, reduction='batchmean')
+
             # gather data
             running_loss += loss.item() * images.shape[0]
             total_items += images.shape[0]
 
+        self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
         return running_loss / total_items
 
     @override
     def post_epoch(self, epoch: int) -> None:
+        return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
             result_im, result_seg = self._inferer.infer()
             self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+
+    @override
+    def get_model(self, path) -> nn.Module:
+        model = UnstableDiffusion(**self.config["model_args"])
+        return model.to(self.device)
 
     def get_lr_scheduler(self):
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
@@ -177,12 +190,32 @@ class UnstableDiffusionTrainer(Trainer):
             log(f"Optim being used is {optim}")
         return optim
 
+    class MSEWithKLDivergenceLoss(nn.Module):
+        def __init__(self, kl_weight=0.1):
+            super().__init__()
+            self.kl_weight = kl_weight
+            self.mse_loss = nn.MSELoss()
+            self.kl_div_loss = nn.KLDivLoss()
+        
+        def forward(self, predicted, target):
+            mse_loss = self.mse_loss(predicted, target)
+            kl_div_loss = self.kl_div_loss(predicted, target)
+            return mse_loss + self.kl_weight * kl_div_loss
+
+
     @override
     def get_loss(self) -> nn.Module:
         """
         Build the criterion object.
         :return: The loss function to be used.
         """
-        if self.device == 0:
-            log("Loss being used is nn.MSELoss()")
-        return nn.MSELoss()
+        if self.config.get("loss", "mse") == "mse":
+            if self.device == 0:
+                log("Loss being used is nn.MSELoss()")
+            return nn.MSELoss()
+        elif self.config.get("loss", "mse") == "mse_kl":
+            if self.device == 0:
+                log("Loss being used is MSEWithKLDivergenceLoss()")
+            return self.MSEWithKLDivergenceLoss()
+        else:
+            raise SystemExit(f"Loss {self.config.get('loss', 'mse')} not supported")

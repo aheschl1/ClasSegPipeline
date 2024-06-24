@@ -660,7 +660,7 @@ if __name__ == "__main__":
         lat_channels=4,
         layer_depth=2,
         channels=[16,32,64],
-        attn_channels=[32,64],
+        attn_channels=[16, 32,64],
         time_emb_dim=128,
         shared_encoder=False,
         apply_zero_conv=False,
