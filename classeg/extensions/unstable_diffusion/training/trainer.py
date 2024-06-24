@@ -15,8 +15,7 @@ from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
-import torch.functional as F
-
+import torch.nn.functional as F
 
 class ForkedPdb(pdb.Pdb):
     """
