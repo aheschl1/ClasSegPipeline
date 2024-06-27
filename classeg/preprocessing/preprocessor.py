@@ -3,7 +3,7 @@ import os.path
 import time
 import warnings
 from typing import Dict, Union, Tuple
-
+import torch
 import numpy as np
 from PIL import ImageFile
 from tqdm import tqdm
