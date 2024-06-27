@@ -157,8 +157,8 @@ class LatentDiffusionInferer(Inferer):
     def save_as_grid(self, path, name,  images, masks, grid_size):
         grid_im = make_grid(images, nrow=grid_size)
         grid_seg = make_grid(masks, nrow=grid_size)
-        self.save_tensor(f'{path}/Images/im_{name}.jpg', grid_im)
-        self.save_tensor(f'{path}/Masks/ma_{name}.jpg', grid_seg)
+        self.save_tensor(f'{path}/im_{name}.jpg', grid_im)
+        self.save_tensor(f'{path}/ma_{name}.jpg', grid_seg)
         
     def post_infer(self):
         """

@@ -1,5 +1,5 @@
 import torch
-
+import warnings
 
 class Diffuser:
     def __init__(
@@ -12,6 +12,7 @@ class Diffuser:
         self._betas = self.prepare_betas()
         self._alphas = 1.0 - self._betas
         self._alpha_bars = torch.cumprod(self._alphas, 0)
+        warnings.warn("using samenoise for image and se3g")
 
     def __call__(self, im: torch.Tensor, seg: torch.Tensor, t=None, noise_im=None, noise_seg=None):
         """
@@ -25,7 +26,9 @@ class Diffuser:
         if noise_im is None:
             noise_im = torch.randn_like(im).to(im.device)
         if noise_seg is None:
-            noise_seg = torch.randn_like(seg).to(im.device)
+            # noise_seg = torch.randn_like(seg).to(im.device)
+            noise_seg = noise_im.clone()[:, 0, ...].unsqueeze(1)
+            # print(noise_seg.shape)
 
         a_bar = self._alpha_bars[t].to(im.device)
 

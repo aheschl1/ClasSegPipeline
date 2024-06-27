@@ -235,6 +235,7 @@ def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
         verify_case_name(case_name)
         if mode == SEGMENTATION:
             label = path.replace("imagesTr", "labelsTr")
+            label = label.replace("jpg", "png")
         elif mode == CLASSIFICATION:
             label = label_to_id_mapping[path.split("/")[-2]]
         else:

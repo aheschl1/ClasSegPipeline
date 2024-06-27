@@ -155,7 +155,7 @@ class ExtensionPreprocessor(Preprocessor):
                 )
                 masks = masks[0]
                 masks[masks != 0] = 1
-                masks = torch.stack([masks, masks, masks])
+                # masks = torch.stack([masks, masks, masks])
                 writer.write(
                     masks.to(torch.float32),
                     f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/labelsTr/{point.case_name}."

@@ -133,7 +133,7 @@ class UnstableDiffusionTrainer(Trainer):
         """
         running_loss = 0.0
         total_items = 0
-        total_divergence = 0
+        # total_divergence = 0
         
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
@@ -143,13 +143,13 @@ class UnstableDiffusionTrainer(Trainer):
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             loss = 0.5 * self.loss(predicted_noise_im, noise_im) + 0.5 * self.loss(predicted_noise_seg, noise_seg)
-            total_divergence += F.kl_div(predicted_noise_im, predicted_noise_seg, reduction='batchmean')
+            # total_divergence += F.kl_div(torch.log(predicted_noise_im), predicted_noise_seg, reduction='batchmean')
 
             # gather data
             running_loss += loss.item() * images.shape[0]
             total_items += images.shape[0]
 
-        self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
+        # self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
         return running_loss / total_items
 
     @override
