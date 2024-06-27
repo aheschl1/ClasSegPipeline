@@ -79,6 +79,8 @@ class Datapoint:
         [10, 10, 10] has no channel
         [10, 12, 12] has a channel
 
+        We convert to float32
+
         Parameters:
         data (np.array): The data to be standardized.
 
