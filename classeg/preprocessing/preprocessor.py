@@ -317,6 +317,6 @@ class Preprocessor:
                 if self.mode == SEGMENTATION:
                     labels[labels != 0] = 1
                     writer.write(
-                        labels,
+                        labels.to(torch.int8),
                         image_path.replace("imagesTr", "labelsTr")
                     )
