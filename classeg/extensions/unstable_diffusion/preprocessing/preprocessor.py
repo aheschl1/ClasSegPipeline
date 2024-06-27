@@ -10,7 +10,9 @@ from classeg.utils.constants import *
 import time
 from tqdm import tqdm
 from classeg.utils.utils import get_dataloaders_from_fold, get_case_name_from_number
+from classeg.extensions.unstable_diffusion.preprocessing.bitifier import label_to_bitmask, bitmask_to_label
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+import torch, cv2
 
 """
 Extensions require to keep class name the same for proper loading
@@ -32,22 +34,39 @@ class ExtensionPreprocessor(Preprocessor):
 
     def get_config(self) -> Dict:
         return {
-            "batch_size": 32,
-            "processes": self.processes,
+            "batch_size": 24,
+            "processes": 32,
             "lr": 0.0002,
-            "epochs": 50,
-            "momentum": 0,
-            "weight_decay": 0.0001,
-            "target_size": [224, 224],
+            "epochs": 1000,
+            "momentum": 0.9,
+            "weight_decay": 0.00001,
+            "target_size": [
+                256,
+                256
+            ],
             "max_timestep": 1000,
             "diffuser": "linear",
             "min_beta": 0.0001,
             "max_beta": 0.02,
+            "model_args": {
+                "im_channels": 3,
+                "seg_channels": 1,
+                "layer_depth": 2,
+                "channels": [
+                    32,
+                    64,
+                    128,
+                    256
+                ],
+                "shared_encoder": False,
+                "time_emb_dim": 128
+            }
         }
+
 
     def normalize_function(self, data: np.array) -> np.array:
         if self.datapoints[0].extension in ["JPEG", "jpg", "png", 'jpeg']:
-            return ((data / 255) * 2) - 1
+            return data / 255.0
         print("Warn, skipping normalization")
         return data
 
@@ -110,7 +129,6 @@ class ExtensionPreprocessor(Preprocessor):
         os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/labelsTr")
         os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/labelsTr")
         # start saving preprocessed stuff
-        import torch, cv2
         def my_resize(image, mask=False):
             # Get the dimensions of the image
             image = np.array(image.permute(1, 2, 0))
@@ -155,8 +173,9 @@ class ExtensionPreprocessor(Preprocessor):
                 )
                 masks = masks[0]
                 masks[masks != 0] = 1
+                masks = torch.from_numpy(label_to_bitmask(masks.numpy()))
                 writer.write(
-                    masks.to(torch.float32),
+                    masks.to(torch.int8),
                     f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/labelsTr/{point.case_name}."
                     f"{point.extension if point.extension == 'nii.gz' else 'npy'}",
                 )
