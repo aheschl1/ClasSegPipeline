@@ -20,7 +20,14 @@ Extensions require to keep class name the same for proper loading
 
 
 class ExtensionPreprocessor(Preprocessor):
-    def __init__(self, dataset_id: str, folds: int, processes: int, normalize: bool, dataset_desc: str = None, data_path=None, **kwargs):
+    def __init__(self, 
+                 dataset_id: str, 
+                 folds: int, 
+                 processes: int, 
+                 normalize: bool, 
+                 dataset_desc: str = None, 
+                 data_path=None, 
+                 **kwargs):
         """
         :param folds: How many folds to generate.
         :param processes: How many processes should be used.
@@ -87,8 +94,8 @@ class ExtensionPreprocessor(Preprocessor):
         os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/imagesTr", exist_ok=True)
         for case in tqdm(cases, desc="Moving data"):
             case_name = get_case_name_from_number(int(case.split("/")[-1]))
-            shutil.copy(f"{case}/Mask.png", f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.jpg")
-            shutil.copy(f"{case}/Image.jpg", f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.jpg")
+            shutil.copy(f"{case}/Mask.png", f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
+            shutil.copy(f"{case}/Image.jpg", f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
 
     def process(self) -> None:
         super().process()

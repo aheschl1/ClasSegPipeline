@@ -14,7 +14,7 @@ from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
-
+from classeg.extensions.unstable_diffusion.preprocessing.bitifier import bitmask_to_label
 class UnstableDiffusionInferer(Inferer):
     def __init__(self,
                  dataset_id: str,
@@ -91,14 +91,13 @@ class UnstableDiffusionInferer(Inferer):
                     *self.config["target_size"],
                 )
             )
-            xt_seg = xt_im.clone()[:, 0:1, ...]
-            #xt_seg = torch.randn(
-            #    (
-            #        grid_size ** 2,
-            #        self.config["model_args"]["seg_channels"],
-            #        *self.config["target_size"],
-            #    )
-            #)
+            xt_seg = torch.randn(
+               (
+                   grid_size ** 2,
+                   self.config["model_args"]["seg_channels"],
+                   *self.config["target_size"],
+               )
+            )
             xt_im = xt_im.to(self.device)
             xt_seg = xt_seg.to(self.device)
             for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
@@ -115,22 +114,24 @@ class UnstableDiffusionInferer(Inferer):
                     t,
                     clamp=False,
                 )
-                grid_im = make_grid(xt_im, nrow=grid_size)
                 if save_process or t == 0:
+                    grid_im = make_grid(xt_im, nrow=grid_size)
                     grid_im = grid_im.cpu().permute(1, 2, 0).numpy()
                     grid_im -= grid_im.min()
                     grid_im *= 255 / grid_im.max()
                     grid_im = grid_im.astype(np.uint8)
                     plt.imsave(f"{save_path}/x0_{t}_im.png", grid_im)
-                grid_seg = make_grid(xt_seg, nrow=grid_size)
+
                 if save_process or t == 0:
+                    grid_seg = make_grid(bitmask_to_label(np.round(xt_seg)), nrow=grid_size)
                     grid_seg = grid_seg.cpu().permute(1, 2, 0).numpy()
                     grid_seg -= grid_seg.min()
                     grid_seg *= 255 / grid_seg.max()
                     grid_seg = grid_seg.astype(np.uint8)
                     plt.imsave(f"{save_path}/x0_{t}_seg.png", grid_seg)
+                    
         xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
-        xt_seg = xt_seg.cpu()[0].permute(1, 2, 0).numpy()
+        xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))
 
         return xt_im, xt_seg
 
