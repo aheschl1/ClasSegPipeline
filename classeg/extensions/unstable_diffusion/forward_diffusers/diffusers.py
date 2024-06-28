@@ -47,32 +47,37 @@ class Diffuser:
         seg:torch.Tensor,
         predicted_noise_im: torch.Tensor, 
         predicted_noise_seg: torch.Tensor, 
-        t: int, clamp=False
+        t: int, clamp=False, training_time=False
     ):
         """
         For use in inference mode
         If clamp is true, clamps data between -1 and 1
         """
-        alpha_t = self._alphas[t]
-        alpha_t_bar = self._alpha_bars[t]
-        data_im = (1 / alpha_t.sqrt()) * (
-            im - (1 - alpha_t) / (1 - alpha_t_bar).sqrt() * predicted_noise_im
+        if isinstance(t, int):
+            t = torch.tensor([t]).to(im.device)
+        alpha_t = self._alphas.to(im.device)[t]
+        alpha_t_bar = self._alpha_bars.to(im.device)[t]
+
+        data_im = (1 / alpha_t.sqrt()).reshape(-1, 1, 1, 1) * (
+            im - ((1 - alpha_t) / (1 - alpha_t_bar).sqrt()).reshape(-1, 1, 1, 1) * predicted_noise_im
         )
+
         if clamp:
             data_im = torch.clip(data_im, -5, 5)
-        if t > 0:
+        if not training_time and t > 0:
             z = torch.randn_like(predicted_noise_im).to(predicted_noise_im.device)
             beta_t = self._betas[t]
             sigma_t = beta_t.sqrt()
             data_im = data_im + sigma_t * z
 
         # SEG
-        data_seg = (1 / alpha_t.sqrt()) * (
-            seg - (1 - alpha_t) / (1 - alpha_t_bar).sqrt() * predicted_noise_seg
+        data_seg = (1 / alpha_t.sqrt()).reshape(-1, 1, 1, 1) * (
+            seg - ((1 - alpha_t) / (1 - alpha_t_bar).sqrt()).reshape(-1, 1, 1, 1) * predicted_noise_seg
         )
+
         if clamp:
             data_seg = torch.clip(data_seg, -5, 5)
-        if t > 0:
+        if not training_time and t > 0:
             z = torch.randn_like(predicted_noise_seg).to(predicted_noise_seg.device)
             beta_t = self._betas[t]
             sigma_t = beta_t.sqrt()

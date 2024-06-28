@@ -115,28 +115,26 @@ class UnstableDiffusionTrainer(Trainer):
                 images,
                 segmentations, 
                 predicted_noise_im, 
-                predicted_noise_seg, t, clamp=False
+                predicted_noise_seg, t, clamp=False, training_time=True
             )
             images, segmentations = self.forward_diffuser.inference_call(
                 images,
                 segmentations, 
                 im_noise, 
-                seg_noise, t, clamp=False
+                seg_noise, t, clamp=False, training_time=True
             )
             t-=1
             # make randomly 50/50 real and 50/50 fake
             # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
             # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
-            real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device)
-            predicted_im = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * images + \
-                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_im
-            predicted_seg = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * segmentations + \
-                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_seg
+            real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device).reshape(images.shape[0], 1, 1, 1)
+            predicted_im = real_fake_labels * images + (1 - real_fake_labels) * predicted_im
+            predicted_seg = real_fake_labels * segmentations + (1 - real_fake_labels) * predicted_seg
             predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
             
             discriminator_logits = self.model.discriminate(predicted_concat, t)
             # calculate the loss
-            loss += 0.5 * self.gan_loss(discriminator_logits, real_fake_labels.float())
+            loss += 0.5 * self.gan_loss(discriminator_logits.squeeze(), real_fake_labels.squeeze().float())
 
             # update model
             loss.backward()
@@ -176,28 +174,26 @@ class UnstableDiffusionTrainer(Trainer):
                 images,
                 segmentations, 
                 predicted_noise_im, 
-                predicted_noise_seg, t, clamp=False
+                predicted_noise_seg, t, clamp=False, training_time=True
             )
             images, segmentations = self.forward_diffuser.inference_call(
                 images,
                 segmentations, 
                 noise_im, 
-                noise_seg, t, clamp=False
+                noise_seg, t, clamp=False, training_time=True
             )
             t-=1
             # make randomly 50/50 real and 50/50 fake
             # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
             # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
-            real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device)
-            predicted_im = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * images + \
-                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_im
-            predicted_seg = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * segmentations + \
-                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_seg
+            real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device).reshape(images.shape[0], 1, 1, 1)
+            predicted_im = real_fake_labels * images + (1 - real_fake_labels) * predicted_im
+            predicted_seg = real_fake_labels * segmentations + (1 - real_fake_labels) * predicted_seg
             predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
             
             discriminator_logits = self.model.discriminate(predicted_concat, t)
             # calculate the loss
-            loss += 0.5 * self.gan_loss(discriminator_logits, real_fake_labels.float())
+            loss += 0.5 * self.gan_loss(discriminator_logits.squeeze(), real_fake_labels.squeeze().float())
 
             # gather data
             running_loss += loss.item() * images.shape[0]
