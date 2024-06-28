@@ -49,6 +49,7 @@ class UnstableDiffusionTrainer(Trainer):
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
+        self.recon_loss, self.gan_loss = self.loss
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
@@ -108,7 +109,34 @@ class UnstableDiffusionTrainer(Trainer):
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            loss = 0.5 * self.loss(predicted_noise_im, im_noise) + 0.5 * self.loss(predicted_noise_seg, seg_noise)
+            loss = 0.5 * self.recon_loss(predicted_noise_im, im_noise) + 0.5 * self.recon_loss(predicted_noise_seg, seg_noise)
+            # convert x_t to x_{t-1} and descriminate the goods
+            predicted_im, predicted_seg = self.forward_diffuser.inference_call(
+                images,
+                segmentations, 
+                predicted_noise_im, 
+                predicted_noise_seg, t, clamp=False
+            )
+            images, segmentations = self.forward_diffuser.inference_call(
+                images,
+                segmentations, 
+                im_noise, 
+                seg_noise, t, clamp=False
+            )
+            t-=1
+            # make randomly 50/50 real and 50/50 fake
+            # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
+            # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
+            real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device)
+            predicted_im = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * images + \
+                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_im
+            predicted_seg = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * segmentations + \
+                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_seg
+            predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
+            
+            discriminator_logits = self.model.discriminate(predicted_concat, t)
+            # calculate the loss
+            loss += 0.5 * self.gan_loss(discriminator_logits, real_fake_labels.float())
 
             # update model
             loss.backward()
@@ -142,8 +170,34 @@ class UnstableDiffusionTrainer(Trainer):
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            loss = 0.5 * self.loss(predicted_noise_im, noise_im) + 0.5 * self.loss(predicted_noise_seg, noise_seg)
-            # total_divergence += F.kl_div(torch.log(predicted_noise_im), predicted_noise_seg, reduction='batchmean')
+            loss = 0.5 * self.recon_loss(predicted_noise_im, noise_im) + 0.5 * self.recon_loss(predicted_noise_seg, noise_seg)
+            # convert x_t to x_{t-1} and descriminate the goods
+            predicted_im, predicted_seg = self.forward_diffuser.inference_call(
+                images,
+                segmentations, 
+                predicted_noise_im, 
+                predicted_noise_seg, t, clamp=False
+            )
+            images, segmentations = self.forward_diffuser.inference_call(
+                images,
+                segmentations, 
+                noise_im, 
+                noise_seg, t, clamp=False
+            )
+            t-=1
+            # make randomly 50/50 real and 50/50 fake
+            # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
+            # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
+            real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device)
+            predicted_im = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * images + \
+                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_im
+            predicted_seg = real_fake_labels.reshape(images.shape[0], 1, 1, 1) * segmentations + \
+                (1 - real_fake_labels).reshape(images.shape[0], 1, 1, 1) * predicted_seg
+            predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
+            
+            discriminator_logits = self.model.discriminate(predicted_concat, t)
+            # calculate the loss
+            loss += 0.5 * self.gan_loss(discriminator_logits, real_fake_labels.float())
 
             # gather data
             running_loss += loss.item() * images.shape[0]
@@ -163,6 +217,7 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def get_model(self, path) -> nn.Module:
         model = UnstableDiffusion(**self.config["model_args"])
+
         return model.to(self.device)
 
     def get_lr_scheduler(self):
@@ -208,13 +263,6 @@ class UnstableDiffusionTrainer(Trainer):
         Build the criterion object.
         :return: The loss function to be used.
         """
-        if self.config.get("loss", "mse") == "mse":
-            if self.device == 0:
-                log("Loss being used is nn.MSELoss()")
-            return nn.MSELoss()
-        elif self.config.get("loss", "mse") == "mse_kl":
-            if self.device == 0:
-                log("Loss being used is MSEWithKLDivergenceLoss()")
-            return self.MSEWithKLDivergenceLoss()
-        else:
-            raise SystemExit(f"Loss {self.config.get('loss', 'mse')} not supported")
+        if self.device == 0:
+            log("Loss being used is nn.MSELoss()")
+        return (nn.MSELoss(), nn.BCEWithLogitsLoss())

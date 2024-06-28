@@ -468,6 +468,29 @@ class UnstableDiffusion(nn.Module):
         if not shared_encoder:
             self.encoder_layers_mask = self._generate_encoder()
 
+
+        # Descriminator
+        self.discriminator = nn.ModuleList([
+            nn.Conv2d(
+                in_channels=im_channels+seg_channels,
+                out_channels=channels[0],
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
+            self._generate_encoder(),
+            nn.Sequential(
+                nn.Conv2d(channels[-1], channels[-1], kernel_size=3, stride=2, padding=1),
+                nn.SiLU(),
+                nn.Conv2d(channels[-1], channels[-1], kernel_size=3, stride=2, padding=1),
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten(),
+                nn.Linear(channels[-1], channels[-1] // 2),
+                nn.SiLU(),
+                nn.Linear(channels[-1] // 2, 1)
+            )
+        ])
+
         # Middle
         mid_channels = channels[-1]
         self.middle_layer = MidBlock(
@@ -599,8 +622,18 @@ class UnstableDiffusion(nn.Module):
 
         return im_out, seg_out, skipped_connections_im, skipped_connections_seg
 
-    def forward(self, im, seg, t):
+    def discriminate(self, im, t):
+        t = self._sinusoidal_embedding(t)
+        t = self.t_proj(t)
 
+        im = self.discriminator[0](im)
+        for layer in self.discriminator[1]:
+            im = layer(im, t, None)
+        return self.discriminator[2](im)
+
+    def forward(self, im, seg, t):
+        
+        assert im.shape[2] == 128, "Only 128 resolution supported"
         # ======== TIME ========
         t = self._sinusoidal_embedding(t)
         t = self.t_proj(t)
@@ -629,17 +662,29 @@ class UnstableDiffusion(nn.Module):
         return im_out, seg_out
 
 
-if __name__ == "__main__":
-    torch.cuda.empty_cache()
-    in_shape = 32
-    im = torch.randn(1, 3, in_shape, in_shape).float().cuda(0)
-    seg = torch.randn(1, 1, in_shape, in_shape).float().cuda(0)
+# if __name__ == "__main__":
+#     torch.cuda.empty_cache()
+#     in_shape = 32
+#     im = torch.randn(1, 3, in_shape, in_shape).float().cuda(0)
+#     seg = torch.randn(1, 1, in_shape, in_shape).float().cuda(0)
 
-    unet = UnstableDiffusion(
-        im_channels=3,
-        seg_channels=1,
-        channels=[32, 64],
-        layer_depth=2
-    ).cuda(0)
-    # y = down(z, torch.randn(1, 8, 64*2, 64*2).cuda(), torch.ones(100).float().cuda())
-    y = unet(im, seg, torch.rand((1)).cuda(0))
+#     unet = UnstableDiffusion(
+#         im_channels=3,
+#         seg_channels=1,
+#         channels=[32, 64],
+#         layer_depth=2
+#     ).cuda(0)
+#     # y = down(z, torch.randn(1, 8, 64*2, 64*2).cuda(), torch.ones(100).float().cuda())
+#     y = unet(im, seg, torch.rand((1)).cuda(0))
+
+
+if __name__ == "__main__":
+    x = torch.zeros(2, 3, 128, 128).cuda()
+    m = torch.zeros(2, 1, 128, 128).cuda()
+    t = torch.zeros(2).cuda()
+    model = UnstableDiffusion(3, 1, channels=[16, 32, 64]).cuda()
+    out = model(x, m, t)
+    print(out[0].shape, out[1].shape)
+    
+    out2 = model.descriminate(x, t)
+    print(out2.shape)

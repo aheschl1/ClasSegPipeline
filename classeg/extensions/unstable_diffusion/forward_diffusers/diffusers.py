@@ -21,7 +21,7 @@ class Diffuser:
 
         """
         if t is None:
-            t = torch.randint(0, self.timesteps, (im.shape[0],)).long()
+            t = torch.randint(1, self.timesteps, (im.shape[0],)).long()
         if noise_im is None:
             noise_im = torch.randn_like(im).to(im.device)
         if noise_seg is None:
