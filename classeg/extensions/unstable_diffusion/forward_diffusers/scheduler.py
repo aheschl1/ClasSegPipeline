@@ -38,6 +38,7 @@ class StepScheduler(DiffusionScheduler):
         self.step_size = step_size
         self.epochs_per_step = epochs_per_step
         self.initial_max = initial_max
+        diffuser._t_sample_style = "priority"
         super().__init__(diffuser, *args, **kwargs)
         self._state_dict['initial_max'] = initial_max
     
