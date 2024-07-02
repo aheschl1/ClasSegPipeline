@@ -1,5 +1,9 @@
 import torch
 import warnings
+from torch.utils.data import WeightedRandomSampler
+
+UNIFORM = "uniform"
+PRIORTY = "priority"
 
 class Diffuser:
     def __init__(
@@ -13,6 +17,7 @@ class Diffuser:
         self._alphas = 1.0 - self._betas
         self._alpha_bars = torch.cumprod(self._alphas, 0)
         self._max_t_to_sample = self.timesteps
+        self._t_sample_style = UNIFORM
 
     @property
     def max_t_to_sample(self):
@@ -24,7 +29,15 @@ class Diffuser:
         Keeps devices uniform.
         """
         if t is None:
-            t = torch.randint(1, self._max_t_to_sample, (im.shape[0],)).long()
+            if self._t_sample_style == UNIFORM:
+                weights = [1 for _ in range(0, max_t_to_sample+1)]
+                weights[0] = 0
+            elif self._t_sample_style == PRIORTY:
+                timestep_sum = (self.timesteps * (self.timesteps + 1)) / 2
+                weights = [i/timestep_sum for i in range(0, self._max_t_to_sample+1)]
+
+            t = torch.tensor(list(WeightedRandomSampler(weights, im.shape[0], replacement=True))).long()
+            # t = torch.randint(1, self._max_t_to_sample, (,)).long()
         if noise_im is None:
             noise_im = torch.randn_like(im).to(im.device)
         if noise_seg is None:
