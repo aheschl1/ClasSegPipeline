@@ -14,6 +14,10 @@ class Diffuser:
         self._alpha_bars = torch.cumprod(self._alphas, 0)
         self._max_t_to_sample = self.timesteps
 
+    @property
+    def max_t_to_sample(self):
+        return self._max_t_to_sample
+
     def __call__(self, im: torch.Tensor, seg: torch.Tensor, t=None, noise_im=None, noise_seg=None):
         """
         Given data, randomly samples timesteps and return noise, noisy_data, timesteps.
@@ -22,7 +26,7 @@ class Diffuser:
 
         """
         if t is None:
-            t = torch.randint(1, self._max_t_to_sample, (im.shape[0],)).long()
+            t = torch.randint(1, self._max_t_to_sample+1, (im.shape[0],)).long()
         if noise_im is None:
             noise_im = torch.randn_like(im).to(im.device)
         if noise_seg is None:

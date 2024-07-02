@@ -9,6 +9,7 @@ from overrides import override
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
+from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler
 from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.training.trainer import Trainer, log
@@ -16,6 +17,7 @@ from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
 import torch.nn.functional as F
+
 
 class ForkedPdb(pdb.Pdb):
     """
@@ -34,7 +36,7 @@ class ForkedPdb(pdb.Pdb):
 
 class UnstableDiffusionTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, world_size: int = 1, cache: bool =False):
+                 config_name: str, resume: bool = False, world_size: int = 1, cache: bool = False):
         """
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
@@ -48,6 +50,11 @@ class UnstableDiffusionTrainer(Trainer):
         self.dicriminator = None
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
+        self.diffusion_schedule = StepScheduler(self.forward_diffuser, step_size=10, epochs_per_step=5)
+
+        if resume and gpu_id in [0, "cpu"]:
+            self.diffusion_schedule.load_state(torch.load(f"{self.output_dir}/latest.pth")["diffusion_schedule"])
+
         # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
         self.recon_loss, self.gan_loss = self.loss
@@ -60,6 +67,7 @@ class UnstableDiffusionTrainer(Trainer):
         import cv2
         resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_LINEAR)
         resize_mask = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_NEAREST)
+
         def my_resize(image=None, mask=None, **kwargs):
             if mask is not None:
                 return resize_mask(image=mask)["image"]
@@ -88,6 +96,25 @@ class UnstableDiffusionTrainer(Trainer):
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
         self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
 
+    def _save_model_weights(self, save_name: str) -> None:
+        """
+        Save the weights of the model, only if the current device is 0.
+
+        :param save_name: The name of the checkpoint to save.
+        """
+        if self.device in [0, "cpu"]:
+            checkpoint = {}
+            path = f"{self.output_dir}/{save_name}.pth"
+            if self.world_size > 1:
+                checkpoint["weights"] = self.model.module.state_dict()
+            else:
+                checkpoint["weights"] = self.model.state_dict()
+            checkpoint["optim"] = self.optim.state_dict()
+            checkpoint["current_epoch"] = self._current_epoch
+            checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
+            checkpoint["diffusion_schedule"] = self.diffusion_schedule.get_state_dict()
+            torch.save(checkpoint, path)
+
     @override
     def train_single_epoch(self, epoch) -> float:
         """
@@ -113,22 +140,23 @@ class UnstableDiffusionTrainer(Trainer):
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            loss = self.recon_weight * self.recon_loss(predicted_noise_im, im_noise) + self.recon_weight * self.recon_loss(predicted_noise_seg, seg_noise)
+            loss = self.recon_weight * self.recon_loss(predicted_noise_im, im_noise) + self.recon_weight * self.recon_loss(
+                predicted_noise_seg, seg_noise)
             # convert x_t to x_{t-1} and descriminate the goods
             if self.gan_weight > 0:
                 predicted_im, predicted_seg = self.forward_diffuser.inference_call(
                     images,
-                    segmentations, 
-                    predicted_noise_im, 
+                    segmentations,
+                    predicted_noise_im,
                     predicted_noise_seg, t, clamp=False, training_time=True
                 )
                 images, segmentations = self.forward_diffuser.inference_call(
                     images,
-                    segmentations, 
-                    im_noise, 
+                    segmentations,
+                    im_noise,
                     seg_noise, t, clamp=False, training_time=True
                 )
-                t-=1
+                t -= 1
                 # make randomly 50/50 real and 50/50 fake
                 # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
                 # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
@@ -136,7 +164,7 @@ class UnstableDiffusionTrainer(Trainer):
                 predicted_im = real_fake_labels * images + (1 - real_fake_labels) * predicted_im
                 predicted_seg = real_fake_labels * segmentations + (1 - real_fake_labels) * predicted_seg
                 predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
-                
+
                 discriminator_logits = self.model.discriminate(predicted_concat, t)
                 # calculate the loss
                 loss += self.gan_weight * self.gan_loss(discriminator_logits.squeeze(), real_fake_labels.squeeze().float())
@@ -165,7 +193,7 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         # total_divergence = 0
-        
+
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
@@ -173,22 +201,23 @@ class UnstableDiffusionTrainer(Trainer):
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            loss = self.recon_weight * self.recon_loss(predicted_noise_im, noise_im) + self.recon_weight * self.recon_loss(predicted_noise_seg, noise_seg)
+            loss = self.recon_weight * self.recon_loss(predicted_noise_im, noise_im) + self.recon_weight * self.recon_loss(
+                predicted_noise_seg, noise_seg)
             # convert x_t to x_{t-1} and descriminate the goods
             if self.gan_weight > 0:
                 predicted_im, predicted_seg = self.forward_diffuser.inference_call(
                     images,
-                    segmentations, 
-                    predicted_noise_im, 
+                    segmentations,
+                    predicted_noise_im,
                     predicted_noise_seg, t, clamp=False, training_time=True
                 )
                 images, segmentations = self.forward_diffuser.inference_call(
                     images,
-                    segmentations, 
-                    noise_im, 
+                    segmentations,
+                    noise_im,
                     noise_seg, t, clamp=False, training_time=True
                 )
-                t-=1
+                t -= 1
                 # make randomly 50/50 real and 50/50 fake
                 # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
                 # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
@@ -196,7 +225,7 @@ class UnstableDiffusionTrainer(Trainer):
                 predicted_im = real_fake_labels * images + (1 - real_fake_labels) * predicted_im
                 predicted_seg = real_fake_labels * segmentations + (1 - real_fake_labels) * predicted_seg
                 predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
-                
+
                 discriminator_logits = self.model.discriminate(predicted_concat, t)
                 # calculate the loss
                 loss += self.gan_weight * self.gan_loss(discriminator_logits.squeeze(), real_fake_labels.squeeze().float())
@@ -210,6 +239,7 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def post_epoch(self, epoch: int) -> None:
+        self.diffusion_schedule.step()
         return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
@@ -258,12 +288,11 @@ class UnstableDiffusionTrainer(Trainer):
             self.kl_weight = kl_weight
             self.mse_loss = nn.MSELoss()
             self.kl_div_loss = nn.KLDivLoss()
-        
+
         def forward(self, predicted, target):
             mse_loss = self.mse_loss(predicted, target)
             kl_div_loss = self.kl_div_loss(predicted, target)
             return mse_loss + self.kl_weight * kl_div_loss
-
 
     @override
     def get_loss(self) -> nn.Module:
