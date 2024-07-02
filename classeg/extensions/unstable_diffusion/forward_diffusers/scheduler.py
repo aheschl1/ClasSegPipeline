@@ -8,6 +8,7 @@ class DiffusionScheduler:
         self._state_dict = {
             "class_type": type(self).__name__,
         }
+        self.diffuser.set_max_t(self.compute_max_at_step(self._step))
 
     def compute_max_at_step(self, step: int) -> int:
         """
@@ -33,13 +34,19 @@ class DiffusionScheduler:
 
 
 class StepScheduler(DiffusionScheduler):
-    def __init__(self, diffuser: Diffuser, step_size: int = 5, epochs_per_step: int = 5, *args, **kwargs):
-        super().__init__(diffuser, *args, **kwargs)
+    def __init__(self, diffuser: Diffuser, step_size: int = 5, epochs_per_step: int = 5, initial_max=1, *args, **kwargs):
         self.step_size = step_size
         self.epochs_per_step = epochs_per_step
+        self.initial_max = initial_max
+        super().__init__(diffuser, *args, **kwargs)
+        self._state_dict['initial_max'] = initial_max
+    
+    def load_state(self, state_dict):
+        self.initial_max = state_dict.get('initial_max', 1)
+        return super().load_state(state_dict)
 
     def compute_max_at_step(self, step: int) -> int:
-        return min(self.diffuser.timesteps, self.step_size * (step // self.epochs_per_step) + 1)
+        return min(self.diffuser.timesteps, self.step_size * (step // self.epochs_per_step) + self.initial_max)
 
 
 if __name__ == "__main__":

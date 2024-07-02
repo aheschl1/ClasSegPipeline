@@ -429,6 +429,8 @@ class UnstableDiffusion(nn.Module):
         ), "Zero conv requires separate encoders"
         self.apply_zero_conv = apply_zero_conv
         self.time_emb_dim = time_emb_dim
+        self.im_channels = im_channels
+        self.seg_channels = seg_channels
         if channels is None:
             channels = [16, 32, 64]
         layers = len(channels)

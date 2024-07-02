@@ -45,23 +45,28 @@ class UnstableDiffusionTrainer(Trainer):
         :param gpu_id: The gpu for this process to use.
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
+        self.dicriminator = None
+        self.dicriminator_lr_schedule = None
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume,
                          cache, world_size)
-        self.dicriminator = None
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self.diffusion_schedule = StepScheduler(self.forward_diffuser, step_size=10, epochs_per_step=5)
+        self.diffusion_schedule = StepScheduler(self.forward_diffuser, step_size=10, epochs_per_step=5, initial_max=10)
+        self.g_optim, self.d_optim = self.optim
 
+        self.dicriminator_lr_schedule =  self.get_lr_scheduler(self.d_optim)
         if resume and gpu_id in [0, "cpu"]:
-            self.diffusion_schedule.load_state(torch.load(f"{self.output_dir}/latest.pth")["diffusion_schedule"])
+            state = torch.load(f"{self.output_dir}/latest.pth")
+            self.diffusion_schedule.load_state(state["diffusion_schedule"])
+            self.dicriminator_lr_schedule.load_state_dict(state['lr_scheduler_discrim'])
 
         # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
         self.recon_loss, self.gan_loss = self.loss
-        self.g_optim, self.d_optim = self.optim
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
         del self.optim, self.loss
+
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
@@ -113,6 +118,7 @@ class UnstableDiffusionTrainer(Trainer):
             checkpoint["optim"] = self.optim.state_dict()
             checkpoint["current_epoch"] = self._current_epoch
             checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
+            checkpoint["lr_scheduler_discrim"] = self.dicriminator_lr_schedule.state_dict()
             checkpoint["diffusion_schedule"] = self.diffusion_schedule.get_state_dict()
             torch.save(checkpoint, path)
 
@@ -131,6 +137,7 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
+        print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()
@@ -167,11 +174,11 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_weight * self.gan_loss(self.dicriminator(predicted_concat, t).squeeze(), real_label)
+                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
                 self.d_optim.zero_grad()
-                real_loss = self.gan_loss(self.dicriminator(real_concat, t).squeeze(), real_label)
-                fake_loss = self.gan_loss(self.dicriminator(predicted_concat.detach(), t).squeeze(), fake_label)
+                real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
+                fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze(), fake_label)
                 # calculate the loss
                 dis_loss = (real_loss + fake_loss) / 2
                 dis_loss.backward()
@@ -235,10 +242,10 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_weight * self.gan_loss(self.dicriminator(predicted_concat, t).squeeze(), real_label)
+                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t)(predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
-                real_loss = self.gan_loss(self.dicriminator(real_concat, t).squeeze(), real_label)
-                fake_loss = self.gan_loss(self.dicriminator(predicted_concat.detach(), t).squeeze(), fake_label)
+                real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
+                fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze(), fake_label)
                 # calculate the loss
                 dis_loss = (real_loss + fake_loss) / 2
 
@@ -252,6 +259,7 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def post_epoch(self, epoch: int) -> None:
         self.diffusion_schedule.step()
+        self.dicriminator_lr_schedule.step()
         return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
@@ -261,11 +269,13 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def get_model(self, path) -> nn.Module:
         model = UnstableDiffusion(**self.config["model_args"])
-        self.dicriminator = model.get_discriminator()
+        self.dicriminator = model.get_discriminator().to(self.device)
         return model.to(self.device)
 
-    def get_lr_scheduler(self):
-        scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
+    def get_lr_scheduler(self, optim=None):
+        if optim is None:
+            optim = self.optim[0]
+        scheduler = StepLR(optim, step_size=100, gamma=0.9)
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
         return scheduler

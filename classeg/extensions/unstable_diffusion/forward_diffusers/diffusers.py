@@ -22,11 +22,9 @@ class Diffuser:
         """
         Given data, randomly samples timesteps and return noise, noisy_data, timesteps.
         Keeps devices uniform.
-
-
         """
         if t is None:
-            t = torch.randint(1, self._max_t_to_sample+1, (im.shape[0],)).long()
+            t = torch.randint(1, self._max_t_to_sample, (im.shape[0],)).long()
         if noise_im is None:
             noise_im = torch.randn_like(im).to(im.device)
         if noise_seg is None:
