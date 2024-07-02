@@ -61,6 +61,7 @@ class UnstableDiffusionTrainer(Trainer):
         self.g_optim, self.d_optim = self.optim
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
+        del self.optim, self.loss
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
@@ -131,7 +132,7 @@ class UnstableDiffusionTrainer(Trainer):
         log_image = epoch % 10 == 0
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
-            self.optim.zero_grad()
+            self.g_optim.zero_grad()
             if log_image:
                 self.log_helper.log_augmented_image(images[0], segmentations[0])
             images = images.to(self.device, non_blocking=True)
@@ -140,10 +141,11 @@ class UnstableDiffusionTrainer(Trainer):
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            loss = self.recon_weight * self.recon_loss(predicted_noise_im, im_noise) + self.recon_weight * self.recon_loss(
+            gen_loss = self.recon_weight * self.recon_loss(predicted_noise_im, im_noise) + self.recon_weight * self.recon_loss(
                 predicted_noise_seg, seg_noise)
-            # convert x_t to x_{t-1} and descriminate the goods
+            dis_loss = 0.0
             if self.gan_weight > 0:
+                # convert x_t to x_{t-1} and descriminate the goods
                 predicted_im, predicted_seg = self.forward_diffuser.inference_call(
                     images,
                     segmentations,
@@ -156,24 +158,29 @@ class UnstableDiffusionTrainer(Trainer):
                     im_noise,
                     seg_noise, t, clamp=False, training_time=True
                 )
-                t -= 1
-                # make randomly 50/50 real and 50/50 fake
-                # generate a random list of n 0s and 1s, where roughly half are 1s and half are 0s
-                # where it is 1, we replace predicted_im with the original image, where it is 0, we leave it
-                real_fake_labels = torch.randint(0, 2, (images.shape[0],)).to(self.device).reshape(images.shape[0], 1, 1, 1)
-                predicted_im = real_fake_labels * images + (1 - real_fake_labels) * predicted_im
-                predicted_seg = real_fake_labels * segmentations + (1 - real_fake_labels) * predicted_seg
+                # Pass both im and seg together
                 predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
-
-                discriminator_logits = self.model.discriminate(predicted_concat, t)
+                real_concat = torch.cat([images, segmentations], dim=1)
+                t -= 1
+                # Labels for the discriminator
+                fake_label = torch.zeros((images.shape[0],)).to(self.device)
+                real_label = torch.ones((images.shape[0],)).to(self.device)
+                # Fool the discriminator
+                gen_loss += self.gan_weight * self.gan_loss(self.dicriminator(predicted_concat, t).squeeze(), real_label)
+                # Train discriminator
+                self.d_optim.zero_grad()
+                real_loss = self.gan_loss(self.dicriminator(real_concat, t).squeeze(), real_label)
+                fake_loss = self.gan_loss(self.dicriminator(predicted_concat.detach(), t).squeeze(), fake_label)
                 # calculate the loss
-                loss += self.gan_weight * self.gan_loss(discriminator_logits.squeeze(), real_fake_labels.squeeze().float())
+                dis_loss = (real_loss + fake_loss) / 2
+                dis_loss.backward()
 
             # update model
-            loss.backward()
+            gen_loss.backward()
             self.g_optim.step()
+            self.d_optim.step()
             # gather data
-            running_loss += loss.item() * images.shape[0]
+            running_loss += (gen_loss.item()+dis_loss.item()) * images.shape[0]
             total_items += images.shape[0]
 
         return running_loss / total_items
