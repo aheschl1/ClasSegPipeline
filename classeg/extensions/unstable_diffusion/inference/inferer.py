@@ -123,7 +123,7 @@ class UnstableDiffusionInferer(Inferer):
                     plt.imsave(f"{save_path}/x0_{t}_im.png", grid_im)
 
                 if save_process or t == 0:
-                    grid_seg = make_grid(bitmask_to_label(np.round(xt_seg)), nrow=grid_size)
+                    grid_seg = make_grid(torch.from_numpy(bitmask_to_label(np.round(xt_seg.cpu().numpy()))), nrow=grid_size)
                     grid_seg = grid_seg.cpu().permute(1, 2, 0).numpy()
                     grid_seg -= grid_seg.min()
                     grid_seg *= 255 / grid_seg.max()

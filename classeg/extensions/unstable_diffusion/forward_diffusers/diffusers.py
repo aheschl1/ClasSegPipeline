@@ -61,8 +61,8 @@ class Diffuser:
         """
         if isinstance(t, int):
             t = torch.tensor([t]).to(im.device)
-        alpha_t = self._alphas.to(im.device)[t]
-        alpha_t_bar = self._alpha_bars.to(im.device)[t]
+        alpha_t = self._alphas.to(im.device)[t].to(im.device)
+        alpha_t_bar = self._alpha_bars.to(im.device)[t].to(im.device)
 
         data_im = (1 / alpha_t.sqrt()).reshape(-1, 1, 1, 1) * (
             im - ((1 - alpha_t) / (1 - alpha_t_bar).sqrt()).reshape(-1, 1, 1, 1) * predicted_noise_im
@@ -72,7 +72,7 @@ class Diffuser:
             data_im = torch.clip(data_im, -5, 5)
         if not training_time and t > 0:
             z = torch.randn_like(predicted_noise_im).to(predicted_noise_im.device)
-            beta_t = self._betas[t]
+            beta_t = self._betas.to(im.device)[t]
             sigma_t = beta_t.sqrt()
             data_im = data_im + sigma_t * z
 
@@ -85,7 +85,7 @@ class Diffuser:
             data_seg = torch.clip(data_seg, -5, 5)
         if not training_time and t > 0:
             z = torch.randn_like(predicted_noise_seg).to(predicted_noise_seg.device)
-            beta_t = self._betas[t]
+            beta_t = self._betas.to(im.device)[t]
             sigma_t = beta_t.sqrt()
             data_seg = data_seg + sigma_t * z
 
