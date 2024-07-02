@@ -216,7 +216,7 @@ class UnstableDiffusionTrainer(Trainer):
             self.g_optim.step()
             self.d_optim.step()
             # gather data
-            running_loss += (gen_loss.item()+dis_loss.item()) * images.shape[0]
+            running_loss += (gen_loss+dis_loss).item() * images.shape[0]
             total_items += images.shape[0]
 
         return running_loss / total_items
@@ -278,7 +278,7 @@ class UnstableDiffusionTrainer(Trainer):
                 dis_loss = (real_loss + fake_loss) / 2
 
             # gather data
-            running_loss += (dis_loss.item() + gen_loss.item()) * images.shape[0]
+            running_loss += (dis_loss + gen_loss).item() * images.shape[0]
             total_items += images.shape[0]
 
         # self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
