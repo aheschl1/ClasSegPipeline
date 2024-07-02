@@ -30,7 +30,7 @@ class Diffuser:
         """
         if t is None:
             if self._t_sample_style == UNIFORM:
-                weights = [1 for _ in range(0, max_t_to_sample+1)]
+                weights = [1 for _ in range(0, self._max_t_to_sample+1)]
                 weights[0] = 0
             elif self._t_sample_style == PRIORTY:
                 timestep_sum = (self.timesteps * (self.timesteps + 1)) / 2
