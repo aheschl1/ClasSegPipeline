@@ -45,11 +45,13 @@ class UnstableDiffusionTrainer(Trainer):
         """
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume,
                          cache, world_size)
+        self.dicriminator = None
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
         self.recon_loss, self.gan_loss = self.loss
+        self.g_optim, self.d_optim = self.optim
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
 
@@ -141,7 +143,7 @@ class UnstableDiffusionTrainer(Trainer):
 
             # update model
             loss.backward()
-            self.optim.step()
+            self.g_optim.step()
             # gather data
             running_loss += loss.item() * images.shape[0]
             total_items += images.shape[0]
@@ -217,7 +219,7 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def get_model(self, path) -> nn.Module:
         model = UnstableDiffusion(**self.config["model_args"])
-
+        self.dicriminator = model.get_discriminator()
         return model.to(self.device)
 
     def get_lr_scheduler(self):
@@ -233,16 +235,22 @@ class UnstableDiffusionTrainer(Trainer):
         """
         from torch.optim import Adam
 
-        optim = Adam(
+        g_optim = Adam(
             self.model.parameters(),
+            lr=self.config["lr"],
+            weight_decay=self.config.get('weight_decay', 0)
+            # momentum=self.config.get('momentum', 0)
+        )
+        d_optim = Adam(
+            self.dicriminator.parameters(),
             lr=self.config["lr"],
             weight_decay=self.config.get('weight_decay', 0)
             # momentum=self.config.get('momentum', 0)
         )
 
         if self.device == 0:
-            log(f"Optim being used is {optim}")
-        return optim
+            log(f"Optim being used is {g_optim}")
+        return g_optim, d_optim
 
     class MSEWithKLDivergenceLoss(nn.Module):
         def __init__(self, kl_weight=0.1):

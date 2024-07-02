@@ -40,20 +40,20 @@ class TimeEmbedder(nn.Module):
 
 class DownBlock(nn.Module):
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        time_emb_dim=100,
-        non_lin=nn.SiLU,
-        num_heads=4,
-        num_layers=1,
-        kernel_size=3,
-        stride=1,
-        padding=1,
-        downsample=True,
-        attention=False,
-        apply_zero_conv=False,
-        apply_scale_u=False
+            self,
+            in_channels,
+            out_channels,
+            time_emb_dim=100,
+            non_lin=nn.SiLU,
+            num_heads=4,
+            num_layers=1,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            downsample=True,
+            attention=False,
+            apply_zero_conv=False,
+            apply_scale_u=False
     ) -> None:
         """
         TODO GroupNorm
@@ -69,7 +69,7 @@ class DownBlock(nn.Module):
             self.zero_conv = make_zero_conv(channels=in_channels, conv_op=nn.Conv2d)
         if self.apply_scale_u:
             self.scale_u = ScaleULayer(in_channels, skipped_count=1)
-            self.scale_u_pointwise_convolution = nn.Conv2d(in_channels=in_channels*2, out_channels=in_channels, kernel_size=1)
+            self.scale_u_pointwise_convolution = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels, kernel_size=1)
 
         self.num_layers = num_layers
         self.first_residual_convs = nn.ModuleList(
@@ -146,10 +146,10 @@ class DownBlock(nn.Module):
             res_input = out
             out = self.first_residual_convs[layer](out)
             out = (
-                out
-                + self.time_embedding_layer[layer](time_embedding, out.shape[0])[
-                    :, :, None, None
-                ]
+                    out
+                    + self.time_embedding_layer[layer](time_embedding, out.shape[0])[
+                      :, :, None, None
+                      ]
             )
             out = self.second_residual_convs[layer](out)
             # Skipped connection
@@ -174,15 +174,15 @@ class DownBlock(nn.Module):
 
 class MidBlock(nn.Module):
     def __init__(
-        self,
-        in_channels,
-        time_emb_dim=100,
-        conv_op="Conv2d",
-        non_lin=nn.SiLU,
-        num_heads=4,
-        kernel_size=3,
-        stride=1,
-        padding=1
+            self,
+            in_channels,
+            time_emb_dim=100,
+            conv_op="Conv2d",
+            non_lin=nn.SiLU,
+            num_heads=4,
+            kernel_size=3,
+            stride=1,
+            padding=1
     ) -> None:
         """
         TODO GroupNorm
@@ -222,7 +222,6 @@ class MidBlock(nn.Module):
             ]
         )
         self.pointwise_convolution = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-
 
     def forward(self, im, seg, time_embedding):
         # ================ SELF IM ====================
@@ -283,20 +282,20 @@ class MidBlock(nn.Module):
 
 class UpBlock(nn.Module):
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        time_emb_dim=100,
-        norm_op="BatchNorm",
-        conv_op="Conv2d",
-        non_lin=nn.SiLU,
-        num_heads=4,
-        num_layers=1,
-        kernel_size=3,
-        stride=1,
-        padding=1,
-        upsample=True,
-        attention=False,
+            self,
+            in_channels,
+            out_channels,
+            time_emb_dim=100,
+            norm_op="BatchNorm",
+            conv_op="Conv2d",
+            non_lin=nn.SiLU,
+            num_heads=4,
+            num_layers=1,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            upsample=True,
+            attention=False,
     ) -> None:
         """
         TODO GroupNorm
@@ -369,7 +368,7 @@ class UpBlock(nn.Module):
         self.scale_u = ScaleULayer(in_channels, skipped_count=2)
 
     def forward(
-        self, x, skipped_connection_encoder, skipped_connection_decoder, time_embedding
+            self, x, skipped_connection_encoder, skipped_connection_decoder, time_embedding
     ):
         # print('UpBlock forward')
         # print('receive input x: ', x.shape)
@@ -385,10 +384,10 @@ class UpBlock(nn.Module):
             res_input = out
             out = self.first_residual_convs[layer](out)
             out = (
-                out
-                + self.time_embedding_layer[layer](time_embedding, out.shape[0])[
-                    :, :, None, None
-                ]
+                    out
+                    + self.time_embedding_layer[layer](time_embedding, out.shape[0])[
+                      :, :, None, None
+                      ]
             )
             out = self.second_residual_convs[layer](out)
             # Skipped connection
@@ -412,21 +411,21 @@ class UpBlock(nn.Module):
 
 class UnstableDiffusion(nn.Module):
     def __init__(
-        self,
-        im_channels,
-        seg_channels,
-        layer_depth=2,
-        channels=None,
-        time_emb_dim=100,
-        shared_encoder=False,
-        apply_zero_conv=False,
-        apply_scale_u=True
+            self,
+            im_channels,
+            seg_channels,
+            layer_depth=2,
+            channels=None,
+            time_emb_dim=100,
+            shared_encoder=False,
+            apply_zero_conv=False,
+            apply_scale_u=True
     ):
 
         super(UnstableDiffusion, self).__init__()
         self.apply_scale_u = apply_scale_u
         assert (
-            not shared_encoder or not apply_zero_conv
+                not shared_encoder or not apply_zero_conv
         ), "Zero conv requires separate encoders"
         self.apply_zero_conv = apply_zero_conv
         self.time_emb_dim = time_emb_dim
@@ -467,29 +466,6 @@ class UnstableDiffusion(nn.Module):
 
         if not shared_encoder:
             self.encoder_layers_mask = self._generate_encoder()
-
-
-        # Descriminator
-        self.discriminator = nn.ModuleList([
-            nn.Conv2d(
-                in_channels=im_channels+seg_channels,
-                out_channels=channels[0],
-                kernel_size=3,
-                stride=1,
-                padding=1,
-            ),
-            self._generate_encoder(),
-            nn.Sequential(
-                nn.Conv2d(channels[-1], channels[-1], kernel_size=3, stride=2, padding=1),
-                nn.SiLU(),
-                nn.Conv2d(channels[-1], channels[-1], kernel_size=3, stride=2, padding=1),
-                nn.AdaptiveAvgPool2d(1),
-                nn.Flatten(),
-                nn.Linear(channels[-1], channels[-1] // 2),
-                nn.SiLU(),
-                nn.Linear(channels[-1] // 2, 1)
-            )
-        ])
 
         # Middle
         mid_channels = channels[-1]
@@ -572,13 +548,13 @@ class UnstableDiffusion(nn.Module):
         assert self.time_emb_dim % 2 == 0
         factor = 10000 ** (
             (
-                torch.arange(
-                    start=0,
-                    end=self.time_emb_dim // 2,
-                    dtype=torch.float32,
-                    device=t.device,
-                )
-                / (self.time_emb_dim // 2)
+                    torch.arange(
+                        start=0,
+                        end=self.time_emb_dim // 2,
+                        dtype=torch.float32,
+                        device=t.device,
+                    )
+                    / (self.time_emb_dim // 2)
             )
         )
         t_emb = t[:, None].repeat(1, self.time_emb_dim // 2) / factor
@@ -586,7 +562,7 @@ class UnstableDiffusion(nn.Module):
         return t_emb
 
     def _encode_forward(
-        self, im_out, seg_out, t
+            self, im_out, seg_out, t
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], List[torch.Tensor]]:
         """
         Encodes im and seg, keeping in mind shared encoder vs not.
@@ -608,7 +584,7 @@ class UnstableDiffusion(nn.Module):
             return im_out, seg_out, skipped_connections_im, skipped_connections_seg
         # =========== NOT SHARED ENCODER ===========
         for i, (im_encode, seg_encode) in enumerate(
-            zip(self.encoder_layers, self.encoder_layers_mask)
+                zip(self.encoder_layers, self.encoder_layers_mask)
         ):
             if i == 0:
                 im_out, seg_out = im_encode(im_out, t), seg_encode(seg_out, t)
@@ -622,17 +598,39 @@ class UnstableDiffusion(nn.Module):
 
         return im_out, seg_out, skipped_connections_im, skipped_connections_seg
 
-    def discriminate(self, im, t):
+    def get_discriminator(self):
+        return nn.ModuleList([
+            nn.Conv2d(
+                in_channels=self.im_channels + self.seg_channels,
+                out_channels=self.channels[0],
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
+            self._generate_encoder(),
+            nn.Sequential(
+                nn.Conv2d(self.channels[-1], self.channels[-1], kernel_size=3, stride=2, padding=1),
+                nn.SiLU(),
+                nn.Conv2d(self.channels[-1], self.channels[-1], kernel_size=3, stride=2, padding=1),
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten(),
+                nn.Linear(self.channels[-1], self.channels[-1] // 2),
+                nn.SiLU(),
+                nn.Linear(self.channels[-1] // 2, 1)
+            )
+        ])
+
+    def discriminate(self, discriminator: nn.Module, im, t):
         t = self._sinusoidal_embedding(t)
         t = self.t_proj(t)
 
-        im = self.discriminator[0](im)
-        for layer in self.discriminator[1]:
+        im = discriminator[0](im)
+        for layer in discriminator[1]:
             im = layer(im, t, None)
-        return self.discriminator[2](im)
+        return discriminator[2](im)
 
     def forward(self, im, seg, t):
-        
+
         assert im.shape[2] == 128, "Only 128 resolution supported"
         # ======== TIME ========
         t = self._sinusoidal_embedding(t)
@@ -649,7 +647,7 @@ class UnstableDiffusion(nn.Module):
         # ======== DECODE ========
         i = 0
         for im_decode, seg_decode in zip(
-            self.im_decoder_layers, self.seg_decoder_layers
+                self.im_decoder_layers, self.seg_decoder_layers
         ):
             i += 1
             im_out, seg_out = (
@@ -685,6 +683,6 @@ if __name__ == "__main__":
     model = UnstableDiffusion(3, 1, channels=[16, 32, 64]).cuda()
     out = model(x, m, t)
     print(out[0].shape, out[1].shape)
-    
+
     out2 = model.descriminate(x, t)
     print(out2.shape)

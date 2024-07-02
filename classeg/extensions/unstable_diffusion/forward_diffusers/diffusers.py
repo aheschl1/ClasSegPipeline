@@ -12,6 +12,7 @@ class Diffuser:
         self._betas = self.prepare_betas()
         self._alphas = 1.0 - self._betas
         self._alpha_bars = torch.cumprod(self._alphas, 0)
+        self._max_t_to_sample = self.timesteps
 
     def __call__(self, im: torch.Tensor, seg: torch.Tensor, t=None, noise_im=None, noise_seg=None):
         """
@@ -21,7 +22,7 @@ class Diffuser:
 
         """
         if t is None:
-            t = torch.randint(1, self.timesteps, (im.shape[0],)).long()
+            t = torch.randint(1, self._max_t_to_sample, (im.shape[0],)).long()
         if noise_im is None:
             noise_im = torch.randn_like(im).to(im.device)
         if noise_seg is None:
@@ -40,6 +41,9 @@ class Diffuser:
         )
 
         return noise_im, noise_seg, noisy_im, noisy_seg, t.to(im.device)
+
+    def set_max_t(self, max_t):
+        self._max_t_to_sample = max_t
 
     def inference_call(
         self, 
