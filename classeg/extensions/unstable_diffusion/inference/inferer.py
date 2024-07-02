@@ -100,6 +100,7 @@ class UnstableDiffusionInferer(Inferer):
             )
             xt_im = xt_im.to(self.device)
             xt_seg = xt_seg.to(self.device)
+            # self.timesteps = 1000
             for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
                 time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
 
@@ -123,16 +124,19 @@ class UnstableDiffusionInferer(Inferer):
                     plt.imsave(f"{save_path}/x0_{t}_im.png", grid_im)
 
                 if save_process or t == 0:
-                    grid_seg = make_grid(torch.from_numpy(bitmask_to_label(np.round(xt_seg.cpu().numpy()))), nrow=grid_size)
-                    grid_seg = grid_seg.cpu().permute(1, 2, 0).numpy()
+                    # grid_seg = make_grid(torch.from_numpy(bitmask_to_label(np.round(xt_seg.cpu().numpy()))), nrow=grid_size)
+                    grid_seg = make_grid(xt_seg.round(), nrow=grid_size)
+                    print("Waring: not unbitifying. Only good for binary")
+
+                    grid_seg = grid_seg.cpu().permute(1, 2, 0).numpy().astype(float)
                     grid_seg -= grid_seg.min()
                     grid_seg *= 255 / grid_seg.max()
                     grid_seg = grid_seg.astype(np.uint8)
                     plt.imsave(f"{save_path}/x0_{t}_seg.png", grid_seg)
                     
         xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
-        xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))
-
+        # xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))
+        xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
         return xt_im, xt_seg
 
     def post_infer(self):
