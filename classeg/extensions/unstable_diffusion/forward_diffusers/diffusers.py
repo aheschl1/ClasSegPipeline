@@ -30,11 +30,11 @@ class Diffuser:
         """
         if t is None:
             if self._t_sample_style == UNIFORM:
-                weights = [1 for _ in range(0, self._max_t_to_sample+1)]
+                weights = [1 for _ in range(0, self._max_t_to_sample)]
                 weights[0] = 0
             elif self._t_sample_style == PRIORTY:
                 timestep_sum = (self.timesteps * (self.timesteps + 1)) / 2
-                weights = [i/timestep_sum for i in range(0, self._max_t_to_sample+1)]
+                weights = [i/timestep_sum for i in range(0, self._max_t_to_sample)]
 
             t = torch.tensor(list(WeightedRandomSampler(weights, im.shape[0], replacement=True))).long()
             # t = torch.randint(1, self._max_t_to_sample, (,)).long()
