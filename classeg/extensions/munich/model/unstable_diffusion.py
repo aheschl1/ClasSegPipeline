@@ -1,9 +1,7 @@
-import sys
 from typing import Tuple, List
 
 from classeg.extensions.unstable_diffusion.utils.utils import make_zero_conv
 
-sys.path.append("/home/student/andrewheschl/Documents/diffusion")
 import torch
 import torch.nn as nn
 from classeg.extensions.unstable_diffusion.model.modules import ScaleULayer
@@ -204,27 +202,17 @@ class MidBlock(nn.Module):
         self.time_embedding_layer = nn.ModuleList([TimeEmbedder(time_emb_dim, in_channels) for _ in range(2)])
 
         self.self_attention_norms = nn.ModuleList(
-            [nn.GroupNorm(8, num_channels=in_channels) for _ in range(2)]
+            [nn.GroupNorm(8, num_channels=in_channels) for _ in range(1)]
         )
         self.self_attentions = nn.ModuleList(
             [
                 nn.MultiheadAttention(in_channels, num_heads, batch_first=True)
-                for _ in range(2)
+                for _ in range(1)
             ]
         )
-        self.cross_attention_norms = nn.ModuleList(
-            [nn.GroupNorm(8, num_channels=in_channels) for _ in range(2)]
-        )
-        self.cross_attentions = nn.ModuleList(
-            [
-                nn.MultiheadAttention(in_channels, num_heads, batch_first=True)
-                for _ in range(2)
-            ]
-        )
-        self.pointwise_convolution_im = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-        self.pointwise_convolution_seg = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.pointwise_convolution = nn.Conv2d(in_channels, in_channels, kernel_size=1)
 
-    def forward(self, im, seg, time_embedding):
+    def forward(self, im, time_embedding):
         # ================ SELF IM ====================
         im_out = self.first_residual_convs[0](im)
         im_out = im_out + self.time_embedding_layer[0](time_embedding, im_out.shape[0])[:, :, None, None]
@@ -237,48 +225,8 @@ class MidBlock(nn.Module):
         )
         out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W)
         im_out = im_out + out_attn
-        # ================ SELF SEG ====================
-        seg_out = self.first_residual_convs[1](seg)
-        seg_out = seg_out + self.time_embedding_layer[1](time_embedding, seg_out.shape[1])[:, :, None, None]
 
-        N, C, H, W = seg_out.shape
-        in_attn = seg_out.reshape(N, C, H * W)
-        in_attn = self.self_attention_norms[1](in_attn).transpose(1, 2)
-        out_attn, _ = self.self_attentions[1](
-            in_attn, in_attn, in_attn
-        )
-        out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W)
-        seg_out = seg_out + out_attn
-        # ================ CROSS ATTENTION SEG====================
-        N, C, H, W = seg_out.shape
-        in_attn = seg_out.reshape(N, C, H * W)
-        in_attn = self.cross_attention_norms[1](in_attn).transpose(1, 2)
-
-        kv_attn = im_out.reshape(N, C, H * W)
-        kv_attn = self.cross_attention_norms[1](kv_attn).transpose(1, 2)
-
-        out_attn, _ = self.cross_attentions[1](
-            in_attn, kv_attn, kv_attn
-        )
-        out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W)
-        seg_out = seg_out + out_attn
-        # ================ CROSS ATTENTION IM====================
-        N, C, H, W = im_out.shape
-        in_attn = seg_out.reshape(N, C, H * W)
-        in_attn = self.cross_attention_norms[0](in_attn).transpose(1, 2)
-
-        kv_attn = seg_out.reshape(N, C, H * W)
-        kv_attn = self.cross_attention_norms[0](kv_attn).transpose(1, 2)
-
-        out_attn, _ = self.cross_attentions[0](
-            in_attn, kv_attn, kv_attn
-        )
-        out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W)
-        im_out = im_out + out_attn
-
-        # FINAL CONV
-
-        return self.pointwise_convolution_im(im_out), self.pointwise_convolution_seg(seg_out)
+        return self.pointwise_convolution(im_out)
 
 
 class UpBlock(nn.Module):
@@ -428,6 +376,7 @@ class UnstableDiffusion(nn.Module):
         assert (
                 not shared_encoder or not apply_zero_conv
         ), "Zero conv requires separate encoders"
+        assert shared_encoder, "Only shared encoder supported in the Munich extension."
         self.apply_zero_conv = apply_zero_conv
         self.time_emb_dim = time_emb_dim
         self.im_channels = im_channels
@@ -450,14 +399,7 @@ class UnstableDiffusion(nn.Module):
         )
 
         self.im_conv_in = nn.Conv2d(
-            in_channels=im_channels,
-            out_channels=channels[0],
-            kernel_size=3,
-            stride=1,
-            padding=1,
-        )
-        self.seg_conv_in = nn.Conv2d(
-            in_channels=seg_channels,
+            in_channels=im_channels+seg_channels,
             out_channels=channels[0],
             kernel_size=3,
             stride=1,
@@ -491,38 +433,12 @@ class UnstableDiffusion(nn.Module):
                 )
             )
 
-        # Decoder SEG
-        self.seg_decoder_layers = nn.ModuleList()
-        for layer in range(layers - 1, 0, -1):
-            in_channels = channels[layer]
-            out_channels = channels[layer - 1]
-            self.seg_decoder_layers.append(
-                UpBlock(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    time_emb_dim=self.time_emb_dim,
-                    upsample=True,
-                    num_layers=layer_depth
-                )
-            )
-
         self.output_layer_im = nn.Sequential(
             nn.GroupNorm(8, channels[0]),
             nn.SiLU(),
             nn.Conv2d(
                 in_channels=channels[0],
-                out_channels=im_channels,
-                kernel_size=3,
-                padding=1,
-            ),
-        )
-
-        self.output_layer_seg = nn.Sequential(
-            nn.GroupNorm(8, channels[0]),
-            nn.SiLU(),
-            nn.Conv2d(
-                in_channels=channels[0],
-                out_channels=seg_channels,
+                out_channels=im_channels+seg_channels,
                 kernel_size=3,
                 padding=1,
             ),
@@ -565,7 +481,7 @@ class UnstableDiffusion(nn.Module):
         return t_emb
 
     def _encode_forward(
-            self, im_out, seg_out, t
+            self, im_out, t
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor], List[torch.Tensor]]:
         """
         Encodes im and seg, keeping in mind shared encoder vs not.
@@ -575,63 +491,12 @@ class UnstableDiffusion(nn.Module):
         :return:
         """
         skipped_connections_im = [im_out]
-        skipped_connections_seg = [seg_out]
         # =========== SHARED ENCODER ===========
         if self.shared_encoder:
             for encoder in self.encoder_layers:
                 im_out = encoder(im_out, t)
                 skipped_connections_im.append(im_out)
-            for encoder in self.encoder_layers:
-                seg_out = encoder(seg_out, t)
-                skipped_connections_seg.append(seg_out)
-            return im_out, seg_out, skipped_connections_im, skipped_connections_seg
-        # =========== NOT SHARED ENCODER ===========
-        for i, (im_encode, seg_encode) in enumerate(
-                zip(self.encoder_layers, self.encoder_layers_mask)
-        ):
-            if i == 0:
-                im_out, seg_out = im_encode(im_out, t), seg_encode(seg_out, t)
-            else:
-                im_out, seg_out = (
-                    im_encode(im_out, t, residual_connection=seg_out),
-                    seg_encode(seg_out, t, residual_connection=im_out),
-                )
-            skipped_connections_im.append(im_out)
-            skipped_connections_seg.append(seg_out)
-
-        return im_out, seg_out, skipped_connections_im, skipped_connections_seg
-
-    def get_discriminator(self):
-        return nn.ModuleList([
-            nn.Conv2d(
-                in_channels=self.im_channels + self.seg_channels,
-                out_channels=self.channels[0],
-                kernel_size=3,
-                stride=1,
-                padding=1,
-            ),
-            self._generate_encoder(),
-            nn.Sequential(
-                nn.Conv2d(self.channels[-1], self.channels[-1], kernel_size=3, stride=2, padding=1),
-                nn.SiLU(),
-                nn.Conv2d(self.channels[-1], self.channels[-1], kernel_size=3, stride=2, padding=1),
-                nn.AdaptiveAvgPool2d(1),
-                nn.Flatten(),
-                nn.Linear(self.channels[-1], self.channels[-1] // 2),
-                nn.SiLU(),
-                nn.Linear(self.channels[-1] // 2, 1)
-            )
-        ])
-
-    def discriminate(self, discriminator: nn.Module, im, t):
-        t = self._sinusoidal_embedding(t)
-        t = self.t_proj(t)
-
-        im = discriminator[0](im)
-        for layer in discriminator[1]:
-            im = layer(im, t, None)
-        return discriminator[2](im)
-
+            return im_out, skipped_connections_im
     def forward(self, im, seg, t):
 
         assert im.shape[2] == 128, "Only 128 resolution supported"
@@ -639,14 +504,13 @@ class UnstableDiffusion(nn.Module):
         t = self._sinusoidal_embedding(t)
         t = self.t_proj(t)
         # ======== ENTRY ========
-        im_out = self.im_conv_in(im)
-        seg_out = self.seg_conv_in(seg)
+        im_out = self.im_conv_in(torch.concat([im, seg], dim=1))
         # ======== ENCODE ========
-        im_out, seg_out, skipped_connections_im, skipped_connections_seg = (
-            self._encode_forward(im_out, seg_out, t)
+        im_out, skipped_connections_im = (
+            self._encode_forward(im_out, t)
         )
         # ======== MIDDLE ========
-        im_out, seg_out = self.middle_layer(im_out, seg_out, t)
+        im_out = self.middle_layer(im_out, t)
         # ======== DECODE ========
         i = 0
         for im_decode, seg_decode in zip(
