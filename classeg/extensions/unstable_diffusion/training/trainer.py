@@ -9,7 +9,7 @@ from overrides import override
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
-from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler
+from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler, VoidScheduler
 from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.training.trainer import Trainer, log
@@ -45,13 +45,18 @@ class UnstableDiffusionTrainer(Trainer):
         :param gpu_id: The gpu for this process to use.
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
+        if gpu_id != "cpu" and gpu_id > 1:
+            raise NotImplementedError("Finihsh DDP implmentation of the dicriminator")
         self.dicriminator = None
         self.dicriminator_lr_schedule = None
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume,
                          cache, world_size)
         self.timesteps = self.config["max_timestep"]
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
-        self.diffusion_schedule = StepScheduler(self.forward_diffuser, step_size=10, epochs_per_step=5, initial_max=10)
+        if self.config.get("diffusion_scheduler", None) in ["linear", "l"]:
+            self.diffusion_schedule = StepScheduler(self.forward_diffuser, step_size=10, epochs_per_step=5, initial_max=10)
+        else:
+            self.diffusion_schedule = VoidScheduler(self.forward_diffuser)
         self.g_optim, self.d_optim = self.optim
 
         self.dicriminator_lr_schedule =  self.get_lr_scheduler(self.d_optim)
@@ -59,6 +64,8 @@ class UnstableDiffusionTrainer(Trainer):
             state = torch.load(f"{self.output_dir}/latest.pth")
             self.diffusion_schedule.load_state(state["diffusion_schedule"])
             self.dicriminator_lr_schedule.load_state_dict(state['lr_scheduler_discrim'])
+            self.g_optim.load_state_dict(state['g_optim'])
+            self.d_optim.load_state_dict(state['d_optim'])
 
         # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
@@ -115,12 +122,33 @@ class UnstableDiffusionTrainer(Trainer):
                 checkpoint["weights"] = self.model.module.state_dict()
             else:
                 checkpoint["weights"] = self.model.state_dict()
-            checkpoint["optim"] = self.optim.state_dict()
+            checkpoint["dicriminator"] = self.dicriminator.state_dict()
+            checkpoint["d_optim"] = self.d_optim.state_dict()
+            checkpoint["g_optim"] = self.g_optim.state_dict()
             checkpoint["current_epoch"] = self._current_epoch
             checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
             checkpoint["lr_scheduler_discrim"] = self.dicriminator_lr_schedule.state_dict()
             checkpoint["diffusion_schedule"] = self.diffusion_schedule.get_state_dict()
             torch.save(checkpoint, path)
+
+    def _load_checkpoint(self, weights_name) -> None:
+        import os
+        """
+        Loads network checkpoint onto the DDP model.
+        :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
+        :return: None
+        """
+        assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
+        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
+        self._current_epoch = checkpoint["current_epoch"]
+        if self.world_size > 1:
+            self.model.module.load_state_dict(checkpoint["weights"])
+        else:
+            self.model.load_state_dict(checkpoint["weights"])
+            self.dicriminator.load_state_dict(checkpoint["dicriminator"])
+        # self..load_state_dict(checkpoint["optim"])
+        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -242,7 +270,7 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t)(predicted_concat, t).squeeze(), real_label)
+                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
                 real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
                 fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze(), fake_label)

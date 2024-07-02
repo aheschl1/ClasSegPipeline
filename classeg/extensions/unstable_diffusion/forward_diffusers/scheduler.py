@@ -49,6 +49,11 @@ class StepScheduler(DiffusionScheduler):
         return min(self.diffuser.timesteps, self.step_size * (step // self.epochs_per_step) + self.initial_max)
 
 
+class VoidScheduler(DiffusionScheduler):
+    def compute_max_at_step(self, _: int) -> int:
+        return self.diffuser.timesteps
+
+
 if __name__ == "__main__":
     diffuser = LinearDiffuser(20)
     scheduler = StepScheduler(diffuser)
