@@ -287,7 +287,7 @@ class UpBlock(nn.Module):
             in_channels,
             out_channels,
             time_emb_dim=100,
-            norm_op="BatchNorm",
+            norm_op="GroupNorm",
             conv_op="Conv2d",
             non_lin=nn.SiLU,
             num_heads=4,
@@ -307,10 +307,11 @@ class UpBlock(nn.Module):
         self.perform_attention = attention
         self.num_layers = num_layers
         self.upsample = upsample
+        norm_op = nn.GroupNorm
         self.first_residual_convs = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.GroupNorm(8, in_channels if i == 0 else out_channels),
+                    norm_op(8, in_channels if i == 0 else out_channels),
                     non_lin(),
                     nn.Conv2d(
                         in_channels=in_channels if i == 0 else out_channels,
@@ -329,7 +330,7 @@ class UpBlock(nn.Module):
         self.second_residual_convs = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.GroupNorm(8, out_channels),
+                    norm_op(8, out_channels),
                     non_lin(),
                     nn.Conv2d(
                         in_channels=out_channels,
@@ -344,7 +345,7 @@ class UpBlock(nn.Module):
         )
         if self.perform_attention:
             self.attention_norms = nn.ModuleList(
-                [nn.GroupNorm(8, num_channels=out_channels) for _ in range(num_layers)]
+                [norm_op(8, num_channels=out_channels) for _ in range(num_layers)]
             )
             self.multihead_attentions = nn.ModuleList(
                 [
@@ -534,16 +535,16 @@ class UnstableDiffusion(nn.Module):
 
         if super_resolution:
             self.super_im = UpBlock(
-                    in_channels=im_channels,
-                    out_channels=im_channels,
+                    in_channels=channels[0],
+                    out_channels=channels[0],
                     time_emb_dim=self.time_emb_dim,
                     upsample=True,
                     num_layers=2,
                     skipped =False
                 )
             self.super_seg = UpBlock(
-                in_channels=seg_channels,
-                out_channels=seg_channels,
+                in_channels=channels[0],
+                out_channels=channels[0],
                 time_emb_dim=self.time_emb_dim,
                 upsample=True,
                 num_layers=2,
