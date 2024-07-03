@@ -309,22 +309,22 @@ class UpBlock(nn.Module):
         )
         self.upsample_conv = (
             nn.ConvTranspose2d(
-                in_channels * 3, in_channels, kernel_size=4, stride=2, padding=1
+                in_channels * 2, in_channels, kernel_size=4, stride=2, padding=1
             )
             if upsample
             else nn.Identity()
         )
-        self.scale_u = ScaleULayer(in_channels, skipped_count=2)
+        self.scale_u = ScaleULayer(in_channels, skipped_count=1)
 
     def forward(
-            self, x, skipped_connection_encoder, skipped_connection_decoder, time_embedding
+            self, x, skipped_connection_encoder, time_embedding
     ):
         # print('UpBlock forward')
         # print('receive input x: ', x.shape)
         # print('receive skipped: ', skipped_connection.shape)
         # x = in_channels
         # x = in_channels//2
-        x = self.scale_u(x, skipped_connection_encoder, skipped_connection_decoder)
+        x = self.scale_u(x, skipped_connection_encoder)
         x = self.upsample_conv(x)
 
         out = x
@@ -513,18 +513,12 @@ class UnstableDiffusion(nn.Module):
         im_out = self.middle_layer(im_out, t)
         # ======== DECODE ========
         i = 0
-        for im_decode, seg_decode in zip(
-                self.im_decoder_layers, self.seg_decoder_layers
-        ):
+        for im_decode in self.im_decoder_layers:
             i += 1
-            im_out, seg_out = (
-                im_decode(im_out, skipped_connections_im[-i], seg_out, t),
-                seg_decode(seg_out, skipped_connections_seg[-i], im_out, t),
-            )
+            im_out = im_decode(im_out, skipped_connections_im[-i], t)
         # ======== EXIT ========
         im_out = self.output_layer_im(im_out)
-        seg_out = self.output_layer_seg(seg_out)
-        return im_out, seg_out
+        return im_out
 
 
 # if __name__ == "__main__":
@@ -544,12 +538,9 @@ class UnstableDiffusion(nn.Module):
 
 
 if __name__ == "__main__":
-    x = torch.zeros(2, 3, 128, 128).cuda()
-    m = torch.zeros(2, 1, 128, 128).cuda()
+    x = torch.zeros(2, 4, 128, 128).cuda()
+    # m = torch.zeros(2, 1, 128, 128).cuda()
     t = torch.zeros(2).cuda()
     model = UnstableDiffusion(3, 1, channels=[16, 32, 64]).cuda()
-    out = model(x, m, t)
-    print(out[0].shape, out[1].shape)
-
-    out2 = model.descriminate(x, t)
-    print(out2.shape)
+    out = model(x, t)
+    print(out.shape)
