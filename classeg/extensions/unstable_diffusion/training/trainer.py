@@ -230,6 +230,22 @@ class UnstableDiffusionTrainer(Trainer):
 
         return running_loss / total_items
 
+    def log_discriminator_progress(self, epoch, predicted_real, predicted_fake):
+        labels = torch.cat([torch.ones_like(predicted_real), torch.zeros_like(predicted_fake)], dim=0)
+        predictions = torch.cat([predicted_real, predicted_fake], dim=0)
+        self.log_helper.log_scalar("Metrics/DisriminatorLoss", self.gan_loss(predictions, labels), epoch)
+
+        predictions = torch.sigmoid(predictions)
+        predictions = predictions.detach().cpu().numpy()
+        labels = labels.detach().cpu().numpy()
+
+        predictions[predictions > 0.5] = 1
+        correct = (predictions == labels).sum()
+        total = labels.shape[0]
+
+        self.log_helper.log_scalar("Metrics/DisriminatorAccuracy", correct/total, epoch)
+
+
     # noinspection PyTypeChecker
     @override
     def eval_single_epoch(self, epoch) -> float:
@@ -246,6 +262,10 @@ class UnstableDiffusionTrainer(Trainer):
         total_items = 0
         # total_divergence = 0
         self.dicriminator.eval()
+
+        all_discriminator_predictions_real = []
+        all_discriminator_predictions_fake = []
+
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
@@ -281,12 +301,21 @@ class UnstableDiffusionTrainer(Trainer):
                 # Fool the discriminator
                 gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
-                real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
-                fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze(), fake_label)
+                predicted_real = self.model.discriminate(self.dicriminator, real_concat, t).squeeze()
+                predicted_fake = self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze()
+                all_discriminator_predictions_real.extend(predicted_real.tolist())
+                all_discriminator_predictions_fake.extend(predicted_fake.tolist())
+
+                real_loss = self.gan_loss(predicted_real, real_label)
+                fake_loss = self.gan_loss(predicted_fake, fake_label)
                 # calculate the loss
                 dis_loss = (real_loss + fake_loss) / 2
 
             # gather data
+            all_discriminator_predictions_real = torch.tensor(all_discriminator_predictions_real)
+            all_discriminator_predictions_fake = torch.tensor(all_discriminator_predictions_fake)
+
+            self.log_discriminator_progress(epoch, all_discriminator_predictions_real, all_discriminator_predictions_fake)
             running_loss += (dis_loss + gen_loss).item() * images.shape[0]
             total_items += images.shape[0]
 
