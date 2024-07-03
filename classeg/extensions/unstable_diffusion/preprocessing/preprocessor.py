@@ -41,15 +41,15 @@ class ExtensionPreprocessor(Preprocessor):
 
     def get_config(self) -> Dict:
         return {
-            "batch_size": 24,
+            "batch_size": 64,
             "processes": 32,
             "lr": 0.0002,
             "epochs": 1000,
             "momentum": 0.9,
             "weight_decay": 0.00001,
             "target_size": [
-                256,
-                256
+                128,
+                128
             ],
             "max_timestep": 1000,
             "diffuser": "linear",
@@ -67,7 +67,10 @@ class ExtensionPreprocessor(Preprocessor):
                 ],
                 "shared_encoder": False,
                 "time_emb_dim": 128
-            }
+            },
+            "gan_weight": 0,
+            "super_resolution": False,
+            "diffusion_scheduler": "none"
         }
 
 
