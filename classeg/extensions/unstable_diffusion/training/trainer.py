@@ -72,14 +72,23 @@ class UnstableDiffusionTrainer(Trainer):
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
+        self.super_resolution = self.config.get("super_resolution", False)
         del self.optim, self.loss
 
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
         import cv2
-        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_LINEAR)
-        resize_mask = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_NEAREST)
+        initial_resize = self.config.get("target_size", [512, 512])
+        if self.super_resolution:
+            """
+            If we are doing super resolution, we need to double the size of the image.
+            We resize down later for input to the model, but need to HR image to be larger.
+            """
+            initial_resize = [x * 2 for x in initial_resize]
+
+        resize_image = A.Resize(*initial_resize, interpolation=cv2.INTER_LINEAR)
+        resize_mask = A.Resize(*initial_resize, interpolation=cv2.INTER_NEAREST)
 
         def my_resize(image=None, mask=None, **kwargs):
             if mask is not None:
@@ -165,7 +174,7 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
-        print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
+        print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule.step)}")
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()
@@ -296,7 +305,10 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def get_model(self, path) -> nn.Module:
-        model = UnstableDiffusion(**self.config["model_args"])
+        model = UnstableDiffusion(
+            **self.config["model_args"],
+            super_resolution=self.config.get("super_resolution", False)
+        )
         self.dicriminator = model.get_discriminator().to(self.device)
         return model.to(self.device)
 

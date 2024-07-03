@@ -32,6 +32,10 @@ class DiffusionScheduler:
         self._step = state_dict["step"]
         self.diffuser.set_max_t(self.compute_max_at_step(self._step))
 
+    @property
+    def step(self):
+        return self._step
+
 
 class StepScheduler(DiffusionScheduler):
     def __init__(self, diffuser: Diffuser, step_size: int = 5, epochs_per_step: int = 5, initial_max=1, *args, **kwargs):

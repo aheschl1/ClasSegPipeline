@@ -420,7 +420,8 @@ class UnstableDiffusion(nn.Module):
             time_emb_dim=100,
             shared_encoder=False,
             apply_zero_conv=False,
-            apply_scale_u=True
+            apply_scale_u=True,
+            super_resolution=False,
     ):
 
         super(UnstableDiffusion, self).__init__()
@@ -432,6 +433,7 @@ class UnstableDiffusion(nn.Module):
         self.time_emb_dim = time_emb_dim
         self.im_channels = im_channels
         self.seg_channels = seg_channels
+        self.super_resolution = super_resolution
         if channels is None:
             channels = [16, 32, 64]
         layers = len(channels)
@@ -527,6 +529,28 @@ class UnstableDiffusion(nn.Module):
                 padding=1,
             ),
         )
+
+        if super_resolution:
+            self.output_layer_im.append(nn.Sequential(
+                nn.Upsample(scale_factor=2),
+                nn.SiLU(),
+                nn.Conv2d(
+                    in_channels=im_channels,
+                    out_channels=im_channels,
+                    kernel_size=3,
+                    padding=1,
+                )
+            ))
+            self.output_layer_seg.append(nn.Sequential(
+                nn.Upsample(scale_factor=2),
+                nn.SiLU(),
+                nn.Conv2d(
+                    in_channels=seg_channels,
+                    out_channels=seg_channels,
+                    kernel_size=3,
+                    padding=1,
+                )
+            ))
 
     def _generate_encoder(self):
         encoder_layers = nn.ModuleList()
@@ -634,7 +658,13 @@ class UnstableDiffusion(nn.Module):
 
     def forward(self, im, seg, t):
 
+        if self.super_resolution:
+            assert im.shape[2] == 256, "Only 256 resolution supported with super resolution"
+            im = nn.functional.interpolate(im, scale_factor=1/2, mode='nearest-exact')
+            seg = nn.functional.interpolate(seg, scale_factor=1/2, mode='nearest-exact')
+
         assert im.shape[2] == 128, "Only 128 resolution supported"
+
         # ======== TIME ========
         t = self._sinusoidal_embedding(t)
         t = self.t_proj(t)
