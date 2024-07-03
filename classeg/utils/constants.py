@@ -38,9 +38,9 @@ if RESULTS_ROOT is None or not os.path.exists(RESULTS_ROOT):
                              '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
                              
 AUTOENCODER = os.getenv('AUTOENCODER')
-if AUTOENCODER is None or not os.path.exists(AUTOENCODER):
-    raise NotADirectoryError('You must define $AUTOENCODER in your environment variables '
-                             '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
+# if AUTOENCODER is None or not os.path.exists(AUTOENCODER):
+#     raise NotADirectoryError('You must define $AUTOENCODER in your environment variables '
+#                              '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
 
 
 BEST_EPOCH_CELEBRATION = current_config.get("best_epoch_celebration", "Vamos, That is a new best epoch, saving the state!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
