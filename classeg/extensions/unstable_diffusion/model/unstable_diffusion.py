@@ -532,7 +532,7 @@ class UnstableDiffusion(nn.Module):
 
         if super_resolution:
             self.output_layer_im.append(nn.Sequential(
-                nn.Upsample(scale_factor=2),
+                nn.Upsample(scale_factor=2, mode='bilinear'),
                 nn.SiLU(),
                 nn.Conv2d(
                     in_channels=im_channels,
@@ -542,7 +542,7 @@ class UnstableDiffusion(nn.Module):
                 )
             ))
             self.output_layer_seg.append(nn.Sequential(
-                nn.Upsample(scale_factor=2),
+                nn.Upsample(scale_factor=2, mode='bilinear'),
                 nn.SiLU(),
                 nn.Conv2d(
                     in_channels=seg_channels,

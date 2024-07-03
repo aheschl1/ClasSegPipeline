@@ -48,7 +48,10 @@ class UnstableDiffusionInferer(Inferer):
         if self.model is not None:
             return self.model
         
-        model = UnstableDiffusion(**self.config["model_args"], super_resolution=self.config.get("super_resolution", False))
+        model = UnstableDiffusion(
+            **self.config["model_args"], 
+            super_resolution=self.config.get("super_resolution", False)
+        )
         return model.to(self.device)
 
     def infer_single_sample(self, image: torch.Tensor, datapoint: Datapoint) -> None:
