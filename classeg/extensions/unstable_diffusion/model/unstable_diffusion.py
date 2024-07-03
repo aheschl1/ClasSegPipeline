@@ -659,8 +659,8 @@ class UnstableDiffusion(nn.Module):
 
         if self.super_resolution:
             assert im.shape[2] == 256, "Only 256 resolution supported with super resolution"
-            im = nn.functional.interpolate(im, scale_factor=1/2, mode='nearest-exact')
-            seg = nn.functional.interpolate(seg, scale_factor=1/2, mode='nearest-exact')
+            im = nn.functional.interpolate(im, scale_factor=1/2, mode='bilinear')
+            seg = nn.functional.interpolate(seg, scale_factor=1/2, mode='bilinear')
 
         assert im.shape[2] == 128, "Only 128 resolution supported"
 
