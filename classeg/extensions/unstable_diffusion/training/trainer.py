@@ -80,7 +80,7 @@ class UnstableDiffusionTrainer(Trainer):
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
         import cv2
         initial_resize = self.config.get("target_size", [512, 512])
-        if self.super_resolution:
+        if self.config.get("super_resolution", False):
             """
             If we are doing super resolution, we need to double the size of the image.
             We resize down later for input to the model, but need to HR image to be larger.
@@ -174,7 +174,7 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
-        print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule.step)}")
+        print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()
