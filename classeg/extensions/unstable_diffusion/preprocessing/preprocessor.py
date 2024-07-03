@@ -106,7 +106,7 @@ class ExtensionPreprocessor(Preprocessor):
             case_max += 1
             case_name = get_case_name_from_number(case_max)
             shutil.copy(case, f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
-            mask_path = case.replace("Images", "Masks")
+            mask_path = case.replace("Images", "Masks").replace("Harvestable", "Main-155")
             shutil.copy(mask_path, f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
 
     def process(self) -> None:
