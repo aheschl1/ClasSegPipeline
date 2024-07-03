@@ -37,7 +37,7 @@ class ExtensionPreprocessor(Preprocessor):
         This is the main driver for preprocessing.
         """
         super().__init__(dataset_id, folds, processes, normalize, dataset_desc, **kwargs)
-        self.data_path = f"{data_path}/1"
+        self.data_path = data_path
 
     def get_config(self) -> Dict:
         return {
@@ -89,13 +89,22 @@ class ExtensionPreprocessor(Preprocessor):
         Called before standard preprocessing flow
         """
         import glob, shutil
-        cases = glob.glob(f"{self.data_path}/*")
+        cases = glob.glob(f"{self.data_path}/oprediction/1*")
         os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/labelsTr", exist_ok=True)
         os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/imagesTr", exist_ok=True)
-        for case in tqdm(cases, desc="Moving data"):
+        case_max = -1
+        for case in tqdm(cases, desc="Moving data - oprediction"): 
             case_name = get_case_name_from_number(int(case.split("/")[-1]))
             shutil.copy(f"{case}/Mask.png", f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
             shutil.copy(f"{case}/Image.jpg", f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
+            case_max = max(case_max, int(case.split("/")[-1]))
+        cases = glob.glob(f"{self.data_path}/diffusion_data/VideoFramesForDiffusionTraining/Images/**/*png")
+        for case in tqdm(cases, desc="Moving data - diffusion_data"):
+            case_max += 1
+            case_name = get_case_name_from_number(case_max)
+            shutil.copy(case, f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
+            mask_path = case.replace("Images", "Masks")
+            shutil.copy(mask_path, f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
 
     def process(self) -> None:
         super().process()
