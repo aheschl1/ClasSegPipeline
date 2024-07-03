@@ -89,7 +89,7 @@ class ExtensionPreprocessor(Preprocessor):
         Called before standard preprocessing flow
         """
         import glob, shutil
-        cases = glob.glob(f"{self.data_path}/oprediction/1*")
+        cases = glob.glob(f"{self.data_path}/oprediction/1/*")
         os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/labelsTr", exist_ok=True)
         os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/imagesTr", exist_ok=True)
         case_max = -1
