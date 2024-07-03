@@ -535,13 +535,13 @@ class UnstableDiffusion(nn.Module):
 
         if super_resolution:
             self.super_im = UpBlock(
-                    in_channels=channels[0],
-                    out_channels=channels[0],
-                    time_emb_dim=self.time_emb_dim,
-                    upsample=True,
-                    num_layers=2,
-                    skipped =False
-                )
+                in_channels=channels[0],
+                out_channels=channels[0],
+                time_emb_dim=self.time_emb_dim,
+                upsample=True,
+                num_layers=2,
+                skipped =False
+            )
             self.super_seg = UpBlock(
                 in_channels=channels[0],
                 out_channels=channels[0],
