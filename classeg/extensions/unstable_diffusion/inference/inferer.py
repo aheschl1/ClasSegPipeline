@@ -83,19 +83,23 @@ class UnstableDiffusionInferer(Inferer):
             shutil.rmtree(save_path)
         os.mkdir(save_path)
         self.model.eval()
+        in_shape = list(self.config["target_size"])
+        if self.config.get("super_resolution", False):
+            for i in range(len(in_shape)):
+                in_shape[i] = in_shape[i] * 2
         with torch.no_grad():
             xt_im = torch.randn(
                 (
                     grid_size ** 2,
                     self.config["model_args"]["im_channels"],
-                    *self.config["target_size"] * (1 if not self.config.get("super_resolution", False) else 2),
+                    *in_shape,
                 )
             )
             xt_seg = torch.randn(
                (
                    grid_size ** 2,
                    self.config["model_args"]["seg_channels"],
-                   *self.config["target_size"]* (1 if not self.config.get("super_resolution", False) else 0),
+                   *in_shape,
                )
             )
             xt_im = xt_im.to(self.device)
