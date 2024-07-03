@@ -48,7 +48,7 @@ class UnstableDiffusionInferer(Inferer):
         if self.model is not None:
             return self.model
         
-        model = UnstableDiffusion(**self.config["model_args"])
+        model = UnstableDiffusion(**self.config["model_args"], super_resolution=self.config.get("super_resolution", False))
         return model.to(self.device)
 
     def infer_single_sample(self, image: torch.Tensor, datapoint: Datapoint) -> None:
@@ -88,14 +88,14 @@ class UnstableDiffusionInferer(Inferer):
                 (
                     grid_size ** 2,
                     self.config["model_args"]["im_channels"],
-                    *self.config["target_size"],
+                    *self.config["target_size"] * (1 if not self.config.get("super_resolution", False) else 2),
                 )
             )
             xt_seg = torch.randn(
                (
                    grid_size ** 2,
                    self.config["model_args"]["seg_channels"],
-                   *self.config["target_size"],
+                   *self.config["target_size"]* (1 if not self.config.get("super_resolution", False) else 0),
                )
             )
             xt_im = xt_im.to(self.device)
