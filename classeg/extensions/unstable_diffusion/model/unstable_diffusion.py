@@ -297,6 +297,7 @@ class UpBlock(nn.Module):
             padding=1,
             upsample=True,
             attention=False,
+            skipped=True
     ) -> None:
         """
         TODO GroupNorm
@@ -361,7 +362,7 @@ class UpBlock(nn.Module):
         )
         self.upsample_conv = (
             nn.ConvTranspose2d(
-                in_channels * 3, in_channels, kernel_size=4, stride=2, padding=1
+                in_channels * 3 if skipped else in_channels, in_channels, kernel_size=4, stride=2, padding=1
             )
             if upsample
             else nn.Identity()
@@ -369,14 +370,15 @@ class UpBlock(nn.Module):
         self.scale_u = ScaleULayer(in_channels, skipped_count=2)
 
     def forward(
-            self, x, skipped_connection_encoder, skipped_connection_decoder, time_embedding
+            self, x, skipped_connection_encoder=None, skipped_connection_decoder=None, time_embedding=None
     ):
         # print('UpBlock forward')
         # print('receive input x: ', x.shape)
         # print('receive skipped: ', skipped_connection.shape)
         # x = in_channels
         # x = in_channels//2
-        x = self.scale_u(x, skipped_connection_encoder, skipped_connection_decoder)
+        if skipped_connection_encoder is not None:
+            x = self.scale_u(x, skipped_connection_encoder, skipped_connection_decoder)
         x = self.upsample_conv(x)
 
         out = x
@@ -531,26 +533,22 @@ class UnstableDiffusion(nn.Module):
         )
 
         if super_resolution:
-            self.output_layer_im.append(nn.Sequential(
-                nn.Upsample(scale_factor=2, mode='bilinear'),
-                nn.SiLU(),
-                nn.Conv2d(
+            self.super_im = UpBlock(
                     in_channels=im_channels,
                     out_channels=im_channels,
-                    kernel_size=3,
-                    padding=1,
+                    time_emb_dim=self.time_emb_dim,
+                    upsample=True,
+                    num_layers=2,
+                    skipped =False
                 )
-            ))
-            self.output_layer_seg.append(nn.Sequential(
-                nn.Upsample(scale_factor=2, mode='bilinear'),
-                nn.SiLU(),
-                nn.Conv2d(
-                    in_channels=seg_channels,
-                    out_channels=seg_channels,
-                    kernel_size=3,
-                    padding=1,
-                )
-            ))
+            self.super_seg = UpBlock(
+                in_channels=seg_channels,
+                out_channels=seg_channels,
+                time_emb_dim=self.time_emb_dim,
+                upsample=True,
+                num_layers=2,
+                skipped =False
+            )
 
     def _generate_encoder(self):
         encoder_layers = nn.ModuleList()
@@ -688,6 +686,9 @@ class UnstableDiffusion(nn.Module):
                 seg_decode(seg_out, skipped_connections_seg[-i], im_out, t),
             )
         # ======== EXIT ========
+        if self.super_resolution:
+            im_out = self.super_im(im_out, time_embedding=t)
+            seg_out = self.super_seg(seg_out, time_embedding=t)
         im_out = self.output_layer_im(im_out)
         seg_out = self.output_layer_seg(seg_out)
         return im_out, seg_out
