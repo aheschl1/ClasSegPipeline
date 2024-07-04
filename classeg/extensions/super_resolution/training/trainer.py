@@ -57,7 +57,7 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
         import cv2
-        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_LINEAR)
+        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_CUBIC)
         resize_mask = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_NEAREST)
 
         def my_resize(image=None, mask=None, **kwargs):
@@ -111,9 +111,10 @@ class UnstableDiffusionTrainer(Trainer):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 
-            condition = torch.concat([images, segmentations], dim=1)
-            condition = nn.functional.interpolate(condition, 1/2)
-            condition = nn.functional.interpolate(condition, 2)
+            condition = torch.concat([
+                nn.functional.interpolate(nn.functional.interpolate(images, 1/2, mode="bicubic"), 2, mode='bicubic'),
+                nn.functional.interpolate(nn.functional.interpolate(images, 1/2, mode="nearest"), 2, mode='nearest'),
+            ], dim=1)
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss

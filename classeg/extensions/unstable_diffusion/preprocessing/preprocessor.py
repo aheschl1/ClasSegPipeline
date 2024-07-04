@@ -75,10 +75,7 @@ class ExtensionPreprocessor(Preprocessor):
 
 
     def normalize_function(self, data: np.array) -> np.array:
-        if self.datapoints[0].extension in ["JPEG", "jpg", "png", 'jpeg']:
-            return data / 255.0
-        print("Warn, skipping normalization")
-        return data
+        return data/ 255.0
 
     def post_preprocessing(self):
         """
@@ -91,23 +88,24 @@ class ExtensionPreprocessor(Preprocessor):
         """
         Called before standard preprocessing flow
         """
-        import glob, shutil
-        cases = glob.glob(f"{self.data_path}/oprediction/1/*")
-        os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/labelsTr", exist_ok=True)
-        os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/imagesTr", exist_ok=True)
-        case_max = -1
-        for case in tqdm(cases, desc="Moving data - oprediction"): 
-            case_name = get_case_name_from_number(int(case.split("/")[-1]))
-            shutil.copy(f"{case}/Mask.png", f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
-            shutil.copy(f"{case}/Image.jpg", f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
-            case_max = max(case_max, int(case.split("/")[-1]))
-        cases = glob.glob(f"{self.data_path}/diffusion_data/VideoFramesForDiffusionTraining/Images/**/*png")
-        for case in tqdm(cases, desc="Moving data - diffusion_data"):
-            case_max += 1
-            case_name = get_case_name_from_number(case_max)
-            shutil.copy(case, f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
-            mask_path = case.replace("Images", "Masks").replace("Harvestable", "Main-155")
-            shutil.copy(mask_path, f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
+        ...
+        # import glob, shutil
+        # cases = glob.glob(f"{self.data_path}/oprediction/1/*")
+        # os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/labelsTr", exist_ok=True)
+        # os.makedirs(f"{RAW_ROOT}/{self.dataset_name}/imagesTr", exist_ok=True)
+        # case_max = -1
+        # for case in tqdm(cases, desc="Moving data - oprediction"): 
+        #     case_name = get_case_name_from_number(int(case.split("/")[-1]))
+        #     shutil.copy(f"{case}/Mask.png", f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
+        #     shutil.copy(f"{case}/Image.jpg", f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
+        #     case_max = max(case_max, int(case.split("/")[-1]))
+        # cases = glob.glob(f"{self.data_path}/diffusion_data/VideoFramesForDiffusionTraining/Images/**/*png")
+        # for case in tqdm(cases, desc="Moving data - diffusion_data"):
+        #     case_max += 1
+        #     case_name = get_case_name_from_number(case_max)
+        #     shutil.copy(case, f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png")
+        #     mask_path = case.replace("Images", "Masks").replace("Harvestable", "Main-155")
+        #     shutil.copy(mask_path, f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png")
 
     def process(self) -> None:
         super().process()

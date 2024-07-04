@@ -87,7 +87,7 @@ class UnstableDiffusionTrainer(Trainer):
             """
             initial_resize = [x * 2 for x in initial_resize]
 
-        resize_image = A.Resize(*initial_resize, interpolation=cv2.INTER_LINEAR)
+        resize_image = A.Resize(*initial_resize, interpolation=cv2.INTER_CUBIC)
         resize_mask = A.Resize(*initial_resize, interpolation=cv2.INTER_NEAREST)
 
         def my_resize(image=None, mask=None, **kwargs):
