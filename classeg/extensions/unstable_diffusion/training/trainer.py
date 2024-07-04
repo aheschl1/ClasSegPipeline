@@ -345,7 +345,7 @@ class UnstableDiffusionTrainer(Trainer):
     def get_lr_scheduler(self, optim=None):
         if optim is None:
             optim = self.optim[0]
-        scheduler = StepLR(optim, step_size=100, gamma=0.9)
+        scheduler = StepLR(optim, step_size=120, gamma=0.9)
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
         return scheduler
