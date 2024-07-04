@@ -240,6 +240,7 @@ class UnstableDiffusionTrainer(Trainer):
         labels = labels.detach().cpu().numpy()
 
         predictions[predictions > 0.5] = 1
+        predictions[predictions != 1] = 0
         correct = (predictions == labels).sum()
         total = labels.shape[0]
 
@@ -311,14 +312,14 @@ class UnstableDiffusionTrainer(Trainer):
                 # calculate the loss
                 dis_loss = (real_loss + fake_loss) / 2
 
-            # gather data
+            running_loss += (dis_loss + gen_loss).item() * images.shape[0]
+            total_items += images.shape[0]
+# gather data
+        if self.gan_weight > 0:
             all_discriminator_predictions_real = torch.tensor(all_discriminator_predictions_real)
             all_discriminator_predictions_fake = torch.tensor(all_discriminator_predictions_fake)
 
             self.log_discriminator_progress(epoch, all_discriminator_predictions_real, all_discriminator_predictions_fake)
-            running_loss += (dis_loss + gen_loss).item() * images.shape[0]
-            total_items += images.shape[0]
-
         # self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
         return running_loss / total_items
 

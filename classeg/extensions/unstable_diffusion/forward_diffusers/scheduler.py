@@ -48,6 +48,9 @@ class StepScheduler(DiffusionScheduler):
         return super().load_state(state_dict)
 
     def compute_max_at_step(self, step: int) -> int:
+        # TODO find a better thingy here
+        if step > 500:
+            self.diffuser._t_sample_style = "uniform"
         return min(self.diffuser.timesteps, self.step_size * (step // self.epochs_per_step) + self.initial_max)
 
 
