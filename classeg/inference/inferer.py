@@ -126,14 +126,22 @@ class Inferer:
         self.save_path, self.train_loader = self.pre_infer()
         self.model.eval()
         with torch.no_grad():
-            for image, _, datapoints in tqdm(self.train_loader, desc="Running inference"):
-                self.infer_single_sample(image, datapoints[0])
+            for image, label, datapoints in tqdm(self.train_loader, desc="Running inference"):
+                if label is not None:
+                    self.infer_single_sample(image, label, datapoints[0])
+                else:        
+                    self.infer_single_sample(image, datapoints[0])
         self.post_infer()
 
     def _get_datapoints(self):
-        paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
-        print(f"Found {len(paths)} images to infer on.")
-        if len(paths) == 0:
+        if os.path.isdir(glob.glob(f"{self.input_root}/*")[0]):
+            paths = [x for x in glob.glob(f"{self.input_root}/images/*") if not os.path.isdir(x)]
+            datapoints = [Datapoint(x, x.replace("images", "masks")) for x in paths]
+        else:
+            paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
+            datapoints = [Datapoint(x, None) for x in paths]
+
+        print(f"Found {len(datapoints)} images to infer on.")
+        if len(datapoints) == 0:
             raise SystemExit
-        datapoints = [Datapoint(x, None) for x in paths]
         return datapoints
