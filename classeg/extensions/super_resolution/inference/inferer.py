@@ -4,6 +4,7 @@ from typing import Tuple
 
 import numpy as np
 import torch
+import cv2
 from matplotlib import pyplot as plt
 from torchvision.utils import make_grid
 from tqdm import tqdm
@@ -15,6 +16,7 @@ from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
 from classeg.extensions.super_resolution.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.super_resolution.preprocessing.bitifier import bitmask_to_label
+import albumentations as A
 class Penis(Inferer):
     def __init__(self,
                  dataset_id: str,
@@ -38,7 +40,28 @@ class Penis(Inferer):
         # self.model_json = read_json(f"{self.lookup_root}/model.json")
 
     def get_augmentations(self):
-        ...
+        def mask_transform(image=None, mask=None, **kwargs):
+            mask = mask/mask.max()
+            # make seg from RGBA [0, 1] to binary one channel
+            mask = mask.sum(dim=1, keepdim=True)
+            mask[mask > 0] = 1
+            print("Mask")
+            print(mask.min(), mask.max(), mask.dtype, mask.shape, np.unique(mask))
+            return mask
+        
+        def image_transform(image=None, mask=None, **kwargs):
+            # remove alpha
+            image = image[..., 0:3]
+            image = image/image.max()
+            print("Image")
+            print(image.min(), image.max(), image.dtype, image.shape)
+            return image
+
+        return None
+        return A.Compose([
+            A.ToFloat(),
+            A.Lambda(mask=mask_transform, image=image_transform, p=1)
+        ])
 
     def _get_model(self):
         """
@@ -57,11 +80,20 @@ class Penis(Inferer):
 
         handle the result in fields
         """
-        image = image[:, :3, ...].to(self.device)
-        seg = seg/255
-        # make seg from RGBA [0, 1] to binary one channel
-        seg = seg.sum(dim=1, keepdim=True)
-        seg[seg > 0] = 1
+        seg = seg/seg.max()
+        seg = seg[:, 0:1, ...]
+        # plt.imshow(seg[0].permute(1, 2, 0))
+        # plt.show()
+        # print("Mask")
+        # print(seg.min(), seg.max(), seg.dtype, seg.shape, np.unique(seg))
+
+        image = image[:, 0:3, ...]
+        image = image/image.max()
+        # print("Image")
+        # print(image.min(), image.max(), image.dtype, image.shape)
+
+
+        image = image.to(self.device)
         seg = seg.to(self.device, non_blocking=True)
 
         image = nn.functional.interpolate(image, scale_factor=2, mode='bicubic')
@@ -92,7 +124,7 @@ class Penis(Inferer):
             )
             xt_im = xt_im.to(self.device)
             xt_seg = xt_seg.to(self.device)
-            print(xt_seg.shape, xt_im.shape, image.shape, seg.shape)
+            # print(xt_seg.shape, xt_im.shape, image.shape, seg.shape)
             # self.timesteps = 2
             for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
                 time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
@@ -113,7 +145,7 @@ class Penis(Inferer):
                     xt_im -= xt_im.min()
                     xt_im *= 255 / xt_im.max()
                     xt_im = xt_im.astype(np.uint8)
-                    plt.imsave(f"{save_path}/{datapoint.im_path.split('/')[-1]}", xt_im)
+                    cv2.imwrite(f"{save_path}/{datapoint.im_path.split('/')[-1]}", cv2.cvtColor(xt_im, cv2.COLOR_RGB2BGR))
 
                     xt_seg = xt_seg[0].round().cpu().permute(1, 2, 0).numpy().astype(float)
                     print("Waring: not unbitifying. Only good for binary")
@@ -121,12 +153,12 @@ class Penis(Inferer):
                     xt_seg -= xt_seg.min()
                     xt_seg *= 255 / xt_seg.max()
                     xt_seg = xt_seg.astype(np.uint8)
-                    plt.imsave(f"{save_path}/{datapoint.im_path.split('/')[-1].split('.')[0]}_seg.png", np.stack([xt_seg]*3, axis=-1))
+                    cv2.imwrite(f"{save_path}/{datapoint.im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg)
                     
-        xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
+        # xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
         # xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))
-        xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
-        return xt_im, xt_seg
+        # xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
+        # return xt_im, xt_seg
 
     def pre_infer(self) -> str:
         """
