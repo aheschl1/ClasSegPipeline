@@ -92,6 +92,15 @@ class Trainer:
         self._current_epoch = 0
         self.model_path = model_path
         self.model = self.get_model(model_path).to(self.device)
+        if self.device in [0, "cpu"]:
+            all_params = sum(param.numel() for param in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+            log(f"Total parameters: {all_params}")
+            log(f"Trainable params: {trainable_params}")
+            self.log_helper.log_parameters(all_params, trainable_params)
+
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
         self.loss = self.get_loss()
@@ -379,16 +388,6 @@ class Trainer:
         factory = ModelFactory(path, lookup_packages=["classeg.models.autoencoder", "classeg.models.unet"])
         model = factory.get_model().to(self.device)
         log(factory.log_kwargs)
-
-        if self.device in [0, "cpu"]:
-            log(f"Loaded model {path}")
-            all_params = sum(param.numel() for param in model.parameters())
-            trainable_params = sum(
-                p.numel() for p in model.parameters() if p.requires_grad
-            )
-            log(f"Total parameters: {all_params}")
-            log(f"Trainable params: {trainable_params}")
-            self.log_helper.log_parameters(all_params, trainable_params)
         if self.world_size > 1:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         return model
