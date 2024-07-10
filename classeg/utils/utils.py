@@ -418,13 +418,12 @@ def get_dataloaders_from_fold(dataset_name: str,
                               val_transforms=None,
                               preprocessed_data: bool = True,
                               store_metadata: bool = False,
-                              config_name="config",
+                              config=None,
                               cache=False,
                               sampler = None,
                               **kwargs) -> Tuple[DataLoader, DataLoader]:
     """
     Returns the train and val dataloaders for a specific dataset fold.
-    :param config_name:
     :param dataset_name: The name of the dataset.
     :param fold: The fold to grab.
     :param train_transforms: The transforms to apply to training data.
@@ -434,10 +433,13 @@ def get_dataloaders_from_fold(dataset_name: str,
     :param kwargs: Can overwrite some settings.
     :param cache: If true, will cache the data.
     :param sampler: If not None, will use this sampler.
+    :param config: If not None, will use this config, otherwise will fetch from preprocessed data.
     :return: Train and val dataloaders.
     """
 
-    config = get_config_from_dataset(dataset_name, config_name)
+    config = config if config is not None else get_config_from_dataset(dataset_name, "config")
+    if not isinstance(config, dict):
+        raise ValueError(f"Config should be a dictionary, got {type(config)}.")
 
     train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=cache) if preprocessed_data \
         else get_raw_datapoints_folded(dataset_name, fold)

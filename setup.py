@@ -20,7 +20,7 @@ setup(
         "pandas~=2.1.4",
         "SimpleITK~=2.3.1",
         "einops~=0.7.0",
-        "albumentations~=1.4.8",
+        "albumentations~=1.4.11",
         "opencv-python",
         "tensorboard",
         "json-torch-models",

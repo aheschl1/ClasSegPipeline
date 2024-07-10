@@ -275,6 +275,7 @@ class Preprocessor:
             shuffle=False,
             store_metadata=True,
             cache=False,
+            config=self.get_config()
         )
         # prep dirs
         self._prep_fold_dirs(fold)
