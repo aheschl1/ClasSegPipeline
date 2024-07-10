@@ -135,13 +135,7 @@ class UnstableDiffusionInferer(Inferer):
             df.to_csv(f'{save_path}/generated.csv', index=False)
         return xt_im, xt_seg
 
-    def progressive_denoise(self, batch_size, in_shape, steps):
-        if steps is not None:
-            stride = int(self.timesteps // steps);
-            diffuser = LinearDiffuser(steps, self.config["max_beta"], self.config["min_beta"])
-        else:
-            stride = -1
-            diffuser = self.forward_diffuser
+    def progressive_denoise(self, batch_size, in_shape):
         xt_im = torch.randn(
             (
                 batch_size,
@@ -159,17 +153,17 @@ class UnstableDiffusionInferer(Inferer):
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
         # self.timesteps = 1000
-        for t in tqdm(range(self.timesteps - 1, -1, -stride), desc="running inference"):
+        for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             noise_prediction_im, noise_prediciton_seg = self.model(
                 xt_im, xt_seg, time_tensor
             )
-            xt_im, xt_seg = diffuser.inference_call(
+            xt_im, xt_seg = self.forward_diffuser.inference_call(
                 xt_im,
                 xt_seg,
                 noise_prediction_im,
                 noise_prediciton_seg,
-                t//stride,
+                t,
                 clamp=False,
             )
         return xt_im, xt_seg
