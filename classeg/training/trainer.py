@@ -93,15 +93,6 @@ class Trainer:
         self._current_epoch = 0
         self.model_path = model_path
         self.model = self.get_model(model_path).to(self.device)
-        if self.device in [0, "cpu"]:
-            all_params = sum(param.numel() for param in self.model.parameters())
-            trainable_params = sum(
-                p.numel() for p in self.model.parameters() if p.requires_grad
-            )
-            log(f"Total parameters: {all_params}")
-            log(f"Trainable params: {trainable_params}")
-            self.logger.log_parameters(all_params, trainable_params)
-
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
         self.loss = self.get_loss()
@@ -114,6 +105,14 @@ class Trainer:
             self.load_checkpoint("latest")
         # -1 because we increment the epoch by 1 when loading the checkpoint
         self.logger.set_current_epoch(self._current_epoch+1)
+        if self.device in [0, "cpu"]:
+            all_params = sum(param.numel() for param in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+            log(f"Total parameters: {all_params}")
+            log(f"Trainable params: {trainable_params}")
+            self.logger.log_parameters(all_params, trainable_params)
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
             dist.barrier()

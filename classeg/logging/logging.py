@@ -9,6 +9,7 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 import wandb
 
+
 class Logger:
     def __init__(self, output_dir: str, current_epoch: int = 0) -> None:
         """
@@ -221,7 +222,6 @@ class WandBLogger(Logger):
             wandb.watch(net, log="all", log_freq=1000, log_graph=True)
         else:
             logging.info("Network structure logging skipped. already logged.")
-
 
     def log_parameters(self, total, trainable):
         wandb.log({
