@@ -67,7 +67,7 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_image_infered(self, image, epoch, **kwargs):
+    def log_image_infered(self, image, epoch, **masks):
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
@@ -152,13 +152,13 @@ class TensorboardLogger(Logger):
         plt.close(fig)
         self.summary_writer.flush()
 
-    def log_image_infered(self, image, epoch, **kwargs):
+    def log_image_infered(self, image, epoch, **masks):
         self.summary_writer.add_image(
             "Infered Images",
             image,
             epoch
         )
-        for key, value in kwargs.items():
+        for key, value in masks.items():
             self.summary_writer.add_image(
                 f"Infered {key}",
                 value,
@@ -208,10 +208,11 @@ class WandBLogger(Logger):
 
     def log_augmented_image(self, image: Any, mask: Any = None):
         data = {
-            "augmented_image": wandb.Image(image),
+            "augmented_image": wandb.Image(
+                image,
+                masks=None if mask is None else {"augmented_mask": mask},
+            ),
         }
-        if mask is not None:
-            data["augmented_mask"] = wandb.Image(mask)
         wandb.log(data, step=self.epoch)
 
     def log_net_structure(self, net, *inputs):
@@ -234,9 +235,9 @@ class WandBLogger(Logger):
             title: wandb.plot.line(table, x=x, y=y, title=title)
         }, step=epoch)
 
-    def log_image_infered(self, image, epoch, **kwargs):
+    def log_image_infered(self, image, epoch, **masks):
         wandb.log({
-            "infered_image": wandb.Image(image)
+            "infered_image": wandb.Image(image, masks=masks)
         }, step=epoch)
 
     def cleanup(self):

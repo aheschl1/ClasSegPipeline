@@ -112,7 +112,8 @@ class Trainer:
         self._save_self_file()
         if resume:
             self.load_checkpoint("latest")
-        self.logger.set_current_epoch(self._current_epoch)
+        # -1 because we increment the epoch by 1 when loading the checkpoint
+        self.logger.set_current_epoch(self._current_epoch+1)
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
             dist.barrier()
@@ -337,7 +338,8 @@ class Trainer:
         """
         assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
         checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
-        # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next one.
+        # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
+        # one.
         self._current_epoch = checkpoint["current_epoch"]+1
         if self.world_size > 1:
             self.model.module.load_state_dict(checkpoint["weights"])
