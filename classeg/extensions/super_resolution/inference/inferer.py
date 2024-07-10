@@ -17,6 +17,8 @@ from classeg.utils.constants import RESULTS_ROOT
 from classeg.extensions.super_resolution.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.super_resolution.preprocessing.bitifier import bitmask_to_label
 import albumentations as A
+import pandas as pd
+
 class Penis(Inferer):
     def __init__(self,
                  dataset_id: str,
@@ -93,7 +95,7 @@ class Penis(Inferer):
         # print(image.min(), image.max(), image.dtype, image.shape)
 
 
-        image = image.to(self.device)
+        image = images.to(self.device)
         seg = segs.to(self.device, non_blocking=True)
 
         image = nn.functional.interpolate(image, scale_factor=2, mode='bicubic')
@@ -152,9 +154,23 @@ class Penis(Inferer):
                     xt_im *= 255 / xt_im.max()
                     xt_im = xt_im.astype(np.uint8)
 
+                    entries = []
                     for i in range(xt_im.shape[0]):
                         cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1]}", cv2.cvtColor(xt_im[i], cv2.COLOR_RGB2BGR))
                         cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg[i])
+
+                        entries.append({
+                            'IID': i,
+                            'GID': 1,
+                            'Image': f"{save_path}/{datapoints[i].im_path.split('/')[-1]}",
+                            'Mask':  f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
+                            'Label': 1
+                        })
+
+                    columns = ['IID', 'GID', 'Image', 'Mask', 'Label']
+                    df = pd.DataFrame(entries, columns=columns)
+                    df.to_csv(f'{save_path}/generated.csv', index=False)
+        # xt_im = xt_im.detach().cpu()
                     
         # xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
         # xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))

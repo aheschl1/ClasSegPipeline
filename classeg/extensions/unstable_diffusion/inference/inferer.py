@@ -88,8 +88,8 @@ class UnstableDiffusionInferer(Inferer):
             shutil.rmtree(save_path)
         
         os.mkdir(save_path)
-        os.mkdir(f'{save_path}/Images')
-        os.mkdir(f'{save_path}/Masks')
+        os.mkdir(f'{save_path}/images')
+        os.mkdir(f'{save_path}/masks')
         entries = []
 
         self.model.eval()
@@ -120,19 +120,8 @@ class UnstableDiffusionInferer(Inferer):
                 xt_im = xt_im.permute(0,2,3,1).numpy().astype(np.uint8)
                 xt_seg = xt_seg.permute(0,2,3,1).numpy().astype(np.uint8)
                 for i in range(batch_size):
-                    cv2.imwrite(f'{save_path}/Images/case_{case_num}.jpg', xt_im[i])
-                    cv2.imwrite(f'{save_path}/Masks/case_{case_num}.jpg', xt_seg[i])
-                    entries.append({
-                        'IID': case_num,
-                        'GID': 1,
-                        'Image': f'{save_path}/Images/case_{case_num:05}.jpg',
-                        'Mask':  f'{save_path}/Images/case_{case_num:05}.jpg',
-                        'Label': 1
-                    })
-                    case_num+=1;
-            columns = ['IID', 'GID', 'Image', 'Mask', 'Label']
-            df = pd.DataFrame(entries, columns=columns)
-            df.to_csv(f'{save_path}/generated.csv', index=False)
+                    cv2.imwrite(f'{save_path}/images/case_{case_num}.jpg', xt_im[i])
+                    cv2.imwrite(f'{save_path}/masks/case_{case_num}.jpg', xt_seg[i])
         return xt_im, xt_seg
 
     def progressive_denoise(self, batch_size, in_shape):
