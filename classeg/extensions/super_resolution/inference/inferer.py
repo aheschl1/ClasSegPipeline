@@ -74,27 +74,27 @@ class Penis(Inferer):
         model = UnstableDiffusion(**self.config["model_args"])
         return model.to(self.device)
 
-    def infer_single_sample(self, image: torch.Tensor, seg: torch.tensor, datapoint: Datapoint) -> None:
+    def infer_single_sample(self, images: torch.Tensor, segs: torch.tensor, datapoints: Datapoint) -> None:
         """
         image: single sample batch which has gone through the augmentations
 
         handle the result in fields
         """
-        seg = seg/seg.max()
-        seg = seg[:, 0:1, ...]
+        segs = segs/segs.max()
+        segs = segs[:, 0:1, ...]
         # plt.imshow(seg[0].permute(1, 2, 0))
         # plt.show()
         # print("Mask")
         # print(seg.min(), seg.max(), seg.dtype, seg.shape, np.unique(seg))
 
-        image = image[:, 0:3, ...]
-        image = image/image.max()
+        images = images[:, 0:3, ...]
+        images = images/images.max()
         # print("Image")
         # print(image.min(), image.max(), image.dtype, image.shape)
 
 
         image = image.to(self.device)
-        seg = seg.to(self.device, non_blocking=True)
+        seg = segs.to(self.device, non_blocking=True)
 
         image = nn.functional.interpolate(image, scale_factor=2, mode='bicubic')
         seg = nn.functional.interpolate(seg, scale_factor=2, mode='nearest')
@@ -110,14 +110,14 @@ class Penis(Inferer):
         with torch.no_grad():
             xt_im = torch.randn(
                 (
-                    1,
+                    image.shape[0],
                     self.config["model_args"]["im_channels"],
                     *self.config["target_size"],
                 )
             )
             xt_seg = torch.randn(
                (
-                   1,
+                   image.shape[0],
                    self.config["model_args"]["seg_channels"],
                    *self.config["target_size"],
                )
@@ -141,19 +141,20 @@ class Penis(Inferer):
                     clamp=False,
                 )
                 if t == 0:
-                    xt_im = xt_im[0].cpu().permute(1, 2, 0).numpy()
-                    xt_im -= xt_im.min()
-                    xt_im *= 255 / xt_im.max()
-                    xt_im = xt_im.astype(np.uint8)
-                    cv2.imwrite(f"{save_path}/{datapoint.im_path.split('/')[-1]}", cv2.cvtColor(xt_im, cv2.COLOR_RGB2BGR))
-
-                    xt_seg = xt_seg[0].round().cpu().permute(1, 2, 0).numpy().astype(float)
                     print("Waring: not unbitifying. Only good for binary")
-
+                    xt_seg = xt_seg.round().cpu().permute(0, 2, 3, 1).numpy().astype(float)
                     xt_seg -= xt_seg.min()
                     xt_seg *= 255 / xt_seg.max()
                     xt_seg = xt_seg.astype(np.uint8)
-                    cv2.imwrite(f"{save_path}/{datapoint.im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg)
+
+                    xt_im = xt_im.cpu().permute(0, 2, 3, 1).numpy()
+                    xt_im -= xt_im.min()
+                    xt_im *= 255 / xt_im.max()
+                    xt_im = xt_im.astype(np.uint8)
+
+                    for i in range(xt_im.shape[0]):
+                        cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1]}", cv2.cvtColor(xt_im[i], cv2.COLOR_RGB2BGR))
+                        cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg[i])
                     
         # xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
         # xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))
