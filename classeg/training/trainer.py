@@ -6,7 +6,7 @@ import sys
 import time
 import warnings
 from abc import abstractmethod
-from typing import Tuple, Any
+from typing import Tuple, Any, Dict, Union
 
 import torch
 import torch.distributed as dist
@@ -101,7 +101,7 @@ class Trainer:
             log(f"Optim being used is {self.optim}")
         self._save_self_file()
         if resume:
-            self._load_checkpoint("latest")
+            self.load_checkpoint("latest")
         self.log_helper.set_current_epoch(self._current_epoch)
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
@@ -174,6 +174,14 @@ class Trainer:
             world_size=self.world_size,
             config=self.config
         )
+
+    def get_extra_checkpoint_data(self) -> Union[Dict[str, Any], None]:
+        """
+        Return any extra values that you would like to save to the checkpoint.
+
+        Override load_checkpoint (don't forget to call super) in order to use them.
+        """
+        return None
 
     @abstractmethod
     def train_single_epoch(self, epoch: int) -> float:
@@ -307,9 +315,11 @@ class Trainer:
             print(self._current_epoch)
             checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
             checkpoint["best_val_loss"] = self._best_val_loss
+            extra_data = self.get_extra_checkpoint_data()
+            checkpoint.update(extra_data if extra_data is not None else {})
             torch.save(checkpoint, path)
 
-    def _load_checkpoint(self, weights_name) -> None:
+    def load_checkpoint(self, weights_name) -> None:
         """
         Loads network checkpoint onto the DDP model.
         :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
