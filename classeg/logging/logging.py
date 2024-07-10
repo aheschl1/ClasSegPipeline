@@ -119,7 +119,6 @@ class TensorboardLogger(Logger):
 
         self.summary_writer.add_figure(f"Metrics/confusion/{set_name}", fig, self.epoch)
         plt.close(fig)
-        del fig
         self.summary_writer.flush()
 
     def log_augmented_image(self, image: Any, mask: Any = None):
@@ -199,10 +198,13 @@ class WandBLogger(Logger):
         super().epoch_end(train_loss, val_loss, learning_rate, duration)
 
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
-        fig = Logger.build_confusion_matrix(predictions, labels, class_names)
-        wandb.log({f"confusion_matrix_{set_name}": wandb.Image(fig)}, step=self.epoch)
-        plt.close(fig)
-        del fig
+        wandb.log({
+            f"confusion_matrix_{set_name}": wandb.plot.confusion_matrix(
+                y_true=labels,
+                preds=predictions,
+                class_names=class_names
+            )
+        }, step=self.epoch)
 
     def log_augmented_image(self, image: Any, mask: Any = None):
         data = {
