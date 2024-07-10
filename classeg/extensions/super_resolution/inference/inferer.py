@@ -4,18 +4,20 @@ from typing import Tuple
 
 import numpy as np
 import torch
+import cv2
 from matplotlib import pyplot as plt
 from torchvision.utils import make_grid
 from tqdm import tqdm
-
+import torch.nn as nn
 from classeg.dataloading.datapoint import Datapoint
-from classeg.extensions.unstable_diffusion.utils.utils import get_forward_diffuser_from_config
+from classeg.extensions.super_resolution.utils.utils import get_forward_diffuser_from_config
 from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
-from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
-from classeg.extensions.unstable_diffusion.preprocessing.bitifier import bitmask_to_label
-class UnstableDiffusionInferer(Inferer):
+from classeg.extensions.super_resolution.model.unstable_diffusion import UnstableDiffusion
+from classeg.extensions.super_resolution.preprocessing.bitifier import bitmask_to_label
+import albumentations as A
+class Penis(Inferer):
     def __init__(self,
                  dataset_id: str,
                  fold: int,
@@ -38,7 +40,28 @@ class UnstableDiffusionInferer(Inferer):
         # self.model_json = read_json(f"{self.lookup_root}/model.json")
 
     def get_augmentations(self):
-        ...
+        def mask_transform(image=None, mask=None, **kwargs):
+            mask = mask/mask.max()
+            # make seg from RGBA [0, 1] to binary one channel
+            mask = mask.sum(dim=1, keepdim=True)
+            mask[mask > 0] = 1
+            print("Mask")
+            print(mask.min(), mask.max(), mask.dtype, mask.shape, np.unique(mask))
+            return mask
+        
+        def image_transform(image=None, mask=None, **kwargs):
+            # remove alpha
+            image = image[..., 0:3]
+            image = image/image.max()
+            print("Image")
+            print(image.min(), image.max(), image.dtype, image.shape)
+            return image
+
+        return None
+        return A.Compose([
+            A.ToFloat(),
+            A.Lambda(mask=mask_transform, image=image_transform, p=1)
+        ])
 
     def _get_model(self):
         """
@@ -51,61 +74,63 @@ class UnstableDiffusionInferer(Inferer):
         model = UnstableDiffusion(**self.config["model_args"])
         return model.to(self.device)
 
-    def infer_single_sample(self, image: torch.Tensor, datapoint: Datapoint) -> None:
+    def infer_single_sample(self, image: torch.Tensor, seg: torch.tensor, datapoint: Datapoint) -> None:
         """
         image: single sample batch which has gone through the augmentations
 
         handle the result in fields
         """
-        ...
+        seg = seg/seg.max()
+        seg = seg[:, 0:1, ...]
+        # plt.imshow(seg[0].permute(1, 2, 0))
+        # plt.show()
+        # print("Mask")
+        # print(seg.min(), seg.max(), seg.dtype, seg.shape, np.unique(seg))
 
-    def pre_infer(self) -> str:
-        """
-        Returns the output directory, and creates dataloader
-        """
-        save_path = f'{self.lookup_root}/inference'
-        self.model = self._get_model().cpu()
-        checkpoint = torch.load(
-            f"{self.lookup_root}/{self.weights}.pth"
-        )["weights"]
-        self.model.load_state_dict(checkpoint)
-        self.model = self.model.to(self.device)
-        return save_path
+        image = image[:, 0:3, ...]
+        image = image/image.max()
+        # print("Image")
+        # print(image.min(), image.max(), image.dtype, image.shape)
 
-    def infer(self):
-        grid_size = int(self.kwargs.get("g", 1))
-        grid_size = int(self.kwargs.get("grid_size", grid_size))
 
-        save_process = self.kwargs.get("save_process", False) in [True, '1', 1, 't', 'T']
+        image = image.to(self.device)
+        seg = seg.to(self.device, non_blocking=True)
 
-        save_path = self.pre_infer()
-        if os.path.exists(save_path):
-            shutil.rmtree(save_path)
-        os.mkdir(save_path)
+        image = nn.functional.interpolate(image, scale_factor=2, mode='bicubic')
+        seg = nn.functional.interpolate(seg, scale_factor=2, mode='nearest')
+
+        save_path = self.save_path
+        # if os.path.exists(save_path):
+        #     shutil.rmtree(save_path)
+        # while os.path.exists(save_path):
+        #     save_path = f"{self.lookup_root}/{input('Please enter a new save path: ')}"
+
+        # os.mkdir(save_path)
         self.model.eval()
         with torch.no_grad():
             xt_im = torch.randn(
                 (
-                    grid_size ** 2,
+                    1,
                     self.config["model_args"]["im_channels"],
                     *self.config["target_size"],
                 )
             )
             xt_seg = torch.randn(
                (
-                   grid_size ** 2,
+                   1,
                    self.config["model_args"]["seg_channels"],
                    *self.config["target_size"],
                )
             )
             xt_im = xt_im.to(self.device)
             xt_seg = xt_seg.to(self.device)
-            # self.timesteps = 1000
+            # print(xt_seg.shape, xt_im.shape, image.shape, seg.shape)
+            # self.timesteps = 2
             for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
                 time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
 
                 noise_prediction_im, noise_prediciton_seg = self.model(
-                    xt_im, xt_seg, time_tensor
+                    xt_im, xt_seg, torch.cat([image, seg], dim=1), time_tensor
                 )
                 xt_im, xt_seg = self.forward_diffuser.inference_call(
                     xt_im,
@@ -115,29 +140,37 @@ class UnstableDiffusionInferer(Inferer):
                     t,
                     clamp=False,
                 )
-                if save_process or t == 0:
-                    grid_im = make_grid(xt_im, nrow=grid_size)
-                    grid_im = grid_im.cpu().permute(1, 2, 0).numpy()
-                    grid_im -= grid_im.min()
-                    grid_im *= 255 / grid_im.max()
-                    grid_im = grid_im.astype(np.uint8)
-                    plt.imsave(f"{save_path}/x0_{t}_im.png", grid_im)
+                if t == 0:
+                    xt_im = xt_im[0].cpu().permute(1, 2, 0).numpy()
+                    xt_im -= xt_im.min()
+                    xt_im *= 255 / xt_im.max()
+                    xt_im = xt_im.astype(np.uint8)
+                    cv2.imwrite(f"{save_path}/{datapoint.im_path.split('/')[-1]}", cv2.cvtColor(xt_im, cv2.COLOR_RGB2BGR))
 
-                if save_process or t == 0:
-                    # grid_seg = make_grid(torch.from_numpy(bitmask_to_label(np.round(xt_seg.cpu().numpy()))), nrow=grid_size)
-                    grid_seg = make_grid(xt_seg.round(), nrow=grid_size)
+                    xt_seg = xt_seg[0].round().cpu().permute(1, 2, 0).numpy().astype(float)
                     print("Waring: not unbitifying. Only good for binary")
 
-                    grid_seg = grid_seg.cpu().permute(1, 2, 0).numpy().astype(float)
-                    grid_seg -= grid_seg.min()
-                    grid_seg *= 255 / grid_seg.max()
-                    grid_seg = grid_seg.astype(np.uint8)
-                    plt.imsave(f"{save_path}/x0_{t}_seg.png", grid_seg)
+                    xt_seg -= xt_seg.min()
+                    xt_seg *= 255 / xt_seg.max()
+                    xt_seg = xt_seg.astype(np.uint8)
+                    cv2.imwrite(f"{save_path}/{datapoint.im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg)
                     
-        xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
+        # xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
         # xt_seg = bitmask_to_label(np.round(xt_seg.cpu()[0].permute(1, 2, 0).numpy()))
-        xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
-        return xt_im, xt_seg
+        # xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
+        # return xt_im, xt_seg
+
+    def pre_infer(self) -> str:
+        """
+        Returns the output directory, and creates dataloader
+        """
+        self.model = self._get_model().cpu()
+        checkpoint = torch.load(
+            f"{self.lookup_root}/{self.weights}.pth"
+        )["weights"]
+        self.model.load_state_dict(checkpoint)
+        self.model = self.model.to(self.device)
+        return super().pre_infer()
 
     def post_infer(self):
         """

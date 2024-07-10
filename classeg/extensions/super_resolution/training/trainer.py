@@ -99,7 +99,6 @@ class UnstableDiffusionTrainer(Trainer):
         logger: self.log_helper
         model: self.model
         """
-        self.dicriminator.train()
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
@@ -112,14 +111,14 @@ class UnstableDiffusionTrainer(Trainer):
             segmentations = segmentations.to(self.device)
 
             condition = torch.concat([
-                nn.functional.interpolate(nn.functional.interpolate(images, 1/2, mode="bicubic"), 2, mode='bicubic'),
-                nn.functional.interpolate(nn.functional.interpolate(images, 1/2, mode="nearest"), 2, mode='nearest'),
+                nn.functional.interpolate(nn.functional.interpolate(images, scale_factor=1/2, mode="bicubic"), scale_factor=2, mode='bicubic'),
+                nn.functional.interpolate(nn.functional.interpolate(segmentations, scale_factor=1/2, mode="nearest"), scale_factor=2, mode='nearest'),
             ], dim=1)
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, condition, t)
-            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg]), torch.concar([im_noise, seg_noise]))
+            gen_loss = self.loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([im_noise, seg_noise], dim=1))
             gen_loss.backward()
             self.optim.step()
             # gather data
@@ -143,19 +142,19 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         # total_divergence = 0
-        self.dicriminator.eval()
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
 
-            condition = torch.concat([images, segmentations], dim=1)
-            condition = nn.functional.interpolate(condition, 1/2)
-            condition = nn.functional.interpolate(condition, 2)
+            condition = torch.concat([
+                nn.functional.interpolate(nn.functional.interpolate(images, scale_factor=1/2, mode="bicubic"), scale_factor=2, mode='bicubic'),
+                nn.functional.interpolate(nn.functional.interpolate(segmentations, scale_factor=1/2, mode="nearest"), scale_factor=2, mode='nearest'),
+            ], dim=1)
+            # im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
+            noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
-            noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations, condition)
-
-            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg]), torch.concat([noise_im, noise_seg]))
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, condition, t)
+            gen_loss = self.loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([noise_im, noise_seg], dim=1))
             # gather data
             running_loss += gen_loss.item() * images.shape[0]
             total_items += images.shape[0]
@@ -165,8 +164,6 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def post_epoch(self, epoch: int) -> None:
-        self.diffusion_schedule.step()
-        self.dicriminator_lr_schedule.step()
         return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
@@ -176,13 +173,10 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def get_model(self, path) -> nn.Module:
         model = UnstableDiffusion(**self.config["model_args"])
-        self.dicriminator = model.get_discriminator().to(self.device)
         return model.to(self.device)
 
     def get_lr_scheduler(self, optim=None):
-        if optim is None:
-            optim = self.optim[0]
-        scheduler = StepLR(optim, step_size=100, gamma=0.9)
+        scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
         return scheduler
@@ -194,22 +188,16 @@ class UnstableDiffusionTrainer(Trainer):
         """
         from torch.optim import Adam
 
-        g_optim = Adam(
+        optim = Adam(
             self.model.parameters(),
-            lr=self.config["lr"],
-            weight_decay=self.config.get('weight_decay', 0)
-            # momentum=self.config.get('momentum', 0)
-        )
-        d_optim = Adam(
-            self.dicriminator.parameters(),
             lr=self.config["lr"],
             weight_decay=self.config.get('weight_decay', 0)
             # momentum=self.config.get('momentum', 0)
         )
 
         if self.device == 0:
-            log(f"Optim being used is {g_optim}")
-        return g_optim, d_optim
+            log(f"Optim being used is {optim}")
+        return optim
 
     class MSEWithKLDivergenceLoss(nn.Module):
         def __init__(self, kl_weight=0.1):
@@ -231,4 +219,4 @@ class UnstableDiffusionTrainer(Trainer):
         """
         if self.device == 0:
             log("Loss being used is nn.MSELoss()")
-        return (nn.MSELoss(), nn.BCEWithLogitsLoss())
+        return nn.MSELoss()

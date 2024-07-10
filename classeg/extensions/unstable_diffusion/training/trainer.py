@@ -17,7 +17,7 @@ from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
 import torch.nn.functional as F
-
+import os
 
 class ForkedPdb(pdb.Pdb):
     """
@@ -73,6 +73,10 @@ class UnstableDiffusionTrainer(Trainer):
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
         self.super_resolution = self.config.get("super_resolution", False)
+        rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
+        if rescale:
+            log("Rescaling the images to [-1, 1]")
+            
         del self.optim, self.loss
 
 
@@ -176,12 +180,18 @@ class UnstableDiffusionTrainer(Trainer):
         log_image = epoch % 10 == 0
         print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
+        rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
+
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()
             if log_image:
                 self.log_helper.log_augmented_image(images[0], segmentations[0])
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
+            if rescale:
+                # rescale from [0, 1] to [-1, 1]
+                images *= 2
+                images -= 1
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
@@ -266,10 +276,16 @@ class UnstableDiffusionTrainer(Trainer):
 
         all_discriminator_predictions_real = []
         all_discriminator_predictions_fake = []
+        rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
 
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
+            
+            if rescale:
+                # rescale from [0, 1] to [-1, 1]
+                images *= 2
+                images -= 1
 
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 

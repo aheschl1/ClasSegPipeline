@@ -73,7 +73,7 @@ class DownBlock(nn.Module):
         self.first_residual_convs = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.GroupNorm(8, in_channels if i == 0 else out_channels),
+                    nn.GroupNorm(1 if i == 0 else 8, in_channels if i == 0 else out_channels),
                     non_lin(),
                     nn.Conv2d(
                         in_channels=in_channels if i == 0 else out_channels,
@@ -257,7 +257,7 @@ class UpBlock(nn.Module):
         self.first_residual_convs = nn.ModuleList(
             [
                 nn.Sequential(
-                    nn.GroupNorm(8, in_channels if i == 0 else out_channels),
+                    nn.GroupNorm(1 if i == 0 else 8, in_channels if i == 0 else out_channels),
                     non_lin(),
                     nn.Conv2d(
                         in_channels=in_channels if i == 0 else out_channels,
@@ -309,7 +309,7 @@ class UpBlock(nn.Module):
         )
         self.upsample_conv = (
             nn.ConvTranspose2d(
-                in_channels * 2, in_channels, kernel_size=4, stride=2, padding=1
+                (in_channels-4) * 2+4, in_channels, kernel_size=4, stride=2, padding=1
             )
             if upsample
             else nn.Identity()
@@ -408,11 +408,11 @@ class UnstableDiffusion(nn.Module):
         # Decoder IM
         self.im_decoder_layers = nn.ModuleList()
         for layer in range(layers - 1, 0, -1):
-            in_channels = channels[layer] + im_channels + seg_channels
+            in_channels = channels[layer]
             out_channels = channels[layer - 1]
             self.im_decoder_layers.append(
                 UpBlock(
-                    in_channels=in_channels,
+                    in_channels=in_channels+self.seg_channels+self.im_channels,
                     out_channels=out_channels,
                     time_emb_dim=self.time_emb_dim,
                     upsample=True,
@@ -435,11 +435,11 @@ class UnstableDiffusion(nn.Module):
         encoder_layers = nn.ModuleList()
         for layer in range(self.layers - 1):
             # We want to build a downblock here.
-            in_channels = self.channels[layer] + self.im_channels + self.seg_channels
+            in_channels = self.channels[layer]
             out_channels = self.channels[layer + 1]
             encoder_layers.append(
                 DownBlock(
-                    in_channels=in_channels,
+                    in_channels=in_channels+self.seg_channels+self.im_channels,
                     out_channels=out_channels,
                     time_emb_dim=self.time_emb_dim,
                     downsample=True,
@@ -479,14 +479,13 @@ class UnstableDiffusion(nn.Module):
         """
         skipped_connections_im = [im_out]
         # =========== SHARED ENCODER ===========
-        if self.shared_encoder:
-            for encoder in self.encoder_layers:
-                im_out = encoder(torch.concat([im_out, condition]), t)
-                skipped_connections_im.append(im_out)
-                condition = nn.functional.interpolate(condition, 1/2)
-            return im_out, skipped_connections_im
+        for encoder in self.encoder_layers:
+            im_out = encoder(torch.concat([im_out, condition], dim=1), t)
+            skipped_connections_im.append(im_out)
+            condition = nn.functional.interpolate(condition, scale_factor=1/2)
+        return im_out, skipped_connections_im
     def forward(self, im, seg, condition, t):
-
+        # print(condition.shape)
         # ======== TIME ========
         t = self._sinusoidal_embedding(t)
         t = self.t_proj(t)
@@ -502,7 +501,7 @@ class UnstableDiffusion(nn.Module):
         i = 0
         for im_decode in self.im_decoder_layers:
             i += 1
-            im_out = im_decode(torch.concat([im_out, nn.functional.interpolate(condition, im_out.shape[-1]/condition.shape[-1])]), skipped_connections_im[-i], t)
+            im_out = im_decode(torch.concat([im_out, nn.functional.interpolate(condition, scale_factor=im_out.shape[-1]/condition.shape[-1])], dim=1), skipped_connections_im[-i], t)
         # ======== EXIT ========
         im_out = self.output_layer_im(im_out)
         return im_out[:, :self.im_channels], im_out[:, self.im_channels:]
