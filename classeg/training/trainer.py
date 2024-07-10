@@ -126,7 +126,9 @@ class Trainer:
         Copies the current file and the model file to the output directory.
         Also writes the configuration to a json file in the output directory.
         """
-        shutil.copy(__file__, f"{self.output_dir}/trainer_code.py")
+        # Package the repository, ignoring large files, into a zip, and save it to the output dir
+        root = "/".join(__file__.split("/")[:-2])
+        shutil.make_archive(f"{self.output_dir}/source_code", "zip", root)
         if os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
         write_json(self.config, f"{self.output_dir}/config.json")
