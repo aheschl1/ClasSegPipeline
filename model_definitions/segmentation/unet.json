@@ -3,10 +3,10 @@
         "architecture":"UNet",
         "base":"Conv2d"
     },
-    "Tag": "UNet model",
-    "Children": [
+    "tag": "UNet model",
+    "children": [
         {
-           "ComponentClass": "UNet",
+           "component_class": "UNet",
             "args": {
                 "in_channels": 3,
                 "out_channels": 2

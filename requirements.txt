@@ -21,3 +21,5 @@ click
 tensorboard
 json-torch-models
 monai
+wandb
+onnx

@@ -48,7 +48,7 @@ class SegmentationTrainer(Trainer):
         for data, labels, _ in self.train_dataloader:
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_augmented_image(data[0])
+                self.logger.log_augmented_image(data[0])
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             batch_size = data.shape[0]
@@ -99,7 +99,7 @@ class SegmentationTrainer(Trainer):
             all_labels.extend(labels.tolist())
             correct_count += torch.sum(predictions == labels)
             total_items += batch_size
-        self.log_helper.eval_epoch_complete(all_predictions, all_labels)
+        self.logger.eval_epoch_complete(all_predictions, all_labels)
         self._val_accuracy = correct_count / total_items
         return running_loss / total_items
 

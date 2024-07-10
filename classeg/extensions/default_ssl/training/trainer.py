@@ -65,7 +65,7 @@ class SelfSupervisedTrainer(Trainer):
             i += 1
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_augmented_image(data[0])
+                self.logger.log_augmented_image(data[0])
 
             data: torch.Tensor = data.to(self.device)
             og_data = data.detach().clone()
@@ -99,11 +99,11 @@ class SelfSupervisedTrainer(Trainer):
             i += 1
             data = data.to(self.device)
             if i == 1 and epoch % 10 == 0:
-                self.log_helper.log_net_structure(self.model, data)
+                self.logger.log_net_structure(self.model, data)
             batch_size = data.shape[0]
             predictions = self.model(data)
             index = random.randint(0, data.shape[0]-1)
-            self.log_helper.log_image_infered(predictions[index], epoch, Original=data[index])
+            self.logger.log_image_infered(predictions[index], epoch, Original=data[index])
             loss = self.loss(predictions, data)
             running_loss += loss.item() * batch_size
             total_items += batch_size

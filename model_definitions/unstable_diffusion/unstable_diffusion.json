@@ -1,8 +1,8 @@
 {
-  "Tag": "UnstableDiffusion model",
-  "Children": [
+  "tag": "UnstableDiffusion model",
+  "children": [
     {
-      "ComponentClass": "classeg.extensions.unstable_diffusion.model.unstable_diffusion.UnstableDiffusion",
+      "component_class": "classeg.extensions.unstable_diffusion.model.unstable_diffusion.UnstableDiffusion",
       "args": {
         "im_channels": 3,
         "seg_channels": 1,

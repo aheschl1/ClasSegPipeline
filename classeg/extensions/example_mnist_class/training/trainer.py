@@ -81,7 +81,7 @@ class ClassificationTrainer(Trainer):
         for data, labels, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_augmented_image(data[0])
+                self.logger.log_augmented_image(data[0])
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             batch_size = data.shape[0]
@@ -99,7 +99,7 @@ class ClassificationTrainer(Trainer):
             # gather data
             running_loss += loss.item() * batch_size
             total_items += batch_size
-        self.log_helper.plot_confusion_matrix(all_predictions, all_labels, self.class_names, set_name="train")
+        self.logger.plot_confusion_matrix(all_predictions, all_labels, self.class_names, set_name="train")
         self._train_accuracy = correct_count / total_items
         return running_loss / total_items
 
@@ -135,7 +135,7 @@ class ClassificationTrainer(Trainer):
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             if i == 1:
-                self.log_helper.log_net_structure(self.model, data)
+                self.logger.log_net_structure(self.model, data)
             batch_size = data.shape[0]
             # do prediction and calculate loss
             predictions = self.model(data)
@@ -148,7 +148,7 @@ class ClassificationTrainer(Trainer):
             all_labels.extend(labels.tolist())
             correct_count += torch.sum(predictions == labels)
             total_items += batch_size
-        self.log_helper.plot_confusion_matrix(all_predictions, all_labels, self.class_names, set_name="val")
+        self.logger.plot_confusion_matrix(all_predictions, all_labels, self.class_names, set_name="val")
         self._val_accuracy = correct_count / total_items
         return running_loss / total_items
 

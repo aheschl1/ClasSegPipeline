@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from classeg.logging.logging import LogHelper
+from classeg.logging.logging import TensorboardLogger, WandBLogger
 from classeg.utils.constants import *
 from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json
 from classeg.utils.utils import write_json
@@ -74,12 +74,13 @@ class Trainer:
         self.device = gpu_id
         self.config_name = config_name
         self.output_dir = self._prepare_output_directory(unique_folder_name)
-        self.log_helper = LogHelper(self.output_dir)
         self._best_val_loss = 999999.999  # Arbitrary large number
         if resume:
             self.config = read_json(f"{self.output_dir}/config.json")
         else:
             self.config = get_config_from_dataset(dataset_name, config_name)
+        self.logger = TensorboardLogger(self.output_dir) if LOGGER_TYPE == TENSORBOARD else \
+            WandBLogger(self.output_dir, dataset_name=self.dataset_name, config=self.config)
         self._assert_preprocess_ready_for_train()
         if gpu_id in [0, "cpu"]:
             log("Config:", self.config)
@@ -99,7 +100,7 @@ class Trainer:
             )
             log(f"Total parameters: {all_params}")
             log(f"Trainable params: {trainable_params}")
-            self.log_helper.log_parameters(all_params, trainable_params)
+            self.logger.log_parameters(all_params, trainable_params)
 
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
@@ -111,7 +112,7 @@ class Trainer:
         self._save_self_file()
         if resume:
             self.load_checkpoint("latest")
-        self.log_helper.set_current_epoch(self._current_epoch)
+        self.logger.set_current_epoch(self._current_epoch)
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
             dist.barrier()
@@ -281,7 +282,7 @@ class Trainer:
             epoch_end_time = time.time()
             if self.device in [0, "cpu"]:
                 log(f"Process {self.device} took {epoch_end_time - epoch_start_time} seconds.")
-                self.log_helper.epoch_end(
+                self.logger.epoch_end(
                     mean_train_loss,
                     mean_val_loss,
                     self.lr_scheduler.optimizer.param_groups[0]["lr"],
