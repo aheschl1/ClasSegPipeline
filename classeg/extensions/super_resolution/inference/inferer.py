@@ -38,6 +38,7 @@ class Penis(Inferer):
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
+        self.entries = []
         
         # self.model_json = read_json(f"{self.lookup_root}/model.json")
 
@@ -154,12 +155,11 @@ class Penis(Inferer):
                     xt_im *= 255 / xt_im.max()
                     xt_im = xt_im.astype(np.uint8)
 
-                    entries = []
                     for i in range(xt_im.shape[0]):
                         cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1]}", cv2.cvtColor(xt_im[i], cv2.COLOR_RGB2BGR))
                         cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg[i])
 
-                        entries.append({
+                        self.entries.append({
                             'IID': i,
                             'GID': 1,
                             'Image': f"{save_path}/{datapoints[i].im_path.split('/')[-1]}",
@@ -167,9 +167,6 @@ class Penis(Inferer):
                             'Label': 1
                         })
 
-                    columns = ['IID', 'GID', 'Image', 'Mask', 'Label']
-                    df = pd.DataFrame(entries, columns=columns)
-                    df.to_csv(f'{save_path}/generated.csv', index=False)
         # xt_im = xt_im.detach().cpu()
                     
         # xt_im = xt_im.cpu()[0].permute(1, 2, 0).numpy()
@@ -196,4 +193,6 @@ class Penis(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
-        ...
+        columns = ['IID', 'GID', 'Image', 'Mask', 'Label']
+        df = pd.DataFrame(self.entries, columns=columns)
+        df.to_csv(f'{self.save_path}/generated.csv', index=False)

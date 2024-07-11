@@ -101,27 +101,25 @@ class UnstableDiffusionInferer(Inferer):
         batch_size = int(self.config.get("infer_batch_size", 32))
         case_num = 0
         with torch.no_grad():
-            for runs in tqdm(range(0,int(np.ceil(num_samples/batch_size))), desc="running_inferences"):
+            for _ in tqdm(range(0,int(np.ceil(num_samples/batch_size))), desc="running_inferences"):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
                 xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape)
                 # Binarize the mask
-                xt_seg[xt_seg < 0.5] = 0
-                xt_seg[xt_seg > 0] = 1
-
-                xt_im = xt_im.detach().cpu()
-                xt_seg = xt_seg.detach().cpu()
-                xt_im = xt_im - xt_im.min(dim=1).values.min(dim=1).values.min(dim=1).values.reshape(-1,1,1,1)
-                xt_seg = xt_seg - xt_seg.min(dim=1).values.min(dim=1).values.min(dim=1).values.reshape(-1,1,1,1)
-                xt_im = xt_im * (255 / xt_im.max(dim=1).values.max(dim=1).values.max(dim=1).values).reshape(-1,1,1,1)
-                xt_seg = xt_seg * (255 / xt_seg.max(dim=1).values.max(dim=1).values.max(dim=1).values).reshape(-1,1,1,1)
-                
-                xt_im = xt_im.permute(0,2,3,1).numpy().astype(np.uint8)
-                xt_seg = xt_seg.permute(0,2,3,1).numpy().astype(np.uint8)
+                xt_im = xt_im.detach().cpu().permute(0,2,3,1)
+                xt_seg = xt_seg.detach().cpu().round().permute(0,2,3,1)
                 for i in range(batch_size):
-                    cv2.imwrite(f'{save_path}/images/case_{case_num}.jpg', xt_im[i])
-                    cv2.imwrite(f'{save_path}/masks/case_{case_num}.jpg', xt_seg[i])
+                    im = xt_im[i]
+                    seg = xt_seg[i]
+
+                    im -= torch.min(im)
+                    im *= (255 / torch.max(im))
+                    seg *= 255
+
+                    cv2.imwrite(f'{save_path}/images/case_{case_num}.jpg', cv2.cvtColor(im.to(torch.uint8).numpy(), cv2.COLOR_RGB2BGR))
+                    cv2.imwrite(f'{save_path}/masks/case_{case_num}.jpg', seg.to(torch.uint8).numpy())
+                    case_num += 1
         return xt_im, xt_seg
 
     def progressive_denoise(self, batch_size, in_shape):

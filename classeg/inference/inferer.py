@@ -128,9 +128,9 @@ class Inferer:
         with torch.no_grad():
             for image, label, datapoints in tqdm(self.train_loader, desc="Running inference"):
                 if label is not None:
-                    self.infer_single_sample(image, label, datapoints[0])
+                    self.infer_single_sample(image, label, datapoints)
                 else:        
-                    self.infer_single_sample(image, datapoints[0])
+                    self.infer_single_sample(image, datapoints)
         self.post_infer()
 
     def _get_datapoints(self):
