@@ -66,7 +66,7 @@ class Diffuser:
         seg:torch.Tensor,
         predicted_noise_im: torch.Tensor, 
         predicted_noise_seg: torch.Tensor, 
-        t: int, clamp=False, training_time=False
+        t: int, clamp=False, training_time=False,
     ):
         """
         For use in inference mode
