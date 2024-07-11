@@ -25,6 +25,8 @@ if not os.path.exists(os.path.expanduser("~/.classegrc")):
 with open(os.path.expanduser("~/.classegrc"), "r") as config_file:
     current_config = json.load(config_file)
 
+if "wandb_entity" in current_config and "WANDB_ENTITY" not in os.environ:
+    os.environ["WANDB_ENTITY"] = current_config["wandb_entity"]
 
 LOGGER_TYPE = current_config["logger"]
 

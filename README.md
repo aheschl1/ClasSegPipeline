@@ -119,10 +119,18 @@ To get more info, run ```classegTrain --help```
 
 **To switch logging mode**
 
-Modify the ~/.classegrc file. Change the logger to wandb or tensorboard. Note that with wandb, you need to have an account, and will be queried to log in first run.
+Modify the ~/.classegrc file. Change the logger to wandb or tensorboard.
 
 _The rc file gets created the first time you run any command (preprocess before looking for it)_
 
+**WandB Details**
+
+We will allow anonymous authentication. You have a few options to deal with this:
+1) Run ```wandb login``` before running any commands to connect your account
+2) Train and collect the WandB anonymous link from the logs. This will allow you to view the logs and results on the WandB website, and connect it to a permanent account.
+
+Use the ```WANDB_ENTITY``` environment variable to specify the team to log to, if you do not want to use the default.
+Optionally, you can specify ```wandb_entity``` in the rc file. This sets a default value for all runs, and is overriden by the environment variable if provided.
 # Running Preprocessing
 To run preprocessing, you need to run the following command:
 ```classegPreprocess -d <dataset id> -dd <dataset description> -f <number of folds> -ext <extension name>```.

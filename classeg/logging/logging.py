@@ -195,14 +195,15 @@ class WandBLogger(Logger):
     def __init__(self, output_dir: str, current_epoch=0, dataset_name=None, config=None) -> None:
         super().__init__(output_dir, current_epoch)
         name = output_dir.split("/")[-1]
-        wandb.login()
+        wandb.login(anonymous="allow")
         wandb.init(
             project=dataset_name,
             dir=f"{output_dir}",
             name=name,
             id=name,
             resume="allow" if os.path.exists(f"{output_dir}/wandb") else None,
-            config=config
+            config=config,
+            entity=os.environ.get("WANDB_ENTITY", None),
         )
         self.has_logged_net = False
 
