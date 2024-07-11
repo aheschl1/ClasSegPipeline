@@ -28,7 +28,8 @@ setup(
         "multiprocessing-logging",
         "tensorboard",
         "wandb",
-        "onnx"
+        "onnx",
+        "torchmetrics",
     ],
     entry_points={
         'console_scripts': [

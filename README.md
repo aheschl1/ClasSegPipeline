@@ -38,7 +38,8 @@ These are used to keep the codebase clean and to allow for easy switching betwee
 2) Model customization and design with no coding (though it can be desireable to code for more complex systems) thanks to https://github.com/aheschl1/JsonTorchModels
    1) This is a JSON based model definition system. It is very powerful for quick iterations and modifications during model experimentation.
    2) May not be desireable all the time - create an extension and override get_model() to use a custom model.
-3) Tensorboard logging
+3) WandB and Tensorboard logging
+   1) Switch between them by modifying ~/.classegrc
 4) Extension capacity for extending functionality, while not modifying the core codebase.
    1) One codebase for multiple tasks and flows
 5) DDP Training (even with custom trainers)
@@ -115,6 +116,12 @@ In your extension classes, you can unpack them from the kwargs in __init__.
 To run training, you need to run the following command:
 ```classegTrain -d <dataset id> -f <fold to train> -ext <extension name> -m <model name> -n <experiment name>```
 To get more info, run ```classegTrain --help```
+
+**To switch logging mode**
+
+Modify the ~/.classegrc file. Change the logger to wandb or tensorboard. Note that with wandb, you need to have an account, and will be queried to log in first run.
+
+_The rc file gets created the first time you run any command (preprocess before looking for it)_
 
 # Running Preprocessing
 To run preprocessing, you need to run the following command:
