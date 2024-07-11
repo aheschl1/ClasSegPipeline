@@ -9,6 +9,8 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 import wandb
 
+from classeg.utils.utils import is_online
+
 
 class Logger:
     def __init__(self, output_dir: str, current_epoch: int = 0) -> None:
@@ -203,6 +205,7 @@ class WandBLogger(Logger):
             resume="allow" if os.path.exists(f"{output_dir}/wandb") else None,
             config=config,
             entity=os.environ.get("WANDB_ENTITY", None),
+            mode="online" if is_online() else "offline"
         )
         self.has_logged_net = False
 
