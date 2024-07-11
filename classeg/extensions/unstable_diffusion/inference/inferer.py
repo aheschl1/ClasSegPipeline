@@ -112,10 +112,11 @@ class UnstableDiffusionInferer(Inferer):
 
                 xt_im = xt_im.detach().cpu()
                 xt_seg = xt_seg.detach().cpu()
-                xt_im = xt_im - xt_im.min(dim=1).values.min(dim=1).values.min(dim=1).values.reshape(-1,1,1,1)
-                xt_seg = xt_seg - xt_seg.min(dim=1).values.min(dim=1).values.min(dim=1).values.reshape(-1,1,1,1)
-                xt_im = xt_im * (255 / xt_im.max(dim=1).values.max(dim=1).values.max(dim=1).values).reshape(-1,1,1,1)
-                xt_seg = xt_seg * (255 / xt_seg.max(dim=1).values.max(dim=1).values.max(dim=1).values).reshape(-1,1,1,1)
+                
+                xt_im = xt_im - xt_im.reshape(xt_im.shape[0], -1 ).min(dim=-1).values.reshape(-1,1,1,1)
+                xt_seg = xt_seg - xt_seg.reshape(xt_seg.shape[0], -1 ).min(dim=-1).values.reshape(-1,1,1,1)
+                xt_im = xt_im * (255 / xt_im.reshape(xt_im.shape[0], -1 ).max(dim=-1).values.reshape(-1,1,1,1))
+                xt_seg = xt_seg * (255 / xt_seg.reshape(xt_seg.shape[0], -1 ).max(dim=-1).values.reshape(-1,1,1,1))
                 
                 xt_im = xt_im.permute(0,2,3,1).numpy().astype(np.uint8)
                 xt_seg = xt_seg.permute(0,2,3,1).numpy().astype(np.uint8)
