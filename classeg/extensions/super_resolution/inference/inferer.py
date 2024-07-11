@@ -162,8 +162,8 @@ class Penis(Inferer):
                         entries.append({
                             'IID': i,
                             'GID': 1,
-                            'Image': f"{save_path}/{datapoints[i].im_path.split('/')[-1]}",
-                            'Mask':  f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
+                            'Image': f"{"/".join(save_path.split("/")[-7:])}/{datapoints[i].im_path.split('/')[-1]}",
+                            'Mask':  f"{"/".join(save_path.split("/")[-7:])}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
                             'Label': 1
                         })
 
