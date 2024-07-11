@@ -102,6 +102,8 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
+        for g in self.optim.param_groups:
+            g['lr'] = 0.0001
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()

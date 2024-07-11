@@ -19,7 +19,7 @@ from classeg.extensions.super_resolution.preprocessing.bitifier import bitmask_t
 import albumentations as A
 import pandas as pd
 
-class Penis(Inferer):
+class UnstableDiffusionInferer(Inferer):
     def __init__(self,
                  dataset_id: str,
                  fold: int,
@@ -162,8 +162,8 @@ class Penis(Inferer):
                         self.entries.append({
                             'IID': i,
                             'GID': 1,
-                            'Image': f"{"/".join(save_path.split("/")[-7:])}/{datapoints[i].im_path.split('/')[-1]}",
-                            'Mask':  f"{"/".join(save_path.split("/")[-7:])}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
+                            'Image': f"{'/'.join(save_path.split('/')[-7:])}/{datapoints[i].im_path.split('/')[-1]}",
+                            'Mask':  f"{'/'.join(save_path.split('/')[-7:])}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
                             'Label': 1
                         })
 
