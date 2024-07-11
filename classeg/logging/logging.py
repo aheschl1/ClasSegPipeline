@@ -123,7 +123,6 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-
     def log_scalar(self, name, value):
         self.summary_writer.add_scalar(name, value, self.epoch)
         self.summary_writer.flush()
