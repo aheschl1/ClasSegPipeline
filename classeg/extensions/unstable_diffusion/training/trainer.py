@@ -181,6 +181,11 @@ class UnstableDiffusionTrainer(Trainer):
         print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
         rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
+        for g in self.g_optim.param_groups:
+            g['lr'] = 0.0001
+        
+        for g in self.d_optim.param_groups:
+            g['lr'] = 0.0001
 
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()

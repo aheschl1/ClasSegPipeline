@@ -88,8 +88,8 @@ class UnstableDiffusionInferer(Inferer):
             shutil.rmtree(save_path)
         
         os.mkdir(save_path)
-        os.mkdir(f'{save_path}/Images')
-        os.mkdir(f'{save_path}/Masks')
+        os.mkdir(f'{save_path}/images')
+        os.mkdir(f'{save_path}/masks')
         entries = []
 
         self.model.eval()
@@ -121,28 +121,11 @@ class UnstableDiffusionInferer(Inferer):
                 xt_im = xt_im.permute(0,2,3,1).numpy().astype(np.uint8)
                 xt_seg = xt_seg.permute(0,2,3,1).numpy().astype(np.uint8)
                 for i in range(batch_size):
-                    cv2.imwrite(f'{save_path}/Images/case_{case_num}.jpg', xt_im[i])
-                    cv2.imwrite(f'{save_path}/Masks/case_{case_num}.jpg', xt_seg[i])
-                    entries.append({
-                        'IID': case_num,
-                        'GID': 1,
-                        'Image': f'{save_path}/Images/case_{case_num:05}.jpg',
-                        'Mask':  f'{save_path}/Images/case_{case_num:05}.jpg',
-                        'Label': 1
-                    })
-                    case_num+=1;
-            columns = ['IID', 'GID', 'Image', 'Mask', 'Label']
-            df = pd.DataFrame(entries, columns=columns)
-            df.to_csv(f'{save_path}/generated.csv', index=False)
+                    cv2.imwrite(f'{save_path}/images/case_{case_num}.jpg', xt_im[i])
+                    cv2.imwrite(f'{save_path}/masks/case_{case_num}.jpg', xt_seg[i])
         return xt_im, xt_seg
 
-    def progressive_denoise(self, batch_size, in_shape, steps):
-        if steps is not None:
-            stride = int(self.timesteps // steps);
-            diffuser = LinearDiffuser(steps, self.config["max_beta"], self.config["min_beta"])
-        else:
-            stride = -1
-            diffuser = self.forward_diffuser
+    def progressive_denoise(self, batch_size, in_shape):
         xt_im = torch.randn(
             (
                 batch_size,
@@ -160,17 +143,17 @@ class UnstableDiffusionInferer(Inferer):
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
         # self.timesteps = 1000
-        for t in tqdm(range(self.timesteps - 1, -1, -stride), desc="running inference"):
+        for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             noise_prediction_im, noise_prediciton_seg = self.model(
                 xt_im, xt_seg, time_tensor
             )
-            xt_im, xt_seg = diffuser.inference_call(
+            xt_im, xt_seg = self.forward_diffuser.inference_call(
                 xt_im,
                 xt_seg,
                 noise_prediction_im,
                 noise_prediciton_seg,
-                t//stride,
+                t,
                 clamp=False,
             )
         return xt_im, xt_seg
