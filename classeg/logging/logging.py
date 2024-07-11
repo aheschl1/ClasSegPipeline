@@ -76,6 +76,10 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
+    def log_scalar(self, name, value):
+        raise NotImplementedError("Method not implemented in parent class.")
+
+    @abstractmethod
     def cleanup(self):
         raise NotImplementedError("Method not implemented in parent class.")
 
@@ -117,6 +121,11 @@ class TensorboardLogger(Logger):
         self.summary_writer.add_scalar(
             "Peformance/epoch_duration", duration, self.epoch
         )
+        self.summary_writer.flush()
+
+
+    def log_scalar(self, name, value):
+        self.summary_writer.add_scalar(name, value, self.epoch)
         self.summary_writer.flush()
 
     def log_metrics(self, metrics: dict, set_name: str = "val"):
@@ -196,6 +205,9 @@ class WandBLogger(Logger):
             config=config
         )
         self.has_logged_net = False
+
+    def log_scalar(self, name, value):
+        wandb.log({name: value}, step=self.epoch)
 
     def epoch_end(self, train_loss: float, val_loss: float, learning_rate: float, duration: float) -> None:
         wandb.log({
