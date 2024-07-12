@@ -102,7 +102,7 @@ class UnstableDiffusionInferer(Inferer):
             for i in range(len(in_shape)):
                 in_shape[i] = in_shape[i] * 2
         
-        batch_size = int(self.config.get("infer_batch_size", 32))
+        batch_size = 1000
         case_num = 0
         with torch.no_grad():
             for _ in tqdm(range(0,int(np.ceil(num_samples/batch_size))), desc="running_inferences"):
@@ -124,6 +124,7 @@ class UnstableDiffusionInferer(Inferer):
                     cv2.imwrite(f'{save_path}/images/case_{case_num}.jpg', cv2.cvtColor(im.to(torch.uint8).numpy(), cv2.COLOR_RGB2BGR))
                     cv2.imwrite(f'{save_path}/masks/case_{case_num}.jpg', seg.to(torch.uint8).numpy())
                     case_num += 1
+        self.post_infer()
         return xt_im, xt_seg
 
     def progressive_denoise(self, batch_size, in_shape):

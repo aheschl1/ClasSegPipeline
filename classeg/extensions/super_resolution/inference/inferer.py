@@ -190,7 +190,11 @@ class SuperResolutionInferer(Inferer):
         if self.output_name is None:
             return super().pre_infer()
         else:
-            return self.output_name
+            save_path = f'{self.lookup_root}/{self.output_name}'
+            if os.path.exists(save_path):
+                shutil.rmtree(save_path)
+            os.makedirs(save_path)
+            return save_path, self.get_dataloader()
 
     def post_infer(self):
         """

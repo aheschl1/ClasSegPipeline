@@ -115,7 +115,7 @@ class Inferer:
             dataset=dataset,
             pin_memory=True,
             num_workers=self.config["processes"],
-            batch_size=self.config.get("infer_batch_size", self.config["batch_size"]),
+            batch_size=256,
             collate_fn=batch_collate_fn
         )
 
