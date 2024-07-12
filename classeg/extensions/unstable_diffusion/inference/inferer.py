@@ -17,6 +17,7 @@ from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.unstable_diffusion.preprocessing.bitifier import bitmask_to_label
+from classeg.extensions.super_resolution.inference.inferer import SuperResolutionInferer
 class UnstableDiffusionInferer(Inferer):
     def __init__(self,
                  dataset_id: str,
@@ -36,6 +37,8 @@ class UnstableDiffusionInferer(Inferer):
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
+        self.dataset_id = dataset_id
+        self.name = name
 
     def get_augmentations(self):
         ...
@@ -84,6 +87,7 @@ class UnstableDiffusionInferer(Inferer):
 
         # Inference generates folders with the csv file
         save_path = f'{self.pre_infer()}/{run_name}'
+        self.save_path = save_path
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
         
@@ -161,4 +165,7 @@ class UnstableDiffusionInferer(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
-        ...
+        print("===============================super resolving===============================")
+        super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v2", "latest", self.save_path, output_name=self.name)
+        super_inferer.infer()
+        

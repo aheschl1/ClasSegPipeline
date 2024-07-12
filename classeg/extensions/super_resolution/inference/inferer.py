@@ -19,7 +19,7 @@ from classeg.extensions.super_resolution.preprocessing.bitifier import bitmask_t
 import albumentations as A
 import pandas as pd
 
-class UnstableDiffusionInferer(Inferer):
+class SuperResolutionInferer(Inferer):
     def __init__(self,
                  dataset_id: str,
                  fold: int,
@@ -27,6 +27,7 @@ class UnstableDiffusionInferer(Inferer):
                  weights: str,
                  input_root: str,
                  late_model_instantiation=True,
+                 output_name=None,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -37,6 +38,7 @@ class UnstableDiffusionInferer(Inferer):
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
+        self.output_name = output_name
         self.kwargs = kwargs
         self.entries = []
         
@@ -174,6 +176,7 @@ class UnstableDiffusionInferer(Inferer):
         # xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
         # return xt_im, xt_seg
 
+
     def pre_infer(self) -> str:
         """
         Returns the output directory, and creates dataloader
@@ -184,7 +187,10 @@ class UnstableDiffusionInferer(Inferer):
         )["weights"]
         self.model.load_state_dict(checkpoint)
         self.model = self.model.to(self.device)
-        return super().pre_infer()
+        if self.output_name is None:
+            return super().pre_infer()
+        else:
+            return self.output_name
 
     def post_infer(self):
         """

@@ -6,4 +6,4 @@ This extension is a more in depth use case regarding a diffusion/segmentation pi
 
 TRAINER_CLASS_NAME = "UnstableDiffusionTrainer"
 PREPROCESSOR_CLASS_NAME = "ExtensionPreprocessor"
-INFERER_CLASS_NAME = "UnstableDiffusionInferer"
+INFERER_CLASS_NAME = "SuperResolutionInferer"
