@@ -182,10 +182,10 @@ class UnstableDiffusionTrainer(Trainer):
         # ForkedPdb().set_trace()
         rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
         for g in self.g_optim.param_groups:
-            g['lr'] = 0.0001
+            g['lr'] = 0.00008
         
         for g in self.d_optim.param_groups:
-            g['lr'] = 0.0001
+            g['lr'] = 0.00008
 
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()
