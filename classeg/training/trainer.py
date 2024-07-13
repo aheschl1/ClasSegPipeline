@@ -218,7 +218,7 @@ class Trainer:
         """
         Starts the training process.
         """
-        epochs = self.config["epochs"]
+        epochs = 2000 #self.config["epochs"]
         start_time = time.time()
         best_val_loss = 999999.999  # Arbitrary large number
         # last values to show change
