@@ -165,11 +165,6 @@ class UnstableDiffusionTrainer(Trainer):
         running_loss = 0.0
         total_items = 0
         log_image = epoch % 10 == 0
-        for g in self.g_optim.param_groups:
-            g['lr'] = 0.0001
-        
-        for g in self.d_optim.param_groups:
-            g['lr'] = 0.0001
         print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):

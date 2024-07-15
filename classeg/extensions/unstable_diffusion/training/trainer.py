@@ -180,23 +180,12 @@ class UnstableDiffusionTrainer(Trainer):
         log_image = epoch % 10 == 0
         print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
-        rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
-        for g in self.g_optim.param_groups:
-            g['lr'] = 0.00008
-        
-        for g in self.d_optim.param_groups:
-            g['lr'] = 0.00008
-
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.g_optim.zero_grad()
             if log_image:
                 self.log_helper.log_augmented_image(images[0], segmentations[0])
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
-            if rescale:
-                # rescale from [0, 1] to [-1, 1]
-                images *= 2
-                images -= 1
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
