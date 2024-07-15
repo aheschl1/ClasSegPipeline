@@ -72,6 +72,7 @@ class Trainer:
         self.fold = fold
         self.world_size = world_size
         self.device = gpu_id
+        self.resume = resume
         self.config_name = config_name
         self.output_dir = self._prepare_output_directory(unique_folder_name)
         self._best_val_loss = 999999.999  # Arbitrary large number
@@ -139,7 +140,7 @@ class Trainer:
         # Package the repository, ignoring large files, into a zip, and save it to the output dir
         root = "/".join(__file__.split("/")[:-2])
         shutil.make_archive(f"{self.output_dir}/source_code", "zip", root)
-        if os.path.exists(self.model_path):
+        if self.model_path is not None and os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
         write_json(self.config, f"{self.output_dir}/config.json")
 
@@ -381,6 +382,10 @@ class Trainer:
         :param path: The path to the json architecture definition.
         :return: The pytorch network module.
         """
+        if path is None and self.resume:
+            path = f"{self.output_dir}/model.json"
+            log(f"We will attempt to load the model from {path}.")
+
         if not os.path.exists(path):
             log(f"The model path {path} does not exist.")
             log("If you do not want to define models through json as described at "

@@ -8,6 +8,7 @@ import seaborn as sn
 from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 import wandb
+import socket
 
 
 class Logger:
@@ -172,19 +173,32 @@ class TensorboardLogger(Logger):
         self.summary_writer.close()
 
 
+def isOnline():
+    try:
+        s = socket.create_connection(("www.google.ca", 80))
+        if s is not None:
+            s.close()
+        return True
+    except OSError:
+        pass
+    return False
+
+
 class WandBLogger(Logger):
 
     def __init__(self, output_dir: str, current_epoch=0, dataset_name=None, config=None) -> None:
         super().__init__(output_dir, current_epoch)
         name = output_dir.split("/")[-1]
+        wandb.require("core")
         wandb.login()
         wandb.init(
             project=dataset_name,
             dir=f"{output_dir}",
             name=name,
             id=name,
-            resume="allow" if os.path.exists(f"{output_dir}/wandb") else None,
-            config=config
+            resume="must" if os.path.exists(f"{output_dir}/wandb") else None,
+            config=config,
+            mode="online" if isOnline() else "offline"
         )
         self.has_logged_net = False
 
@@ -241,4 +255,4 @@ class WandBLogger(Logger):
         }, step=epoch)
 
     def cleanup(self):
-        pass
+        wandb.finish()
