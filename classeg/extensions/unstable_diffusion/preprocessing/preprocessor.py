@@ -68,6 +68,7 @@ class ExtensionPreprocessor(Preprocessor):
                 "shared_encoder": False,
                 "time_emb_dim": 128
             },
+            "mode": "unstable",
             "gan_weight": 0,
             "super_resolution": False,
             "diffusion_scheduler": "none"

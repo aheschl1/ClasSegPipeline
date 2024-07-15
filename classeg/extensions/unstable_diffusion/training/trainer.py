@@ -338,6 +338,8 @@ class UnstableDiffusionTrainer(Trainer):
             model = UnstableDiffusion(
                 **self.config["model_args"]
             )
+        else:
+            raise ValueError("You must set mode to unstable or concat.")
         self.dicriminator = model.get_discriminator().to(self.device)
         return model.to(self.device)
 
