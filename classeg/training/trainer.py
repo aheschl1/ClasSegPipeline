@@ -104,6 +104,7 @@ class Trainer:
         self._save_self_file()
         if resume:
             self.load_checkpoint("latest")
+            log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
         # -1 because we increment the epoch by 1 when loading the checkpoint
         self.logger.set_current_epoch(self._current_epoch+1)
         if self.device in [0, "cpu"]:
@@ -347,7 +348,6 @@ class Trainer:
         self.optim.load_state_dict(checkpoint["optim"])
         self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
         self._best_val_loss = checkpoint["best_val_loss"]
-        log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
 
     def get_lr_scheduler(self):
         """
