@@ -16,6 +16,7 @@ from classeg.dataloading.datapoint import Datapoint
 from classeg.dataloading.dataset import PipelineDataset
 from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 import importlib
+import socket
 
 
 def import_from_recursive(from_package: str, class_name: str) -> Any:
@@ -73,6 +74,15 @@ def get_preprocessor_from_extension(extension: Union[str, None], dataset_name: U
     preprocessor_class = import_from_recursive(f"classeg.extensions.{extension}.preprocessing", preprocessor_name)
     return preprocessor_class
 
+def is_online():
+    try:
+        # connect to the host -- tells us if the host is actually
+        # reachable
+        socket.create_connection(("www.google.com", 80))
+        return True
+    except OSError:
+        pass
+    return False
 
 def get_inferer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
     """
@@ -186,7 +196,6 @@ def get_dataset_mode_from_name(dataset_name: str):
     :param dataset_name:
     :return:
     """
-    print(dataset_name)
     raw_root = f"{RAW_ROOT}/{dataset_name}"
     preprocessed_root = f"{PREPROCESSED_ROOT}/{dataset_name}"
     if os.path.exists(raw_root):

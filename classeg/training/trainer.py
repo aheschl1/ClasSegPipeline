@@ -323,7 +323,6 @@ class Trainer:
                 checkpoint["weights"] = self.model.state_dict()
             checkpoint["optim"] = self.optim.state_dict()
             checkpoint["current_epoch"] = self._current_epoch
-            print(self._current_epoch)
             checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
             checkpoint["best_val_loss"] = self._best_val_loss
             extra_data = self.get_extra_checkpoint_data()

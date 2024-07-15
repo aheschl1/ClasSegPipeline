@@ -7,12 +7,15 @@ from monai.data import DataLoader
 from classeg.training.trainer import Trainer, log
 import albumentations as A
 from monai.losses import DiceCELoss
+from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
+import tqdm
 
 
 class SegmentationTrainer(Trainer):
     """
     This class is a subclass of the Trainer class and is used for training and checkpointing of networks.
     """
+
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
                  config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
         """
@@ -31,8 +34,12 @@ class SegmentationTrainer(Trainer):
 
         super().__init__(dataset_name, fold, model_path, gpu_id, unique_folder_name, config_name, resume, cache,
                          world_size)
-        self._last_val_accuracy = 0.
-        self._val_accuracy = 0.
+        self._last_val_iou = 0.
+        self._val_iou = 0.
+        self._val_dice = 0.
+        self._last_val_dice = 0.
+
+        self.num_classes = None
         self.softmax = nn.Softmax(dim=1)
 
     def get_augmentations(self) -> Tuple[Any, Any]:
@@ -63,16 +70,17 @@ class SegmentationTrainer(Trainer):
         total_items = 0
         # ForkedPdb().set_trace()
         log_image = epoch % 10 == 0
-        for data, labels, _ in self.train_dataloader:
+        for data, labels, _ in tqdm.tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
-                self.logger.log_augmented_image(data[0])
+                self.logger.log_augmented_image(data[0], mask=labels[0].squeeze().cpu().numpy())
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
             batch_size = data.shape[0]
             # ForkedPdb().set_trace()
             # do prediction and calculate loss
             predictions = self.model(data)
+            self.num_classes = predictions.shape[1]
             loss = self.loss(predictions, labels)
             # update model
             loss.backward()
@@ -90,9 +98,13 @@ class SegmentationTrainer(Trainer):
         :param epoch: The current epoch number.
         :return: Tuple containing the log message.
         """
-        message = f"Val accuracy: {self._val_accuracy} --change-- {self._val_accuracy - self._last_val_accuracy}"
-        self._last_val_accuracy = self._val_accuracy
-        return message,
+        message1 = f"Val Dice: {self._val_dice} --change-- {self._val_dice - self._last_val_dice}"
+        message2 = f"Val IoU: {self._val_iou} --change-- {self._val_iou - self._last_val_iou}"
+
+        self._last_val_dice = self._val_dice
+        self._last_val_iou = self._val_iou
+
+        return message1, message2
 
     # noinspection PyTypeChecker
     def eval_single_epoch(self, epoch) -> float:
@@ -104,11 +116,17 @@ class SegmentationTrainer(Trainer):
         """
 
         running_loss = 0.
-        correct_count = 0.
+
+        dice_score = 0.
+        iou_score = 0.
+
         total_items = 0
-        all_predictions, all_labels = [], []
         i = 0
-        for data, labels, _ in self.val_dataloader:
+
+        dice_metric = GeneralizedDiceScore(1, include_background=False).to(self.device)
+        iou_metric = MeanIoU(1, include_background=False).to(self.device)
+
+        for data, labels, _ in tqdm.tqdm(self.val_dataloader):
             i += 1
             labels = labels.to(self.device, non_blocking=True)
             data = data.to(self.device)
@@ -121,13 +139,24 @@ class SegmentationTrainer(Trainer):
             running_loss += loss.item() * batch_size
             # analyze
             predictions = torch.argmax(self.softmax(predictions), dim=1)
-            labels = torch.argmax(labels, dim=1)
-            all_predictions.extend(predictions.tolist())
-            all_labels.extend(labels.tolist())
-            correct_count += torch.sum(predictions == labels)
+
+            if i == 1:
+                self.logger.log_image_infered(data[0],
+                                              ground_truth=labels[0].squeeze().cpu().numpy(),
+                                              prediction=predictions[0].squeeze().cpu().numpy()
+                                              )
+
+            dice_score += dice_metric(predictions.squeeze().to(int), labels.squeeze().to(int)).cpu().item() * batch_size
+            iou_score += iou_metric(predictions.squeeze().to(int), labels.squeeze().to(int)).cpu().item() * batch_size
+
             total_items += batch_size
-        self.logger.eval_epoch_complete(all_predictions, all_labels)
-        self._val_accuracy = correct_count / total_items
+
+        self.logger.log_metrics({
+            "dice": dice_score / total_items,
+            "iou": iou_score / total_items
+        }, "val")
+        self._val_dice = dice_score / total_items
+        self._val_iou = iou_score / total_items
         return running_loss / total_items
 
     def get_loss(self) -> nn.Module:
