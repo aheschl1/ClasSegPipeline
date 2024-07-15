@@ -131,9 +131,14 @@ class Inferer:
         self.post_infer()
 
     def _get_datapoints(self):
-        paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
+        if os.path.isdir(glob.glob(f"{self.input_root}/*")[0]):
+            paths = [x for x in glob.glob(f"{self.input_root}/images/*") if not os.path.isdir(x)]
+            datapoints = [Datapoint(x, x.replace("images", "masks")) for x in paths]
+        else:
+            paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
+            datapoints = [Datapoint(x, None) for x in paths]
+
         print(f"Found {len(paths)} images to infer on.")
         if len(paths) == 0:
             raise SystemExit
-        datapoints = [Datapoint(x, None) for x in paths]
         return datapoints
