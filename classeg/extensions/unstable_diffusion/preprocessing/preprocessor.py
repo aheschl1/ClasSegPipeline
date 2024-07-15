@@ -53,6 +53,7 @@ class ExtensionPreprocessor(Preprocessor):
             ],
             "max_timestep": 1000,
             "diffuser": "linear",
+            "diffusion_scheduler": "none",
             "min_beta": 0.0001,
             "max_beta": 0.02,
             "model_args": {
@@ -69,9 +70,7 @@ class ExtensionPreprocessor(Preprocessor):
                 "time_emb_dim": 128
             },
             "mode": "unstable",
-            "gan_weight": 0,
-            "super_resolution": False,
-            "diffusion_scheduler": "none"
+            "gan_weight": 0
         }
 
 
