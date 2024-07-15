@@ -308,22 +308,21 @@ class UnstableDiffusionTrainer(Trainer):
             data_for_hist_im_G = result_im[..., 1].flatten()
             data_for_hist_im_B = result_im[..., 2].flatten()
 
-            data_for_hist_seg = result_seg.flatten()
-            self.logger.log_histogram(data_for_hist_im_R, "Image R")
-            self.logger.log_histogram(data_for_hist_im_G, "Image G")
-            self.logger.log_histogram(data_for_hist_im_B, "Image B")
-            self.logger.log_histogram(data_for_hist_seg, "Mask")
+            hist_data = {
+                "R": data_for_hist_im_R,
+                "G": data_for_hist_im_G,
+                "B": data_for_hist_im_B,
+            }
             
             result_im = result_im[0]
+            result_seg = result_seg[0].round().squeeze()
 
-            result_seg = result_seg[0].round()
             result_seg[result_seg>0]=1
             result_seg[result_seg!=1]=0
-            # print(result_seg.shape, result_im.shape)
-            # print(result_seg.min(), result_seg.max())
-            # print(result_im.min(), result_im.max())
 
-            self.logger.log_image_infered(result_im.numpy().astype(float), mask=result_seg.squeeze().numpy().astype(float))
+            self.logger.log_histogram(hist_data, "generated_image_distribution", values="pixel_value")
+
+            self.logger.log_image_infered(result_im.numpy().astype(np.float32), mask=result_seg.numpy().astype(np.float32))
 
     @override
     def get_model(self, path) -> nn.Module:
