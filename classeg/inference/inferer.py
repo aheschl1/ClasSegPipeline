@@ -46,13 +46,13 @@ class Inferer:
         self.weights = weights
         self.device = "cuda"
         if not late_model_instantiation:
-            self.model = self._get_model()
+            self.model = self.get_model()
         else:
             self.model = None
         assert os.path.exists(self.lookup_root)
         #assert torch.cuda.is_available(), "No gpu available."
 
-    def _get_model(self) -> nn.Module:
+    def get_model(self) -> nn.Module:
         """
         Loads the model and weights.
         :return:
