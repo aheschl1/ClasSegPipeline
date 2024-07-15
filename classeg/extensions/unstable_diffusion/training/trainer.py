@@ -204,7 +204,7 @@ class UnstableDiffusionTrainer(Trainer):
     def log_discriminator_progress(self, epoch, predicted_real, predicted_fake):
         labels = torch.cat([torch.ones_like(predicted_real), torch.zeros_like(predicted_fake)], dim=0)
         predictions = torch.cat([predicted_real, predicted_fake], dim=0)
-        self.logger.log_scalar("Metrics/DisriminatorLoss", self.gan_loss(predictions, labels), epoch)
+        self.logger.log_scalar(self.gan_loss(predictions, labels), "Metrics/DisriminatorLoss", epoch)
 
         predictions = torch.sigmoid(predictions)
         predictions = predictions.detach().cpu().numpy()
@@ -215,7 +215,7 @@ class UnstableDiffusionTrainer(Trainer):
         correct = (predictions == labels).sum()
         total = labels.shape[0]
 
-        self.logger.log_scalar("Metrics/DisriminatorAccuracy", correct/total, epoch)
+        self.logger.log_scalar(correct/total, "Metrics/DisriminatorAccuracy", epoch)
 
 
     # noinspection PyTypeChecker

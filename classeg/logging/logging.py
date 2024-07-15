@@ -81,7 +81,7 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_scalar(self, data, title, epoch):
+    def log_scalar(self, data, title):
         raise NotImplementedError("Method not implemented in parent class.")
 
 
@@ -129,8 +129,8 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-    def log_scalar(self, data, title, epoch):
-        self.summary_writer.add_scalar(title, data, epoch)
+    def log_scalar(self, data, title):
+        self.summary_writer.add_scalar(title, data, self.epoch)
         self.summary_writer.flush()
 
     def log_histogram(self, data, title):
@@ -233,10 +233,10 @@ class WandBLogger(Logger):
         }, step=self.epoch)
         super().epoch_end(train_loss, val_loss, learning_rate, duration)
 
-    def log_scalar(self, data, title, epoch):
+    def log_scalar(self, data, title):
         wandb.log({
             title: data
-        }, step=epoch)
+        }, step=self.epoch)
 
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
         wandb.log({
