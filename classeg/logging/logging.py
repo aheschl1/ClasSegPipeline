@@ -76,6 +76,10 @@ class Logger:
     def cleanup(self):
         raise NotImplementedError("Method not implemented in parent class.")
 
+    @abstractmethod
+    def log_histogram(self, data, title, epoch):
+        raise NotImplementedError("Method not implemented in parent class.")
+
     def __del__(self):
         self.cleanup()
 
@@ -114,6 +118,10 @@ class TensorboardLogger(Logger):
         self.summary_writer.add_scalar(
             "Peformance/epoch_duration", duration, self.epoch
         )
+        self.summary_writer.flush()
+
+    def log_histogram(self, data, title, epoch):
+        self.summary_writer.add_histogram(title, data, epoch)
         self.summary_writer.flush()
 
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
@@ -242,6 +250,11 @@ class WandBLogger(Logger):
             "total_params": total,
             "trainable_params": trainable
         }, step=self.epoch)
+
+    def log_histogram(self, data, title, epoch):
+        wandb.log({
+            title: wandb.Histogram(data)
+        }, step=epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
         table = wandb.Table(data=points, columns=[x, y])

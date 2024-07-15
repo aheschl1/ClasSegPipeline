@@ -6,7 +6,7 @@ import albumentations as A
 import torch
 import torch.nn as nn
 from overrides import override
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, CyclicLR
 from tqdm import tqdm
 
 from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler, VoidScheduler
@@ -71,7 +71,7 @@ class UnstableDiffusionTrainer(Trainer):
                 self.dicriminator.load_state_dict(state['discriminator'])
 
         self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
-        self.infer_every: int = 10
+        self.infer_every: int = 20
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
@@ -187,6 +187,9 @@ class UnstableDiffusionTrainer(Trainer):
             # update model
             gen_loss = gen_loss*self.recon_weight
             gen_loss.backward()
+            
+            self.diffusion_schedule.step()
+            self.dicriminator_lr_schedule.step()
 
             self.optim.step()
             self.d_optim.step()
@@ -292,9 +295,19 @@ class UnstableDiffusionTrainer(Trainer):
     def post_epoch(self, epoch: int) -> None:
         self.diffusion_schedule.step()
         self.dicriminator_lr_schedule.step()
+        if epoch%20 == 0:
+            self._save_checkpoint(f"epoch_{epoch}")
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
-            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=1)
+            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"])
+            data_for_hist_im_R = result_im[:, 0, ...].flatten()
+            data_for_hist_im_G = result_im[:, 1, ...].flatten()
+            data_for_hist_im_B = result_im[:, 2, ...].flatten()
+
+            data_for_hist_seg = result_seg.flatten()
+            self.logger.log_histogram([data_for_hist_im_R, data_for_hist_im_G, data_for_hist_im_B], "Image", epoch)
+            self.logger.log_histogram(data_for_hist_seg, "Segmentation", epoch)
+            
             self.logger.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
 
     @override
@@ -316,7 +329,8 @@ class UnstableDiffusionTrainer(Trainer):
     def get_lr_scheduler(self, optim=None):
         if optim is None and isinstance(self.optim, tuple):
             optim = self.optim[0]
-        scheduler = StepLR(optim, step_size=120, gamma=0.9)
+        # scheduler = StepLR(optim, step_size=120, gamma=0.9)
+        scheduler = CyclicLR(optim, self.config["lr"], self.config["lr"]*5, step_size_up=100, step_size_down=100)
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
         return scheduler
