@@ -12,6 +12,7 @@ from tqdm import tqdm
 from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler, VoidScheduler
 from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
+from classeg.extensions.unstable_diffusion.model.concat_diffusion import ConcatDiffusion
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
@@ -72,10 +73,6 @@ class UnstableDiffusionTrainer(Trainer):
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
-        self.super_resolution = self.config.get("super_resolution", False)
-        rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
-        if rescale:
-            log("Rescaling the images to [-1, 1]")
             
         del self.optim, self.loss
 
@@ -83,16 +80,8 @@ class UnstableDiffusionTrainer(Trainer):
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
         import cv2
-        initial_resize = self.config.get("target_size", [512, 512])
-        if self.config.get("super_resolution", False):
-            """
-            If we are doing super resolution, we need to double the size of the image.
-            We resize down later for input to the model, but need to HR image to be larger.
-            """
-            initial_resize = [x * 2 for x in initial_resize]
-
-        resize_image = A.Resize(*initial_resize, interpolation=cv2.INTER_CUBIC)
-        resize_mask = A.Resize(*initial_resize, interpolation=cv2.INTER_NEAREST)
+        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_CUBIC)
+        resize_mask = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_NEAREST)
 
         def my_resize(image=None, mask=None, **kwargs):
             if mask is not None:
@@ -190,8 +179,7 @@ class UnstableDiffusionTrainer(Trainer):
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss = self.recon_weight * self.recon_loss(predicted_noise_im, im_noise) + self.recon_weight * self.recon_loss(
-                predicted_noise_seg, seg_noise)
+            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([im_noise, seg_noise], dim=1))
             dis_loss = 0.0
             if self.gan_weight > 0:
                 # convert x_t to x_{t-1} and descriminate the goods
@@ -215,17 +203,20 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
+                gen_loss += self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
                 self.d_optim.zero_grad()
                 real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
                 fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze(), fake_label)
                 # calculate the loss
-                dis_loss = (real_loss + fake_loss) / 2
+                dis_loss += real_loss + fake_loss
+                dis_loss = dis_loss*self.gan_weight
                 dis_loss.backward()
 
             # update model
+            gen_loss = gen_loss*self.recon_weight
             gen_loss.backward()
+
             self.g_optim.step()
             self.d_optim.step()
             # gather data
@@ -270,22 +261,15 @@ class UnstableDiffusionTrainer(Trainer):
 
         all_discriminator_predictions_real = []
         all_discriminator_predictions_fake = []
-        rescale = os.environ.get("rescale", "0") in ["1", "y", "Y", "t", "T"]
 
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
             
-            if rescale:
-                # rescale from [0, 1] to [-1, 1]
-                images *= 2
-                images -= 1
-
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss = self.recon_weight * self.recon_loss(predicted_noise_im, noise_im) + self.recon_weight * self.recon_loss(
-                predicted_noise_seg, noise_seg)
+            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([noise_im, noise_seg], dim=1))
             # convert x_t to x_{t-1} and descriminate the goods
             dis_loss = 0.0
             if self.gan_weight > 0:
@@ -310,7 +294,7 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
+                gen_loss += self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
                 predicted_real = self.model.discriminate(self.dicriminator, real_concat, t).squeeze()
                 predicted_fake = self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze()
@@ -320,9 +304,9 @@ class UnstableDiffusionTrainer(Trainer):
                 real_loss = self.gan_loss(predicted_real, real_label)
                 fake_loss = self.gan_loss(predicted_fake, fake_label)
                 # calculate the loss
-                dis_loss = (real_loss + fake_loss) / 2
+                dis_loss += real_loss + fake_loss
 
-            running_loss += (dis_loss + gen_loss).item() * images.shape[0]
+            running_loss += (self.gan_weight*dis_loss + self.recon_weight*gen_loss).item() * images.shape[0]
             total_items += images.shape[0]
 # gather data
         if self.gan_weight > 0:
@@ -345,10 +329,15 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def get_model(self, path) -> nn.Module:
-        model = UnstableDiffusion(
-            **self.config["model_args"],
-            super_resolution=self.config.get("super_resolution", False)
-        )
+        mode = self.config["mode"]
+        if mode == "concat":
+            model = ConcatDiffusion(
+                **self.config["model_args"]
+            )    
+        elif mode == "unstable":
+            model = UnstableDiffusion(
+                **self.config["model_args"]
+            )
         self.dicriminator = model.get_discriminator().to(self.device)
         return model.to(self.device)
 
