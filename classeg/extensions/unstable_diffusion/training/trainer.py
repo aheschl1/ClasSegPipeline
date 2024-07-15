@@ -308,19 +308,16 @@ class UnstableDiffusionTrainer(Trainer):
             data_for_hist_im_G = result_im[..., 1].flatten()
             data_for_hist_im_B = result_im[..., 2].flatten()
 
-            hist_data = {
-                "R": data_for_hist_im_R,
-                "G": data_for_hist_im_G,
-                "B": data_for_hist_im_B,
-            }
-            
+            self.logger.log_histogram(data_for_hist_im_R, "generated R distribution")
+            self.logger.log_histogram(data_for_hist_im_G, "generated G distribution")
+            self.logger.log_histogram(data_for_hist_im_B, "generated B distribution")
+
             result_im = result_im[0]
             result_seg = result_seg[0].round().squeeze()
 
             result_seg[result_seg>0]=1
             result_seg[result_seg!=1]=0
 
-            self.logger.log_histogram(hist_data, "generated_image_distribution", values="pixel_value")
 
             self.logger.log_image_infered(result_im.numpy().astype(np.float32), mask=result_seg.numpy().astype(np.float32))
 

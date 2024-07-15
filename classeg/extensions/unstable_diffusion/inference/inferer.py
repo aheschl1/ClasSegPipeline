@@ -145,7 +145,7 @@ class UnstableDiffusionInferer(Inferer):
         )
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
-        # self.timesteps = 1000
+        # self.timesteps = 1
         for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             noise_prediction_im, noise_prediciton_seg = model(

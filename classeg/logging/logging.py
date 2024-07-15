@@ -269,10 +269,9 @@ class WandBLogger(Logger):
             "trainable_params": trainable
         }, step=self.epoch)
 
-    def log_histogram(self, data:dict, title, values="Value"):
-        table = wandb.Table(data=list(data.values()), columns=data.keys())
+    def log_histogram(self, data:dict, title):
         wandb.log({
-            title: wandb.plot.histogram(table, values, title=title)
+            title: wandb.Histogram(sequence=data, num_bins=100)
         }, step=self.epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
