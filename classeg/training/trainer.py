@@ -406,6 +406,7 @@ class Trainer:
         """
         ...
 
+
     @property
     def data_shape(self) -> Tuple[int, int, int]:
         """

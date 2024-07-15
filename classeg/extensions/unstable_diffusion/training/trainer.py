@@ -1,11 +1,12 @@
 import pdb
 import sys
-from typing import Tuple
+from typing import Tuple, Any
 
 import albumentations as A
 import torch
 import torch.nn as nn
 from overrides import override
+import numpy as np
 from torch.optim.lr_scheduler import StepLR, CyclicLR
 from tqdm import tqdm
 
@@ -71,12 +72,12 @@ class UnstableDiffusionTrainer(Trainer):
                 self.dicriminator.load_state_dict(state['discriminator'])
 
         self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
-        self.infer_every: int = 20
+        self.infer_every: int = 5
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 0.5)
         self.gan_weight = self.config.get("gan_weight", 0.5)
             
-        del self.optim, self.loss
+        del self.loss
 
 
     @override
@@ -114,7 +115,7 @@ class UnstableDiffusionTrainer(Trainer):
         self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
 
 
-    def get_extra_checkpoint_data(self) -> torch.Dict[str, pdb.Any] | None:
+    def get_extra_checkpoint_data(self) -> torch.Dict[str, Any] | None:
         return {
             "diffusion_schedule": self.diffusion_schedule.state_dict(),
             "dicriminator_lr_schedule": self.dicriminator_lr_schedule.state_dict(),
@@ -143,7 +144,7 @@ class UnstableDiffusionTrainer(Trainer):
         for images, segmentations, _ in tqdm(self.train_dataloader):
             self.optim.zero_grad()
             if log_image:
-                self.log_helper.log_augmented_image(images[0], segmentations[0])
+                self.logger.log_augmented_image(images[0], mask=segmentations[0].squeeze().numpy())
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 
@@ -187,12 +188,13 @@ class UnstableDiffusionTrainer(Trainer):
             # update model
             gen_loss = gen_loss*self.recon_weight
             gen_loss.backward()
-            
-            self.diffusion_schedule.step()
-            self.dicriminator_lr_schedule.step()
-
+        
             self.optim.step()
             self.d_optim.step()
+            self.diffusion_schedule.step()
+            self.dicriminator_lr_schedule.step()
+            self.lr_scheduler.step()
+
             # gather data
             running_loss += (gen_loss+dis_loss).item() * images.shape[0]
             total_items += images.shape[0]
@@ -202,7 +204,7 @@ class UnstableDiffusionTrainer(Trainer):
     def log_discriminator_progress(self, epoch, predicted_real, predicted_fake):
         labels = torch.cat([torch.ones_like(predicted_real), torch.zeros_like(predicted_fake)], dim=0)
         predictions = torch.cat([predicted_real, predicted_fake], dim=0)
-        self.log_helper.log_scalar("Metrics/DisriminatorLoss", self.gan_loss(predictions, labels), epoch)
+        self.logger.log_scalar("Metrics/DisriminatorLoss", self.gan_loss(predictions, labels), epoch)
 
         predictions = torch.sigmoid(predictions)
         predictions = predictions.detach().cpu().numpy()
@@ -213,7 +215,7 @@ class UnstableDiffusionTrainer(Trainer):
         correct = (predictions == labels).sum()
         total = labels.shape[0]
 
-        self.log_helper.log_scalar("Metrics/DisriminatorAccuracy", correct/total, epoch)
+        self.logger.log_scalar("Metrics/DisriminatorAccuracy", correct/total, epoch)
 
 
     # noinspection PyTypeChecker
@@ -293,22 +295,35 @@ class UnstableDiffusionTrainer(Trainer):
 
     @override
     def post_epoch(self, epoch: int) -> None:
+        if epoch == 0:
+            self.logger.log_net_structure(self.model)
         self.diffusion_schedule.step()
         self.dicriminator_lr_schedule.step()
-        if epoch%20 == 0:
+        if epoch % self.infer_every == 0 and epoch > 100:
             self._save_checkpoint(f"epoch_{epoch}")
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
             result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"])
-            data_for_hist_im_R = result_im[:, 0, ...].flatten()
-            data_for_hist_im_G = result_im[:, 1, ...].flatten()
-            data_for_hist_im_B = result_im[:, 2, ...].flatten()
+            data_for_hist_im_R = result_im[..., 0].flatten()
+            data_for_hist_im_G = result_im[..., 1].flatten()
+            data_for_hist_im_B = result_im[..., 2].flatten()
 
             data_for_hist_seg = result_seg.flatten()
-            self.logger.log_histogram([data_for_hist_im_R, data_for_hist_im_G, data_for_hist_im_B], "Image", epoch)
-            self.logger.log_histogram(data_for_hist_seg, "Segmentation", epoch)
+            self.logger.log_histogram(data_for_hist_im_R, "Image R")
+            self.logger.log_histogram(data_for_hist_im_G, "Image G")
+            self.logger.log_histogram(data_for_hist_im_B, "Image B")
+            self.logger.log_histogram(data_for_hist_seg, "Mask")
             
-            self.logger.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+            result_im = result_im[0]
+
+            result_seg = result_seg[0].round()
+            result_seg[result_seg>0]=1
+            result_seg[result_seg!=1]=0
+            # print(result_seg.shape, result_im.shape)
+            # print(result_seg.min(), result_seg.max())
+            # print(result_im.min(), result_im.max())
+
+            self.logger.log_image_infered(result_im.numpy().astype(float), mask=result_seg.squeeze().numpy().astype(float))
 
     @override
     def get_model(self, path) -> nn.Module:
@@ -330,7 +345,7 @@ class UnstableDiffusionTrainer(Trainer):
         if optim is None and isinstance(self.optim, tuple):
             optim = self.optim[0]
         # scheduler = StepLR(optim, step_size=120, gamma=0.9)
-        scheduler = CyclicLR(optim, self.config["lr"], self.config["lr"]*5, step_size_up=100, step_size_down=100)
+        scheduler = CyclicLR(optim, self.config["lr"], self.config["lr"]*5, step_size_up=100, step_size_down=100, cycle_momentum=False)
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
         return scheduler

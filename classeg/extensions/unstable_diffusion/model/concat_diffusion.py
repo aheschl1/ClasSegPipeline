@@ -476,8 +476,8 @@ class ConcatDiffusion(nn.Module):
                     time_emb_dim=self.time_emb_dim,
                     downsample=True,
                     num_layers=self.layer_depth,
-                    apply_zero_conv=self.apply_zero_conv,
-                    apply_scale_u=self.apply_scale_u
+                    apply_zero_conv=False,
+                    apply_scale_u=False
                 )
             )
         return encoder_layers
@@ -511,11 +511,10 @@ class ConcatDiffusion(nn.Module):
         """
         skipped_connections_im = [im_out]
         # =========== SHARED ENCODER ===========
-        if self.shared_encoder:
-            for encoder in self.encoder_layers:
-                im_out = encoder(im_out, t)
-                skipped_connections_im.append(im_out)
-            return im_out, skipped_connections_im
+        for encoder in self.encoder_layers:
+            im_out = encoder(im_out, t)
+            skipped_connections_im.append(im_out)
+        return im_out, skipped_connections_im
     def forward(self, im, seg, t):
 
         assert im.shape[2] == 128, "Only 128 resolution supported"

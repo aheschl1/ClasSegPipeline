@@ -69,7 +69,7 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
@@ -77,7 +77,16 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_histogram(self, data, title, epoch):
+    def log_histogram(self, data, title):
+        raise NotImplementedError("Method not implemented in parent class.")
+
+    @abstractmethod
+    def log_scalar(self, data, title, epoch):
+        raise NotImplementedError("Method not implemented in parent class.")
+
+
+    @abstractmethod
+    def log_artifact(self, artifact, name):
         raise NotImplementedError("Method not implemented in parent class.")
 
     def __del__(self):
@@ -120,8 +129,12 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-    def log_histogram(self, data, title, epoch):
-        self.summary_writer.add_histogram(title, data, epoch)
+    def log_scalar(self, data, title, epoch):
+        self.summary_writer.add_scalar(title, data, epoch)
+        self.summary_writer.flush()
+
+    def log_histogram(self, data, title):
+        self.summary_writer.add_histogram(title, data, self.epoch)
         self.summary_writer.flush()
 
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
@@ -162,17 +175,17 @@ class TensorboardLogger(Logger):
         plt.close(fig)
         self.summary_writer.flush()
 
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         self.summary_writer.add_image(
             "Infered Images",
             image,
-            epoch
+            self.epoch
         )
         for key, value in masks.items():
             self.summary_writer.add_image(
                 f"Infered {key}",
                 value,
-                epoch
+                self.epoch
             )
         self.summary_writer.flush()
 
@@ -220,6 +233,11 @@ class WandBLogger(Logger):
         }, step=self.epoch)
         super().epoch_end(train_loss, val_loss, learning_rate, duration)
 
+    def log_scalar(self, data, title, epoch):
+        wandb.log({
+            title: data
+        }, step=epoch)
+
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
         wandb.log({
             f"confusion_matrix_{set_name}": wandb.plot.confusion_matrix(
@@ -233,7 +251,7 @@ class WandBLogger(Logger):
         data = {
             "augmented_image": wandb.Image(
                 image,
-                masks=None if mask is None else {"augmented_mask": mask},
+                masks=None if mask is None else {"augmented_mask": {"mask_data": mask}},
             ),
         }
         wandb.log(data, step=self.epoch)
@@ -251,10 +269,10 @@ class WandBLogger(Logger):
             "trainable_params": trainable
         }, step=self.epoch)
 
-    def log_histogram(self, data, title, epoch):
+    def log_histogram(self, data, title):
         wandb.log({
             title: wandb.Histogram(data)
-        }, step=epoch)
+        }, step=self.epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
         table = wandb.Table(data=points, columns=[x, y])
@@ -262,10 +280,13 @@ class WandBLogger(Logger):
             title: wandb.plot.line(table, x=x, y=y, title=title)
         }, step=epoch)
 
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         wandb.log({
-            "infered_image": wandb.Image(image, masks=masks)
-        }, step=epoch)
+            "infered_image": wandb.Image(image, masks={k: {"mask_data": v} for k, v in masks.items()})
+        }, step=self.epoch)
+
+    def log_artifact(self, artifact, name, type="checkpoint", description=""):
+        ...
 
     def cleanup(self):
         wandb.finish()

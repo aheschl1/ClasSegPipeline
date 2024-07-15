@@ -100,20 +100,21 @@ class UnstableDiffusionInferer(Inferer):
 
         model.eval()
         in_shape = list(self.config["target_size"])
-        
+        batch_size = self.config.get("infer_batch_size", self.config["batch_size"])
         case_num = 0
+        xt_im, xt_seg = None, None
         with torch.no_grad():
-            for _ in tqdm(range(0,int(np.ceil(num_samples/batch_size))), desc="running_inferences"):
+            for _ in tqdm(range(0,int(np.ceil(num_samples/batch_size))), desc="Running Inference"):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
                 xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model)
                 # Binarize the mask
                 xt_im = xt_im.detach().cpu().permute(0,2,3,1)
-                xt_seg = xt_seg.detach().cpu().round().permute(0,2,3,1)
+                xt_seg = xt_seg.detach().cpu().permute(0,2,3,1)
                 for i in range(batch_size):
                     im = xt_im[i]
-                    seg = xt_seg[i]
+                    seg = xt_seg[i].round()
 
                     im -= torch.min(im)
                     im *= (255 / torch.max(im))
@@ -166,7 +167,8 @@ class UnstableDiffusionInferer(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
-        print("===============================super resolving===============================")
-        super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v2", "latest", self.save_path, output_name=self.name)
-        super_inferer.infer()
+        # print("===============================super resolving===============================")
+        # super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v2", "latest", self.save_path, output_name=self.name)
+        # super_inferer.infer()
+        ...
         
