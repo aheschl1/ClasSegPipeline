@@ -58,15 +58,17 @@ class UnstableDiffusionTrainer(Trainer):
             self.diffusion_schedule = StepScheduler(self.forward_diffuser, step_size=10, epochs_per_step=5, initial_max=10)
         else:
             self.diffusion_schedule = VoidScheduler(self.forward_diffuser)
-        self.g_optim, self.d_optim = self.optim
+        self.optim, self.d_optim = self.optim
 
         self.dicriminator_lr_schedule =  self.get_lr_scheduler(self.d_optim)
-        if resume and gpu_id in [0, "cpu"]:
+        if resume:
             state = torch.load(f"{self.output_dir}/latest.pth")
+
             self.diffusion_schedule.load_state(state["diffusion_schedule"])
-            self.dicriminator_lr_schedule.load_state_dict(state['lr_scheduler_discrim'])
-            self.g_optim.load_state_dict(state['g_optim'])
+            self.dicriminator_lr_schedule.load_state_dict(state['dicriminator_lr_schedule'])
             self.d_optim.load_state_dict(state['d_optim'])
+            if self.dicriminator is not None:
+                self.dicriminator.load_state_dict(state['discriminator'])
 
         # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
@@ -111,46 +113,15 @@ class UnstableDiffusionTrainer(Trainer):
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
         self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
 
-    def _save_model_weights(self, save_name: str) -> None:
-        """
-        Save the weights of the model, only if the current device is 0.
 
-        :param save_name: The name of the checkpoint to save.
-        """
-        if self.device in [0, "cpu"]:
-            checkpoint = {}
-            path = f"{self.output_dir}/{save_name}.pth"
-            if self.world_size > 1:
-                checkpoint["weights"] = self.model.module.state_dict()
-            else:
-                checkpoint["weights"] = self.model.state_dict()
-            checkpoint["dicriminator"] = self.dicriminator.state_dict()
-            checkpoint["d_optim"] = self.d_optim.state_dict()
-            checkpoint["g_optim"] = self.g_optim.state_dict()
-            checkpoint["current_epoch"] = self._current_epoch
-            checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
-            checkpoint["lr_scheduler_discrim"] = self.dicriminator_lr_schedule.state_dict()
-            checkpoint["diffusion_schedule"] = self.diffusion_schedule.get_state_dict()
-            torch.save(checkpoint, path)
+    def get_extra_checkpoint_data(self) -> torch.Dict[str, pdb.Any] | None:
+        return {
+            "diffusion_schedule": self.diffusion_schedule.state_dict(),
+            "dicriminator_lr_schedule": self.dicriminator_lr_schedule.state_dict(),
+            "d_optim": self.d_optim.state_dict(),
+            "discriminator": self.dicriminator.state_dict()
+        }
 
-    def _load_checkpoint(self, weights_name) -> None:
-        import os
-        """
-        Loads network checkpoint onto the DDP model.
-        :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
-        :return: None
-        """
-        assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
-        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
-        self._current_epoch = checkpoint["current_epoch"]
-        if self.world_size > 1:
-            self.model.module.load_state_dict(checkpoint["weights"])
-        else:
-            self.model.load_state_dict(checkpoint["weights"])
-            self.dicriminator.load_state_dict(checkpoint["dicriminator"])
-        # self..load_state_dict(checkpoint["optim"])
-        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-        log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -170,7 +141,7 @@ class UnstableDiffusionTrainer(Trainer):
         print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
-            self.g_optim.zero_grad()
+            self.optim.zero_grad()
             if log_image:
                 self.log_helper.log_augmented_image(images[0], segmentations[0])
             images = images.to(self.device, non_blocking=True)
@@ -217,7 +188,7 @@ class UnstableDiffusionTrainer(Trainer):
             gen_loss = gen_loss*self.recon_weight
             gen_loss.backward()
 
-            self.g_optim.step()
+            self.optim.step()
             self.d_optim.step()
             # gather data
             running_loss += (gen_loss+dis_loss).item() * images.shape[0]
@@ -358,7 +329,7 @@ class UnstableDiffusionTrainer(Trainer):
         """
         from torch.optim import Adam
 
-        g_optim = Adam(
+        optim = Adam(
             self.model.parameters(),
             lr=self.config["lr"],
             weight_decay=self.config.get('weight_decay', 0)
@@ -372,8 +343,10 @@ class UnstableDiffusionTrainer(Trainer):
         )
 
         if self.device == 0:
-            log(f"Optim being used is {g_optim}")
-        return g_optim, d_optim
+            log(f"Optim being used is {optim}")
+        # hacky fix
+        self.optim = optim
+        return optim, d_optim
 
     class MSEWithKLDivergenceLoss(nn.Module):
         def __init__(self, kl_weight=0.1):

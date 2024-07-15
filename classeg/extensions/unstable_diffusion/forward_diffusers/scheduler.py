@@ -21,7 +21,7 @@ class DiffusionScheduler:
         self._state_dict["step"] = self._step
         self.diffuser.set_max_t(self.compute_max_at_step(self._step))
 
-    def get_state_dict(self):
+    def state_dict(self):
         return self._state_dict
 
     def load_state(self, state_dict):
