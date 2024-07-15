@@ -3,6 +3,7 @@ import glob
 import importlib
 import os.path
 import shutil
+import warnings
 from multiprocessing.shared_memory import SharedMemory
 from typing import Type, List
 
@@ -88,7 +89,8 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.command()
 @click.option("-fold", "-f", help="Which fold to train.", type=int, required=True)
 @click.option("-dataset_id", "-d", help="The dataset id to train.", type=str, required=True)
-@click.option("-model", "-m", help="Path to model json definition, or name of the model class.", type=str, required=True)
+@click.option("-model", "-m", help="Path to model json definition, or name of the model class.",
+              type=str, required=False)
 @click.option("-gpus", "-g", help="How many gpus for ddp", type=int, default=1)
 @click.option("--resume", "--r", help="Resume training from latest", type=bool, is_flag=True)
 @click.option("-config", "-c", help="Name of the config file to utilize.", type=str, default="config")
@@ -97,6 +99,9 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("-dataset_desc", "-dd", required=False, default=None,
               help="Description of dataset. Useful if you have overlapping ids.")  # 10
 @click.option("--cache", help="Cache the data in memory.", type=bool, is_flag=True)
+@click.option("--force_override", "--fo",
+              help="Ignore that the experiment name is the same as one existing, even though you did not specify to resume.",
+              is_flag=True, type=bool)
 @click.argument('extra_args', nargs=-1)
 def main(
         fold: int,
@@ -109,6 +114,7 @@ def main(
         extension: str,
         dataset_desc: str,
         cache: bool,
+        force_override: bool,
         extra_args: List[str]
 ) -> None:
     """
@@ -123,9 +129,11 @@ def main(
     :param extension: The name of the trainer class to use
     :param dataset_desc: Dataset description
     :param cache: Cache the data in memory
+    :param force_override:
     :param extra_args: Extra arguments to pass to the extension.
     :return:
     """
+    multiprocessing_logging.install_mp_handler()
     kwargs = {}
     for arg in extra_args:
         if "=" not in arg:
@@ -134,12 +142,22 @@ def main(
         key, value = arg.split('=')
         kwargs[key] = value
 
+    dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
+    output_dir = f"{RESULTS_ROOT}/{dataset_name}/fold_{fold}/{name}"
+    if os.path.exists(output_dir) and not resume:
+        if force_override:
+            shutil.rmtree(output_dir)
+        else:
+            raise ValueError(
+                f"An experiment with name {name} already exists. Do you want to resume it? Then use --r. Otherwise, pick a new name, or run with --force_override"
+            )
     if resume and name is None:
         raise ValueError("You must provide a name for the session if you want to resume training.")
 
-    multiprocessing_logging.install_mp_handler()
-    dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
-    if not os.path.exists(model) and "json" in model:
+    if model is None:
+        warnings.warn("No model provided. "
+                      "Make sure you use an extension that does not need an explicit model argument.")
+    if model is not None and not os.path.exists(model) and "json" in model:
         # try to find it in the default model bucket
         available_models = [x for x in glob.glob(f"{MODEL_BUCKET_DIRECTORY}/**/*", recursive=True) if "json" in x]
         for model_path in available_models:

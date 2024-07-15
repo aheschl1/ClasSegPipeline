@@ -6,7 +6,7 @@ import sys
 import time
 import warnings
 from abc import abstractmethod
-from typing import Tuple, Any
+from typing import Tuple, Any, Dict, Union
 
 import torch
 import torch.distributed as dist
@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from classeg.logging.logging import LogHelper
+from classeg.logging.logging import TensorboardLogger, WandBLogger
 from classeg.utils.constants import *
 from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json
 from classeg.utils.utils import write_json
@@ -72,13 +72,16 @@ class Trainer:
         self.fold = fold
         self.world_size = world_size
         self.device = gpu_id
+        self.resume = resume
         self.config_name = config_name
         self.output_dir = self._prepare_output_directory(unique_folder_name)
-        self.log_helper = LogHelper(self.output_dir)
+        self._best_val_loss = 999999.999  # Arbitrary large number
         if resume:
             self.config = read_json(f"{self.output_dir}/config.json")
         else:
             self.config = get_config_from_dataset(dataset_name, config_name)
+        self.logger = TensorboardLogger(self.output_dir) if LOGGER_TYPE == TENSORBOARD else \
+            WandBLogger(self.output_dir, dataset_name=self.dataset_name, config=self.config)
         self._assert_preprocess_ready_for_train()
         if gpu_id in [0, "cpu"]:
             log("Config:", self.config)
@@ -90,7 +93,7 @@ class Trainer:
         self.train_dataloader, self.val_dataloader = self.get_dataloaders()
         self._current_epoch = 0
         self.model_path = model_path
-        self.model = self.get_model(model_path)
+        self.model = self.get_model(model_path).to(self.device)
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
         self.loss = self.get_loss()
@@ -100,8 +103,17 @@ class Trainer:
             log(f"Optim being used is {self.optim}")
         self._save_self_file()
         if resume:
-            self._load_checkpoint("latest")
-        self.log_helper.set_current_epoch(self._current_epoch)
+            self.load_checkpoint("latest")
+        # -1 because we increment the epoch by 1 when loading the checkpoint
+        self.logger.set_current_epoch(self._current_epoch+1)
+        if self.device in [0, "cpu"]:
+            all_params = sum(param.numel() for param in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+            log(f"Total parameters: {all_params}")
+            log(f"Trainable params: {trainable_params}")
+            self.logger.log_parameters(all_params, trainable_params)
         log(f"Trainer finished initialization on rank {gpu_id}.")
         if self.world_size > 1:
             dist.barrier()
@@ -125,8 +137,10 @@ class Trainer:
         Copies the current file and the model file to the output directory.
         Also writes the configuration to a json file in the output directory.
         """
-        shutil.copy(__file__, f"{self.output_dir}/trainer_code.py")
-        if os.path.exists(self.model_path):
+        # Package the repository, ignoring large files, into a zip, and save it to the output dir
+        root = "/".join(__file__.split("/")[:-2])
+        shutil.make_archive(f"{self.output_dir}/source_code", "zip", root)
+        if self.model_path is not None and os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
         write_json(self.config, f"{self.output_dir}/config.json")
 
@@ -169,8 +183,16 @@ class Trainer:
             cache=self.cache,
             rank=self.device,
             world_size=self.world_size,
-            config_name=self.config_name
+            config=self.config
         )
+
+    def get_extra_checkpoint_data(self) -> Union[Dict[str, Any], None]:
+        """
+        Return any extra values that you would like to save to the checkpoint.
+
+        Override load_checkpoint (don't forget to call super) in order to use them.
+        """
+        return None
 
     @abstractmethod
     def train_single_epoch(self, epoch: int) -> float:
@@ -220,7 +242,6 @@ class Trainer:
         """
         epochs = 2000 #self.config["epochs"]
         start_time = time.time()
-        best_val_loss = 999999.999  # Arbitrary large number
         # last values to show change
         last_train_loss = 0
         last_val_loss = 0
@@ -233,7 +254,7 @@ class Trainer:
                 self.val_dataloader.sampler.set_epoch(epoch)
             if self.device in [0, "cpu"]:
                 log(self.seperator)
-                log(f"Epoch {epoch}/{epochs - 1} running...")
+                log(f"Epoch {epoch+1}/{epochs} running...")
                 if epoch == 0 and self.world_size > 1:
                     log("First epochs will be slow due to loading forking workers in ddp.")
             self.model.train()
@@ -241,7 +262,7 @@ class Trainer:
             self.model.eval()
             with torch.no_grad():
                 mean_val_loss = self.eval_single_epoch(epoch)
-            self._save_model_weights("latest")  # saving model every epoch
+            self._save_checkpoint("latest")  # saving model every epoch
             if self.device in [0, "cpu"]:
                 log("Learning rate: ", self.lr_scheduler.optimizer.param_groups[0]["lr"])
                 log(f"Train loss: {mean_train_loss} --change-- {mean_train_loss - last_train_loss}")
@@ -254,15 +275,15 @@ class Trainer:
             last_train_loss = mean_train_loss
             last_val_loss = mean_val_loss
             # If best model, save!
-            if mean_val_loss < best_val_loss:
+            if mean_val_loss < self._best_val_loss:
                 if self.device in [0, "cpu"]:
                     log(BEST_EPOCH_CELEBRATION)
                 best_val_loss = mean_val_loss
-                self._save_model_weights("best")
+                self._save_checkpoint("best")
             epoch_end_time = time.time()
             if self.device in [0, "cpu"]:
                 log(f"Process {self.device} took {epoch_end_time - epoch_start_time} seconds.")
-                self.log_helper.epoch_end(
+                self.logger.epoch_end(
                     mean_train_loss,
                     mean_val_loss,
                     self.lr_scheduler.optimizer.param_groups[0]["lr"],
@@ -275,7 +296,7 @@ class Trainer:
         # Now training is completed, print some stuff
         if self.world_size > 1:
             dist.barrier()
-        self._save_model_weights("final")  # save the final weights
+        self._save_checkpoint("final")  # save the final weights
         self.post_training()
         end_time = time.time()
         seconds_taken = end_time - start_time
@@ -287,9 +308,9 @@ class Trainer:
             log(f"{(seconds_taken / 3600)} hours")
             log(f"{(seconds_taken / 86400)} days")
 
-    def _save_model_weights(self, save_name: str) -> None:
+    def _save_checkpoint(self, save_name: str) -> None:
         """
-        Save the weights of the model, only if the current device is 0.
+        Save the current model and optimizer state to a checkpoint.
 
         :param save_name: The name of the checkpoint to save.
         """
@@ -303,7 +324,30 @@ class Trainer:
             checkpoint["optim"] = self.optim.state_dict()
             checkpoint["current_epoch"] = self._current_epoch
             checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
+            checkpoint["best_val_loss"] = self._best_val_loss
+            extra_data = self.get_extra_checkpoint_data()
+            checkpoint.update(extra_data if extra_data is not None else {})
             torch.save(checkpoint, path)
+
+    def load_checkpoint(self, weights_name) -> None:
+        """
+        Loads network checkpoint onto the DDP model.
+        :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
+        :return: None
+        """
+        assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
+        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
+        # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
+        # one.
+        self._current_epoch = checkpoint["current_epoch"]+1
+        if self.world_size > 1:
+            self.model.module.load_state_dict(checkpoint["weights"])
+        else:
+            self.model.load_state_dict(checkpoint["weights"])
+        self.optim.load_state_dict(checkpoint["optim"])
+        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        self._best_val_loss = checkpoint["best_val_loss"]
+        log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
 
     def get_lr_scheduler(self):
         """
@@ -337,6 +381,10 @@ class Trainer:
         :param path: The path to the json architecture definition.
         :return: The pytorch network module.
         """
+        if path is None and self.resume:
+            path = f"{self.output_dir}/model.json"
+            log(f"We will attempt to load the model from {path}.")
+
         if not os.path.exists(path):
             log(f"The model path {path} does not exist.")
             log("If you do not want to define models through json as described at "
@@ -346,36 +394,9 @@ class Trainer:
         factory = ModelFactory(path, lookup_packages=["classeg.models.autoencoder", "classeg.models.unet"])
         model = factory.get_model().to(self.device)
         log(factory.log_kwargs)
-
-        if self.device in [0, "cpu"]:
-            log(f"Loaded model {path}")
-            all_params = sum(param.numel() for param in model.parameters())
-            trainable_params = sum(
-                p.numel() for p in model.parameters() if p.requires_grad
-            )
-            log(f"Total parameters: {all_params}")
-            log(f"Trainable params: {trainable_params}")
-            self.log_helper.log_parameters(all_params, trainable_params)
         if self.world_size > 1:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         return model
-
-    def _load_checkpoint(self, weights_name) -> None:
-        """
-        Loads network checkpoint onto the DDP model.
-        :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
-        :return: None
-        """
-        assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
-        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
-        self._current_epoch = checkpoint["current_epoch"]
-        if self.world_size > 1:
-            self.model.module.load_state_dict(checkpoint["weights"])
-        else:
-            self.model.load_state_dict(checkpoint["weights"])
-        self.optim.load_state_dict(checkpoint["optim"])
-        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-        log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
 
     @abstractmethod
     def get_loss(self) -> nn.Module:

@@ -141,7 +141,7 @@ class Inferer:
             paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
             datapoints = [Datapoint(x, None) for x in paths]
 
-        print(f"Found {len(datapoints)} images to infer on.")
-        if len(datapoints) == 0:
+        print(f"Found {len(paths)} images to infer on.")
+        if len(paths) == 0:
             raise SystemExit
         return datapoints

@@ -1,8 +1,8 @@
 {
-  "Tag": "Autoencoder model",
-  "Children": [
+  "tag": "Autoencoder model",
+  "children": [
     {
-      "ComponentClass": "classeg.models.autoencoder.Autoencoder",
+      "component_class": "classeg.models.autoencoder.Autoencoder",
       "args": {
         "in_channels": 1,
         "depth": 3,

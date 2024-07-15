@@ -3,7 +3,7 @@ import os.path
 import time
 import warnings
 from typing import Dict, Union, Tuple
-
+import torch
 import numpy as np
 from PIL import ImageFile
 from tqdm import tqdm
@@ -275,6 +275,7 @@ class Preprocessor:
             shuffle=False,
             store_metadata=True,
             cache=False,
+            config=self.get_config()
         )
         # prep dirs
         self._prep_fold_dirs(fold)
@@ -317,6 +318,6 @@ class Preprocessor:
                 if self.mode == SEGMENTATION:
                     labels[labels != 0] = 1
                     writer.write(
-                        labels,
+                        labels.to(torch.uint8),
                         image_path.replace("imagesTr", "labelsTr")
                     )

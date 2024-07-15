@@ -16,6 +16,7 @@ from classeg.dataloading.datapoint import Datapoint
 from classeg.dataloading.dataset import PipelineDataset
 from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 import importlib
+import socket
 
 
 def import_from_recursive(from_package: str, class_name: str) -> Any:
@@ -73,6 +74,15 @@ def get_preprocessor_from_extension(extension: Union[str, None], dataset_name: U
     preprocessor_class = import_from_recursive(f"classeg.extensions.{extension}.preprocessing", preprocessor_name)
     return preprocessor_class
 
+def is_online():
+    try:
+        # connect to the host -- tells us if the host is actually
+        # reachable
+        socket.create_connection(("www.google.com", 80))
+        return True
+    except OSError:
+        pass
+    return False
 
 def get_inferer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
     """
@@ -186,7 +196,6 @@ def get_dataset_mode_from_name(dataset_name: str):
     :param dataset_name:
     :return:
     """
-    print(dataset_name)
     raw_root = f"{RAW_ROOT}/{dataset_name}"
     preprocessed_root = f"{PREPROCESSED_ROOT}/{dataset_name}"
     if os.path.exists(raw_root):
@@ -419,13 +428,12 @@ def get_dataloaders_from_fold(dataset_name: str,
                               val_transforms=None,
                               preprocessed_data: bool = True,
                               store_metadata: bool = False,
-                              config_name="config",
+                              config=None,
                               cache=False,
                               sampler = None,
                               **kwargs) -> Tuple[DataLoader, DataLoader]:
     """
     Returns the train and val dataloaders for a specific dataset fold.
-    :param config_name:
     :param dataset_name: The name of the dataset.
     :param fold: The fold to grab.
     :param train_transforms: The transforms to apply to training data.
@@ -435,10 +443,13 @@ def get_dataloaders_from_fold(dataset_name: str,
     :param kwargs: Can overwrite some settings.
     :param cache: If true, will cache the data.
     :param sampler: If not None, will use this sampler.
+    :param config: If not None, will use this config, otherwise will fetch from preprocessed data.
     :return: Train and val dataloaders.
     """
 
-    config = get_config_from_dataset(dataset_name, config_name)
+    config = config if config is not None else get_config_from_dataset(dataset_name, "config")
+    if not isinstance(config, dict):
+        raise ValueError(f"Config should be a dictionary, got {type(config)}.")
 
     train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=cache) if preprocessed_data \
         else get_raw_datapoints_folded(dataset_name, fold)

@@ -21,7 +21,7 @@ class Splitter:
         else:
             # Sklearn KFold only can handle folds > 1. Here, if we only have one fold, we just do a train/test split.
             for i in range(self.folds):
-                xtrain, xtest = train_test_split(self.data, random_state=i, shuffle=True)
+                xtrain, xtest = train_test_split(self.data, random_state=i, shuffle=True, train_size=0.8)
                 results[i] = {
                     'train': [x.case_name for x in xtrain],
                     'val': [x.case_name for x in xtest]
