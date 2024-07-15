@@ -271,7 +271,7 @@ class WandBLogger(Logger):
 
     def log_histogram(self, data:dict, title):
         wandb.log({
-            title: wandb.Histogram(sequence=data, num_bins=100)
+            title: wandb.Histogram(sequence=data)
         }, step=self.epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
