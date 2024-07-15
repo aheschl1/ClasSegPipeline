@@ -70,7 +70,7 @@ class UnstableDiffusionTrainer(Trainer):
             if self.dicriminator is not None:
                 self.dicriminator.load_state_dict(state['discriminator'])
 
-        # self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
+        self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 10
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 0.5)
@@ -292,11 +292,10 @@ class UnstableDiffusionTrainer(Trainer):
     def post_epoch(self, epoch: int) -> None:
         self.diffusion_schedule.step()
         self.dicriminator_lr_schedule.step()
-        return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
-            result_im, result_seg = self._inferer.infer()
-            self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=1)
+            self.logger.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
 
     @override
     def get_model(self, path) -> nn.Module:
@@ -315,7 +314,7 @@ class UnstableDiffusionTrainer(Trainer):
         return model.to(self.device)
 
     def get_lr_scheduler(self, optim=None):
-        if optim is None:
+        if optim is None and isinstance(self.optim, tuple):
             optim = self.optim[0]
         scheduler = StepLR(optim, step_size=120, gamma=0.9)
         if self.device == 0:

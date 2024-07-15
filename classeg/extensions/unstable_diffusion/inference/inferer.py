@@ -65,28 +65,29 @@ class UnstableDiffusionInferer(Inferer):
         """
         ...
 
-    def pre_infer(self) -> str:
+    def pre_infer(self, build_model=True) -> str:
         """
         Returns the output directory, and creates dataloader
         """
         save_path = f'{self.lookup_root}/inference'
         if not os.path.exists(save_path):
             os.mkdir(save_path)
-        self.model = self._get_model().cpu()
-        checkpoint = torch.load(
-            f"{self.lookup_root}/{self.weights}.pth"
-        )["weights"]
-        self.model.load_state_dict(checkpoint)
-        self.model = self.model.to(self.device)
+        if build_model:
+            self.model = self._get_model().cpu()
+            checkpoint = torch.load(
+                f"{self.lookup_root}/{self.weights}.pth"
+            )["weights"]
+            self.model.load_state_dict(checkpoint)
+            self.model = self.model.to(self.device)
         return save_path
 
-    def infer(self):
+    def infer(self, model=None, num_samples=None) -> Tuple[torch.Tensor, torch.Tensor]:
         # To infer we need the number of samples to generate, and name of folder
-        num_samples = int(self.kwargs.get("s", 1000))
+        num_samples = num_samples if num_samples is not None else int(self.kwargs.get("s", 1000))
         run_name  = self.kwargs.get("r", "Inference")
 
         # Inference generates folders with the csv file
-        save_path = f'{self.pre_infer()}/{run_name}'
+        save_path = f'{self.pre_infer(build_model=model is None)}/{run_name}'
         self.save_path = save_path
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
@@ -95,21 +96,18 @@ class UnstableDiffusionInferer(Inferer):
         os.mkdir(f'{save_path}/images')
         os.mkdir(f'{save_path}/masks')
         entries = []
+        model = model if model is not None else self.model
 
-        self.model.eval()
+        model.eval()
         in_shape = list(self.config["target_size"])
-        if self.config.get("super_resolution", False):
-            for i in range(len(in_shape)):
-                in_shape[i] = in_shape[i] * 2
         
-        batch_size = 1000
         case_num = 0
         with torch.no_grad():
             for _ in tqdm(range(0,int(np.ceil(num_samples/batch_size))), desc="running_inferences"):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
-                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape)
+                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model)
                 # Binarize the mask
                 xt_im = xt_im.detach().cpu().permute(0,2,3,1)
                 xt_seg = xt_seg.detach().cpu().round().permute(0,2,3,1)
@@ -127,7 +125,9 @@ class UnstableDiffusionInferer(Inferer):
         self.post_infer()
         return xt_im, xt_seg
 
-    def progressive_denoise(self, batch_size, in_shape):
+    def progressive_denoise(self, batch_size, in_shape, model=None):
+        if model is None:
+            model = self.model
         xt_im = torch.randn(
             (
                 batch_size,
@@ -147,7 +147,7 @@ class UnstableDiffusionInferer(Inferer):
         # self.timesteps = 1000
         for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
-            noise_prediction_im, noise_prediciton_seg = self.model(
+            noise_prediction_im, noise_prediciton_seg = model(
                 xt_im, xt_seg, time_tensor
             )
             xt_im, xt_seg = self.forward_diffuser.inference_call(
