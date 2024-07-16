@@ -79,6 +79,24 @@ class UnstableDiffusionTrainer(Trainer):
             
         del self.loss
 
+    def load_checkpoint(self, weights_name) -> None:
+        """
+        Loads network checkpoint onto the DDP model.
+        :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
+        :return: None
+        """
+        assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
+        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
+        # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
+        # one.
+        self._current_epoch = checkpoint["current_epoch"]+1
+        if self.world_size > 1:
+            self.model.module.load_state_dict(checkpoint["weights"])
+        else:
+            self.model.load_state_dict(checkpoint["weights"])
+        self.optim[0].load_state_dict(checkpoint["optim"])
+        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        self._best_val_loss = checkpoint["best_val_loss"]
 
     @override
     def get_augmentations(self) -> Tuple[A.Compose, A.Compose]:
@@ -204,7 +222,7 @@ class UnstableDiffusionTrainer(Trainer):
     def log_discriminator_progress(self, epoch, predicted_real, predicted_fake):
         labels = torch.cat([torch.ones_like(predicted_real), torch.zeros_like(predicted_fake)], dim=0)
         predictions = torch.cat([predicted_real, predicted_fake], dim=0)
-        self.logger.log_scalar("Metrics/DisriminatorLoss", self.gan_loss(predictions, labels), epoch)
+        self.logger.log_scalar(self.gan_loss(predictions, labels), "Metrics/DisriminatorLoss")
 
         predictions = torch.sigmoid(predictions)
         predictions = predictions.detach().cpu().numpy()
@@ -215,7 +233,7 @@ class UnstableDiffusionTrainer(Trainer):
         correct = (predictions == labels).sum()
         total = labels.shape[0]
 
-        self.logger.log_scalar("Metrics/DisriminatorAccuracy", correct/total, epoch)
+        self.logger.log_scalar(correct/total, "Metrics/DisriminatorAccuracy")
 
 
     # noinspection PyTypeChecker

@@ -82,7 +82,7 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_scalar(self, data, title, epoch):
+    def log_scalar(self, data, title):
         raise NotImplementedError("Method not implemented in parent class.")
 
 
@@ -130,8 +130,8 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-    def log_scalar(self, data, title, epoch):
-        self.summary_writer.add_scalar(title, data, epoch)
+    def log_scalar(self, data, title):
+        self.summary_writer.add_scalar(title, data, self.epoch)
         self.summary_writer.flush()
 
     def log_histogram(self, data, title):
@@ -230,7 +230,8 @@ class WandBLogger(Logger):
             id=wandb_id,
             resume="must" if resume else None,
             config=config,
-            mode="online" if isOnline() else "offline"
+            mode="online" if isOnline() else "offline",
+            entity=os.environ.get("WANDB_ENTITY", None)
         )
         self.has_logged_net = False
 
@@ -244,10 +245,10 @@ class WandBLogger(Logger):
         }, step=self.epoch)
         super().epoch_end(train_loss, val_loss, learning_rate, duration)
 
-    def log_scalar(self, data, title, epoch):
+    def log_scalar(self, data, title):
         wandb.log({
             title: data
-        }, step=epoch)
+        }, step=self.epoch)
 
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
         wandb.log({
@@ -282,7 +283,7 @@ class WandBLogger(Logger):
 
     def log_histogram(self, data:dict, title):
         wandb.log({
-            title: wandb.Histogram(sequence=data, num_bins=100)
+            title: wandb.Histogram(sequence=data)
         }, step=self.epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
