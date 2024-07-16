@@ -216,10 +216,11 @@ class WandBLogger(Logger):
             project=dataset_name,
             dir=f"{output_dir}",
             name=name,
-            id=name,
+            id=f"{name}_2",
             resume="must" if os.path.exists(f"{output_dir}/wandb") else None,
             config=config,
-            mode="online" if isOnline() else "offline"
+            mode="online" if isOnline() else "offline",
+            entity=os.environ.get("WANDB_ENTITY", None)
         )
         self.has_logged_net = False
 
