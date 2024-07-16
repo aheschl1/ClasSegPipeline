@@ -268,12 +268,19 @@ class UnstableDiffusionTrainer(Trainer):
 
         all_discriminator_predictions_real = []
         all_discriminator_predictions_fake = []
+        real_data_iterator = iter(self.real_data_val_loader)
 
         for images, segmentations, _ in tqdm(self.val_dataloader):
+
+            real_images, real_segs, _ = next(real_data_iterator)
+            real_images = real_images.to(self.device, non_blocking=True)
+            real_segs = real_segs.to(self.device, non_blocking=True)
+
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
             
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
+            _, _, real_images, real_segs, _ = self.forward_diffuser(real_images, real_segs, t=t-1)
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([noise_im, noise_seg], dim=1))
@@ -281,37 +288,26 @@ class UnstableDiffusionTrainer(Trainer):
             dis_loss = 0.0
             if self.gan_weight > 0:
                 # convert x_t to x_{t-1} and descriminate the goods
-                predicted_im, predicted_seg = self.forward_diffuser.inference_call(
+                predicted_im, _ = self.forward_diffuser.inference_call(
                     images,
                     segmentations,
                     predicted_noise_im,
                     predicted_noise_seg, t, clamp=False, training_time=True
                 )
-                images, segmentations = self.forward_diffuser.inference_call(
-                    images,
-                    segmentations,
-                    noise_im,
-                    noise_seg, t, clamp=False, training_time=True
-                )
                 # Pass both im and seg together
-                predicted_concat = torch.cat([predicted_im, predicted_seg], dim=1)
-                real_concat = torch.cat([images, segmentations], dim=1)
                 t -= 1
                 # Labels for the discriminator
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
+                gen_loss += self.gan_loss(self.model.discriminate(self.dicriminator, predicted_im, t).squeeze(), real_label)
                 # Train discriminator
-                predicted_real = self.model.discriminate(self.dicriminator, real_concat, t).squeeze()
-                predicted_fake = self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze()
-                all_discriminator_predictions_real.extend(predicted_real.tolist())
-                all_discriminator_predictions_fake.extend(predicted_fake.tolist())
-
-                real_loss = self.gan_loss(predicted_real, real_label)
-                fake_loss = self.gan_loss(predicted_fake, fake_label)
+                self.d_optim.zero_grad()
+                real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_images, t).squeeze(), real_label)
+                fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_im.detach(), t).squeeze(), fake_label)
                 # calculate the loss
                 dis_loss += real_loss + fake_loss
+                dis_loss = dis_loss*self.gan_weight
 
             running_loss += (self.gan_weight*dis_loss + self.recon_weight*gen_loss).item() * images.shape[0]
             total_items += images.shape[0]

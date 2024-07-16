@@ -454,10 +454,10 @@ def get_dataloaders_from_fold(dataset_name: str,
     train_points, val_points = get_preprocessed_datapoints(dataset_name, fold, cache=cache) if preprocessed_data \
         else get_raw_datapoints_folded(dataset_name, fold)
     
-    warnings.warn("Mpoving 4000 val to train")
-
-    train_points.extend(val_points[:4000])
-    val_points = val_points[4000:]
+    if dataset_name == "Dataset_large_421":
+        warnings.warn("Disgusting code here: Mpoving 4000 val to train")
+        train_points.extend(val_points[:4000])
+        val_points = val_points[4000:]
 
     train_dataset = PipelineDataset(train_points, dataset_name, train_transforms,
                                     store_metadata=store_metadata)
