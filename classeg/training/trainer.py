@@ -279,7 +279,7 @@ class Trainer:
             if mean_val_loss < self._best_val_loss:
                 if self.device in [0, "cpu"]:
                     log(BEST_EPOCH_CELEBRATION)
-                best_val_loss = mean_val_loss
+                self._best_val_loss = mean_val_loss
                 self._save_checkpoint("best")
             epoch_end_time = time.time()
             if self.device in [0, "cpu"]:
