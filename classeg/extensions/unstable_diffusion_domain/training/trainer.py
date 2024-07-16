@@ -75,7 +75,7 @@ class UnstableDiffusionTrainer(Trainer):
         self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 5
         self.recon_loss, self.gan_loss = self.loss
-        self.recon_weight = self.config.get("recon_weight", 0.5)
+        self.recon_weight = self.config.get("recon_weight", 1)
         self.gan_weight = self.config.get("gan_weight", 0.5)
         self.real_data_train_loader, self.real_data_val_loader = self.get_real_dataloaders()
             
@@ -128,14 +128,14 @@ class UnstableDiffusionTrainer(Trainer):
             [
                 A.HorizontalFlip(),
                 A.VerticalFlip(),
-                A.RandomCrop(width=512, height=512, p=1),
+                # A.RandomCrop(width=512, height=512, p=1),
                 A.Lambda(image=my_resize, mask=my_resize, p=1)
             ],
             is_check_shapes=False
         )
         val_transforms = A.Compose(
             [
-                A.RandomCrop(width=512, height=512, p=1),
+                # A.RandomCrop(width=512, height=512, p=1),
                 A.Lambda(image=my_resize, mask=my_resize, p=1),
                 A.ToFloat()
             ],
@@ -302,7 +302,6 @@ class UnstableDiffusionTrainer(Trainer):
                 # Fool the discriminator
                 gen_loss += self.gan_loss(self.model.discriminate(self.dicriminator, predicted_im, t).squeeze(), real_label)
                 # Train discriminator
-                self.d_optim.zero_grad()
                 real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_images, t).squeeze(), real_label)
                 fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_im.detach(), t).squeeze(), fake_label)
                 # calculate the loss

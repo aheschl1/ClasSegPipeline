@@ -74,7 +74,7 @@ class UnstableDiffusionTrainer(Trainer):
         self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 5
         self.recon_loss, self.gan_loss = self.loss
-        self.recon_weight = self.config.get("recon_weight", 0.5)
+        self.recon_weight = self.config.get("recon_weight", 1)
         self.gan_weight = self.config.get("gan_weight", 0.5)
             
         del self.loss
