@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from overrides import override
 import numpy as np
-from torch.optim.lr_scheduler import StepLR, CyclicLR
+from torch.optim.lr_scheduler import StepLR, CyclicLR, MultiStepLR
 from tqdm import tqdm
 
 from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler, VoidScheduler
@@ -210,8 +210,8 @@ class UnstableDiffusionTrainer(Trainer):
             self.optim.step()
             self.d_optim.step()
             self.diffusion_schedule.step()
-            self.dicriminator_lr_schedule.step()
-            self.lr_scheduler.step()
+            # self.dicriminator_lr_schedule.step()
+            # self.lr_scheduler.step()
 
             # gather data
             running_loss += (gen_loss+dis_loss).item() * images.shape[0]
@@ -317,6 +317,8 @@ class UnstableDiffusionTrainer(Trainer):
             self.logger.log_net_structure(self.model)
         self.diffusion_schedule.step()
         self.dicriminator_lr_schedule.step()
+        # self.lr_scheduler.step()
+
         if epoch % self.infer_every == 0 and epoch > 100:
             self._save_checkpoint(f"epoch_{epoch}")
         if epoch % self.infer_every == 0 and self.device == 0:
@@ -359,7 +361,9 @@ class UnstableDiffusionTrainer(Trainer):
         if optim is None and isinstance(self.optim, tuple):
             optim = self.optim[0]
         # scheduler = StepLR(optim, step_size=120, gamma=0.9)
-        scheduler = CyclicLR(optim, self.config["lr"], self.config["lr"]*5, step_size_up=100, step_size_down=100, cycle_momentum=False)
+        # scheduler = CyclicLR(optim, self.config["lr"], self.config["lr"]*5, step_size_up=100, step_size_down=100, cycle_momentum=False)
+        scheduler = MultiStepLR(optim, milestones=[100, 200, 300, 400, 500, 1000], gamma=0.9)
+
         if self.device == 0:
             log(f"Scheduler being used is {scheduler}")
         return scheduler
