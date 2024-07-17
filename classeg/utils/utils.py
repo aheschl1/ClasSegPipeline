@@ -495,7 +495,8 @@ def get_dataloaders_from_fold(dataset_name: str,
         pin_memory=not cache,
         collate_fn=batch_collate_fn,
         sampler=train_sampler,
-        persistent_workers=True
+        persistent_workers=True,
+        drop_last=kwargs.get('drop_last', False)
     )
 
     val_dataloader = DataLoader(

@@ -91,7 +91,9 @@ class UnstableDiffusionTrainer(Trainer):
             sampler=(None if self.world_size == 1 else DistributedSampler),
             cache=self.cache,
             rank=self.device,
-            world_size=self.world_size
+            world_size=self.world_size,
+            config=self.config,
+            drop_last=True
         )
         return real_data_train, real_data_val
 
@@ -275,8 +277,8 @@ class UnstableDiffusionTrainer(Trainer):
         for images, segmentations, _ in tqdm(self.val_dataloader):
 
             real_images, real_segs, _ = next(real_data_iterator)
-            real_images = real_images.to(self.device, non_blocking=True)
-            real_segs = real_segs.to(self.device, non_blocking=True)
+            real_images = real_images.to(self.device, non_blocking=True)[:images.shape[0],...]
+            real_segs = real_segs.to(self.device, non_blocking=True)[:images.shape[0],...]
 
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
