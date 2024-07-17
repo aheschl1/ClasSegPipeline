@@ -107,7 +107,7 @@ class ExtensionPreprocessor(Preprocessor):
                 continue
             image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
             label = cv2.imread(case.replace("image", "label"))
-            label = cv2.cvtColor(label, cv2.COLOR_BGRA2BGR)
+            label = cv2.cvtColor(label, cv2.COLOR_BGRA2RGB)
             label = label[...,0]
             if np.sum(label) == 0:
                 case_max-=1
