@@ -195,6 +195,8 @@ class UnstableDiffusionTrainer(Trainer):
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([im_noise, seg_noise], dim=1))
+            if self.config.get("realfy", False):
+                predicted_noise_im = self.model.realfy(predicted_noise_im, t)
             dis_loss = 0.0
             if self.gan_weight > 0:
                 # convert x_t to x_{t-1} and descriminate the goods
@@ -288,6 +290,8 @@ class UnstableDiffusionTrainer(Trainer):
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([noise_im, noise_seg], dim=1))
+            if self.config.get("realfy", False):
+                predicted_noise_im = self.model.realfy(predicted_noise_im, t)
             # convert x_t to x_{t-1} and descriminate the goods
             dis_loss = 0.0
             if self.gan_weight > 0:
@@ -358,6 +362,7 @@ class UnstableDiffusionTrainer(Trainer):
         mode = self.config["mode"]
         if mode == "concat":
             model = ConcatDiffusion(
+                realfy=self.config.get("realfy", False),
                 **self.config["model_args"]
             )    
         elif mode == "unstable":
