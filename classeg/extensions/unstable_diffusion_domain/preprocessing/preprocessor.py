@@ -113,6 +113,8 @@ class ExtensionPreprocessor(Preprocessor):
                 case_max-=1
                 continue
             
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
             cv2.imwrite(f"{RAW_ROOT}/{self.dataset_name}/imagesTr/{case_name}.png", image)
             cv2.imwrite(f"{RAW_ROOT}/{self.dataset_name}/labelsTr/{case_name}.png", label)
 
