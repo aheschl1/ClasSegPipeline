@@ -193,18 +193,19 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss += self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
+                gen_loss = gen_loss*self.recon_weight
+                gen_loss += self.gan_weight*self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
                 # Train discriminator
                 self.d_optim.zero_grad()
                 real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
                 fake_loss = self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat.detach(), t).squeeze(), fake_label)
                 # calculate the loss
                 dis_loss += real_loss + fake_loss
-                dis_loss = dis_loss*self.gan_weight
+                # dis_loss = dis_loss*self.gan_weight
                 dis_loss.backward()
 
             # update model
-            gen_loss = gen_loss*self.recon_weight
+            # gen_loss = gen_loss*self.recon_weight
             gen_loss.backward()
         
             self.optim.step()
