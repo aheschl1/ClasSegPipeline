@@ -184,8 +184,8 @@ class UnstableDiffusionTrainer(Trainer):
                 self.logger.log_augmented_image(images[0], mask=segmentations[0].squeeze().numpy())
             
             real_images, real_segs, _ = next(real_data_iterator)
-            real_images = real_images.to(self.device, non_blocking=True)
-            real_segs = real_segs.to(self.device, non_blocking=True)
+            real_images = real_images.to(self.device, non_blocking=True)[:images.shape[0],...]
+            real_segs = real_segs.to(self.device, non_blocking=True)[:images.shape[0],...]
 
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
