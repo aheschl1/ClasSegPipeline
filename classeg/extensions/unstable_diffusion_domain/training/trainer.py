@@ -89,7 +89,7 @@ class UnstableDiffusionTrainer(Trainer):
             train_transforms=train_transforms,
             val_transforms=val_transforms,
             batch_size=self.config["batch_size"],
-            num_workers=self.config["num_workers"]
+            num_workers=self.config["processes"]
         )
         return real_data_train, real_data_val
 
@@ -187,7 +187,7 @@ class UnstableDiffusionTrainer(Trainer):
             segmentations = segmentations.to(self.device)
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
-            _, _, real_images, real_segs, _ = self.forward_diffuser(real_images, real_segs, t=t-1)
+            _, _, real_images, real_segs, _ = self.forward_diffuser(real_images, real_segs, t=(t-1).to("cpu", non_blocking=True))
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([im_noise, seg_noise], dim=1))
@@ -280,7 +280,7 @@ class UnstableDiffusionTrainer(Trainer):
             segmentations = segmentations.to(self.device, non_blocking=True)
             
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
-            _, _, real_images, real_segs, _ = self.forward_diffuser(real_images, real_segs, t=t-1)
+            _, _, real_images, real_segs, _ = self.forward_diffuser(real_images, real_segs, t=(t-1).to("cpu", non_blocking=True))
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([noise_im, noise_seg], dim=1))
