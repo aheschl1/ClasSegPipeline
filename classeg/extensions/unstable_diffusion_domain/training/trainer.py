@@ -226,7 +226,7 @@ class UnstableDiffusionTrainer(Trainer):
         
             self.optim.step()
             self.d_optim.step()
-            self.diffusion_schedule.step()
+            # self.diffusion_schedule.step()
             # self.dicriminator_lr_schedule.step()
             # self.lr_scheduler.step()
 
