@@ -434,6 +434,8 @@ class ConcatDiffusion(nn.Module):
         )
         if realfy:
             self.realfier = self._get_realfier()
+        else:
+            self.realfier = None
 
     def realfy(self, x, t):
         t = self._sinusoidal_embedding(t)

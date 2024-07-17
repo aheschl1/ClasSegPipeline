@@ -15,7 +15,7 @@ from classeg.extensions.unstable_diffusion.forward_diffusers.diffusers import Li
 from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
-from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
+from classeg.extensions.unstable_diffusion_domain.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.unstable_diffusion.preprocessing.bitifier import bitmask_to_label
 from classeg.extensions.super_resolution.inference.inferer import SuperResolutionInferer
 class UnstableDiffusionInferer(Inferer):
@@ -151,6 +151,8 @@ class UnstableDiffusionInferer(Inferer):
             noise_prediction_im, noise_prediciton_seg = model(
                 xt_im, xt_seg, time_tensor
             )
+            if model.realfier is not None:
+                noise_prediction_im = model.realfy(noise_prediction_im, time_tensor)
             xt_im, xt_seg = self.forward_diffuser.inference_call(
                 xt_im,
                 xt_seg,
