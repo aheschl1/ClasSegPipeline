@@ -2,6 +2,7 @@ from typing import Dict
 
 import numpy as np
 from PIL import ImageFile
+from PIL import Image
 from overrides import override
 
 from classeg.preprocessing.preprocessor import Preprocessor
@@ -99,8 +100,8 @@ class ExtensionPreprocessor(Preprocessor):
             case_max += 1
             case_name = get_case_name_from_number(case_max)
             
-            image = cv2.imread(case)
-            image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
+            image = np.array(Image.open(case))
+            image = image[..., 0:3]
             mu, std = np.mean(image[:,:,0]), np.std(image[:,:,0])
             if mu < 50 or mu > 170 or std > 70:
                 # too dark or too bright
