@@ -100,12 +100,12 @@ class ExtensionPreprocessor(Preprocessor):
             case_name = get_case_name_from_number(case_max)
             
             image = cv2.imread(case)
+            image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
             mu, std = np.mean(image[:,:,0]), np.std(image[:,:,0])
             if mu < 50 or mu > 170 or std > 70:
                 # too dark or too bright
                 case_max-=1
                 continue
-            image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
             label = cv2.imread(case.replace("image", "label"))
             label = cv2.cvtColor(label, cv2.COLOR_BGRA2RGB)
             label = label[...,0]
