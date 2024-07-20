@@ -131,6 +131,10 @@ We will allow anonymous authentication. You have a few options to deal with this
 
 Use the ```WANDB_ENTITY``` environment variable to specify the team to log to, if you do not want to use the default.
 Optionally, you can specify ```wandb_entity``` in the rc file. This sets a default value for all runs, and is overriden by the environment variable if provided.
+
+Use the ```WANDB_API_KEY``` environment variable to specify the api key to use, or login manually with ```wandb login```, or by following prompts in your first run.
+Optionally, you can specify ```wandb_api_key``` in the rc file. This sets a default value for all runs, and is overriden by the environment variable if provided.
+
 # Running Preprocessing
 To run preprocessing, you need to run the following command:
 ```classegPreprocess -d <dataset id> -dd <dataset description> -f <number of folds> -ext <extension name>```.

@@ -11,6 +11,8 @@ import wandb
 import socket
 import uuid
 
+from classeg.utils.constants import WANDB_ENTITY, WANDB_API_KEY
+
 
 class Logger:
     def __init__(self, output_dir: str, current_epoch: int = 0) -> None:
@@ -66,11 +68,11 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_graph(self, points: List[Tuple[float, float]], epoch, title="2D Graph"):
+    def log_graph(self, points: List[Tuple[float, float]], title="2D Graph"):
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
@@ -147,25 +149,25 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-    def log_graph(self, points: List[Tuple[float, float]], epoch, title="2D Graph"):
+    def log_graph(self, points: List[Tuple[float, float]], title="2D Graph"):
         fig = plt.figure()
         x_values, y_values = zip(*points)
         plt.plot(x_values, y_values)
-        self.summary_writer.add_figure(title, fig, epoch)
+        self.summary_writer.add_figure(title, fig, self.epoch)
         plt.close(fig)
         self.summary_writer.flush()
 
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         self.summary_writer.add_image(
             "Infered Images",
             image,
-            epoch
+            self.epoch
         )
         for key, value in masks.items():
             self.summary_writer.add_image(
                 f"Infered {key}",
                 value,
-                epoch
+                self.epoch
             )
         self.summary_writer.flush()
 
@@ -201,7 +203,9 @@ class WandBLogger(Logger):
 
         name = output_dir.split("/")[-1]
         wandb.require("core")
-        wandb.login()
+        wandb.login(
+            key=WANDB_API_KEY
+        )
         wandb.init(
             project=dataset_name,
             dir=f"{output_dir}",
@@ -209,7 +213,8 @@ class WandBLogger(Logger):
             id=wandb_id,
             resume="must" if resume else None,
             config=config,
-            mode="online" if isOnline() else "offline"
+            mode="online" if isOnline() else "offline",
+            entity=WANDB_ENTITY
         )
         self.has_logged_net = False
 
@@ -254,16 +259,16 @@ class WandBLogger(Logger):
             "trainable_params": trainable
         }, step=self.epoch)
 
-    def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
+    def log_graph(self, points: List[Tuple[float, float]], x="x", y="y", title="2D Graph"):
         table = wandb.Table(data=points, columns=[x, y])
         wandb.log({
             title: wandb.plot.line(table, x=x, y=y, title=title)
-        }, step=epoch)
+        }, step=self.epoch)
 
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         wandb.log({
-            "infered_image": wandb.Image(image, masks=masks)
-        }, step=epoch)
+            "infered_image": wandb.Image(image, masks={k:{"mask_data":v} for k,v in masks.items()})
+        }, step=self.epoch)
 
     def cleanup(self):
         wandb.finish()

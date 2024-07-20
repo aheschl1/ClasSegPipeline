@@ -103,7 +103,7 @@ class SelfSupervisedTrainer(Trainer):
             batch_size = data.shape[0]
             predictions = self.model(data)
             index = random.randint(0, data.shape[0]-1)
-            self.logger.log_image_infered(predictions[index], epoch, Original=data[index])
+            self.logger.log_image_infered(predictions[index], Original=data[index])
             loss = self.loss(predictions, data)
             running_loss += loss.item() * batch_size
             total_items += batch_size
