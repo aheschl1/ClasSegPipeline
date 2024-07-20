@@ -44,6 +44,9 @@ These are used to keep the codebase clean and to allow for easy switching betwee
    1) One codebase for multiple tasks and flows
 5) DDP Training (even with custom trainers)
 6) K-Fold training and validation
+7) In Development
+   1) React UI for dataset exploration, setup, and training
+   2) Main development under the ui branch
 
 # How to setup a dataset for preprocessing and trianing?
 
@@ -144,3 +147,16 @@ Run ```classegPreprocess --help``` for more info.
 This portion is going to face a lot of changes in the future. For now, you can run inference with the following command:
 ```classegInfer -d <dataset id> -f <fold to infer> -ext <extension name> -i <input_folder>``` What happens if you are SSL and have no input? Too bad. Put something random for -i.
 Run ```classegInfer --help``` for more details, and up to date information.
+
+# Running the UI
+The UI is under development. To run it, use the following command:
+
+```classegRunUI```
+
+The first time that you use this, run with the --install flag to install the npm project.
+
+```classegRunUI --install```
+
+To get the most recent UI, checkout the ui branch.
+
+```git checkout ui; git pull```
