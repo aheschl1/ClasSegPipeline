@@ -16,6 +16,8 @@ from classeg.inference.inferer import Inferer
 from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
+from classeg.extensions.unstable_diffusion.model.concat_diffusion import ConcatDiffusion
+
 from classeg.extensions.unstable_diffusion.preprocessing.bitifier import bitmask_to_label
 from classeg.extensions.super_resolution.inference.inferer import SuperResolutionInferer
 class UnstableDiffusionInferer(Inferer):
@@ -51,10 +53,17 @@ class UnstableDiffusionInferer(Inferer):
         if self.model is not None:
             return self.model
         
-        model = UnstableDiffusion(
-            **self.config["model_args"], 
-            super_resolution=self.config.get("super_resolution", False)
-        )
+        mode = self.config["mode"]
+        if mode == "concat":
+            model = ConcatDiffusion(
+                **self.config["model_args"]
+            )    
+        elif mode == "unstable":
+            model = UnstableDiffusion(
+                **self.config["model_args"]
+            )
+        else:
+            raise ValueError("You must set mode to unstable or concat.")
         return model.to(self.device)
 
     def infer_single_sample(self, image: torch.Tensor, datapoint: Datapoint) -> None:
