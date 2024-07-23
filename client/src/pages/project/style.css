@@ -1,0 +1,55 @@
+.parent{
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    margin: 10px;
+}
+
+.contentBlock{
+    border: 1px solid black;
+    border-radius: 2px;
+    padding: 0 0 0 10px;
+    margin: 3px;
+    text-align: right;
+    display: grid;
+    grid-template-columns: 8fr 1fr;
+    justify-content: flex-end;
+    top: 0;
+    left: 0;
+}
+
+.contentBlockE{
+    border: 1px solid black;
+    border-radius: 2px;
+    padding: 0 0 0 10px;
+    margin: 3px;
+    text-align: right;
+    display: grid;
+    grid-template-columns: 100fr 1fr;
+    justify-content: flex-end;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+
+
+#expandButton{
+    margin: 0px 0 10px 10px;
+    padding: 10px;
+
+    border-left: 1px solid black;
+    border-right: none;
+    border-bottom: none;
+    border-top: none;
+
+    border-radius: 0;
+    background-color: #ffffff;
+    cursor: pointer;
+    height:100%;
+    position: relative;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: min-content;
+}

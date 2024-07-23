@@ -25,3 +25,4 @@ wandb
 onnx
 torchmetrics
 flask
+flask_cors

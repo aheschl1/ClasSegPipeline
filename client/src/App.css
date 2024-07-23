@@ -1,9 +1,3 @@
 .App {
   text-align: center;
 }
-
-.ProjectTiles{
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-}

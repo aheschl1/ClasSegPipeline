@@ -74,6 +74,7 @@ def get_preprocessor_from_extension(extension: Union[str, None], dataset_name: U
     preprocessor_class = import_from_recursive(f"classeg.extensions.{extension}.preprocessing", preprocessor_name)
     return preprocessor_class
 
+
 def is_online():
     try:
         # connect to the host -- tells us if the host is actually
@@ -83,6 +84,7 @@ def is_online():
     except OSError:
         pass
     return False
+
 
 def get_inferer_from_extension(extension: Union[str, None], dataset_name: Union[str, None] = None) -> Any:
     """
@@ -429,7 +431,7 @@ def get_dataloaders_from_fold(dataset_name: str,
                               store_metadata: bool = False,
                               config=None,
                               cache=False,
-                              sampler = None,
+                              sampler=None,
                               **kwargs) -> Tuple[DataLoader, DataLoader]:
     """
     Returns the train and val dataloaders for a specific dataset fold.
@@ -475,7 +477,8 @@ def get_dataloaders_from_fold(dataset_name: str,
             samples_weight = torch.from_numpy(samples_weight)
             train_sampler = WeightedRandomSampler(samples_weight.type('torch.DoubleTensor'), len(samples_weight))
         else:
-            warnings.warn(f"Unsupported sampler type {type(kwargs['sampler'])}. Note you should pass the type, not an instance.")
+            warnings.warn(
+                f"Unsupported sampler type {type(kwargs['sampler'])}. Note you should pass the type, not an instance.")
 
     batch_size = kwargs.get('batch_size', config['batch_size'])
     if 'world_size' in kwargs:
@@ -515,3 +518,44 @@ def get_case_name_from_number(c: int) -> str:
     c = str(c)
     zeros = '0' * (5 - len(c))
     return f"case_{zeros}{c}"
+
+
+def get_datapoint_from_dataset_and_case(dataset_name: str, case: int, preprocessed=True) -> Datapoint:
+    """
+    Given a dataset name and case number, returns the datapoint.
+    :param dataset_name: The name of the dataset.
+    :param case: The case number.
+    :param preprocessed: If true, will fetch preprocessed data, otherwise raw data.
+    :return: The datapoint.
+    """
+    case_name = get_case_name_from_number(case)
+    mode = get_dataset_mode_from_name(dataset_name)
+    dataset_root_b = f"{RAW_ROOT if not preprocessed else PREPROCESSED_ROOT}/{dataset_name}"
+    for set in ["train", "val"]:
+        if preprocessed:
+            dataset_root = f"{dataset_root_b}/fold_0/{set}"
+        else:
+            dataset_root = dataset_root_b
+        if mode == SEGMENTATION:
+            sample_paths = glob.glob(f"{dataset_root}/imagesTr/*")
+        elif mode == CLASSIFICATION:
+            sample_paths = glob.glob(f"{dataset_root}/**/*", recursive=True)
+        else:
+            sample_paths = glob.glob(f"{dataset_root}/*")
+        path = [x for x in sample_paths if case_name in x]
+        if len(path) >= 1:
+            path = path[0]
+            break
+    if mode == SEGMENTATION:
+        label = path.replace("imagesTr", "labelsTr")
+    elif mode == CLASSIFICATION:
+        label = path.split("/")[-2]
+    else:
+        label = None
+
+    return Datapoint(
+        path,
+        label,
+        case_name=case_name,
+        dataset_name=dataset_name
+    )
