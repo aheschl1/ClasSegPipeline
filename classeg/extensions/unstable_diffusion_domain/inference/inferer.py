@@ -53,6 +53,7 @@ class UnstableDiffusionInferer(Inferer):
         
         model = UnstableDiffusion(
             **self.config["model_args"], 
+            realfy=self.config.get("realfy", False),
             super_resolution=self.config.get("super_resolution", False)
         )
         return model.to(self.device)
