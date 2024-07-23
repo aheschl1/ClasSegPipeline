@@ -43,3 +43,21 @@ def get_preprocessed(project_id, case):
     image, _ = point.get_data()
     path = cache_array_as_image(image)
     return send_file(path)
+
+
+@app.route('/projects/<project_id>/experiments')
+@cross_origin()
+def get_experiments(project_id):
+    project = Project(project_id)
+    experiments = project.get_experiments()
+    return experiments
+
+
+@app.route('/projects/<project_id>/experiments/<experiment_id>')
+@cross_origin()
+def get_experiment(project_id, experiment_id):
+    project = Project(project_id)
+    experiments = project.get_experiments()
+    print(experiments, experiment_id)
+    experiment = [x for x in experiments if x['name'] == experiment_id][0]
+    return experiment

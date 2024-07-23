@@ -41,7 +41,9 @@ export default function ProjectPage(props){
                 </ImageView>
             </ContentBlock>
             <ContentBlock className={experimentsExpanded ? "contentBlockE" : "contentBlock"} expand={()=>setExperimentsExpanded(!experimentsExpanded)}>
-                <Experiments/>
+                <Experiments project={project}>
+                    <p style={{"text-align": "center"}}>Experiments</p>
+                </Experiments>
             </ContentBlock>
         </div>
     </>

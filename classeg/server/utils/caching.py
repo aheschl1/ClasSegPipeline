@@ -14,7 +14,6 @@ if not os.path.exists(os.path.expanduser("~/.classeg_cache")):
 
 
 def _clear_cache():
-    time.sleep(10+random.randint(0, 10))
     shutil.rmtree(os.path.expanduser("~/.classeg_cache"), ignore_errors=True)
     os.makedirs(os.path.expanduser("~/.classeg_cache"))
 

@@ -1,14 +1,12 @@
 import glob
-import os
+import os.path
 
-import numpy as np
-from PIL import Image
-
-from classeg.dataloading.datapoint import Datapoint
+from classeg.server.utils.results import get_experiments_from_dataset
 from classeg.utils.constants import *
 from classeg.utils.utils import (
-    get_dataset_mode_from_name, get_case_name_from_number, get_datapoint_from_dataset_and_case
+    get_dataset_mode_from_name, get_datapoint_from_dataset_and_case
 )
+
 
 class Project:
     def __init__(self, dataset_name):
@@ -22,9 +20,12 @@ class Project:
         folds = glob.glob(f"{root}/*")
         count = 0
         for fold in folds:
-            results = glob.glob(f"{fold}/*")
+            results = [x for x in glob.glob(f"{fold}/*") if os.path.isdir(x)]
             count += len(results)
         return count
+
+    def get_experiments(self):
+        return get_experiments_from_dataset(self.dataset_name)
 
     def get_sample_point(self, case: int, preprocessed: bool):
         return get_datapoint_from_dataset_and_case(self.dataset_name, case, preprocessed=preprocessed)

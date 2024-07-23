@@ -1,9 +1,27 @@
 import './style.css'
+import {useExperiments} from "../../../hooks/experiments";
+import {useNavigate} from "react-router-dom";
+
+const inspectExperiment = ()=>{
+
+}
 
 export default function Experiments(props) {
+    let {project} = props
+    let experiments = useExperiments(project)
+    let navigate = useNavigate()
+
     return (
-        <div className="Experiments">
-            <h1>Experiments</h1>
+        <div>
+            {props.children}
+            {experiments.map((experiment, i) => {
+                return <div key={i} className="experiment">
+                    <p>{`Name: ${experiment.name}`}</p>
+                    <p>{`Fold: ${experiment.fold}`}</p>
+                    <p>{`Checkpoints: ${experiment.checkpoints.length}`}</p>
+                    <button onClick={()=>navigate(`/projects/${project.name}/experiments/${experiment.name}`)}>Inspect</button>
+                </div>
+            })}
         </div>
     )
 }
