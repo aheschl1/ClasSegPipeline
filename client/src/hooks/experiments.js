@@ -13,7 +13,7 @@ export function useExperiments(project){
     return experiments;
 }
 
-export function useExperiment(project, experiment){
+export function useExperiment(dataset, experiment){
     let [experimentData, setExperimentData] = useState({
         name: "",
         fold: "",
@@ -21,14 +21,11 @@ export function useExperiment(project, experiment){
     })
 
     useEffect(()=>{
-        if (project === undefined){
-            return
-        }
-        fetch(`http://localhost:3001/projects/${project.name}/experiments/${experiment.name}`)
+        fetch(`http://localhost:3001/projects/${dataset}/experiments/${experiment}`)
             .then(response => response.json())
             .then(data => setExperimentData(data))
             .catch(error => console.error('Error:', error));
-    }, [project, experiment]);
+    }, [dataset, experiment]);
 
     return experimentData;
 }

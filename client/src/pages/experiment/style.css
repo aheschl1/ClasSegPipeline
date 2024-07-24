@@ -1,0 +1,23 @@
+.textBox, .textBoxScrollable {
+    padding: 10px 10px 10px 10px;
+    border: 1px solid black;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin: 10px;
+    resize: vertical;
+}
+
+.textBox {
+    width: min-content;
+    height: min-content;
+}
+
+.textBoxScrollable {
+    overflow-y: scroll;
+}
+
+.topRow {
+    display: grid;
+    grid-template-columns: min-content 1fr;
+    align-items: start;
+}

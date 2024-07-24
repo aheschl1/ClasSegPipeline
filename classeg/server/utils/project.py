@@ -1,7 +1,7 @@
 import glob
 import os.path
 
-from classeg.server.utils.results import get_experiments_from_dataset
+from classeg.server.utils.results import get_experiments_from_dataset, get_experiment_from_dataset
 from classeg.utils.constants import *
 from classeg.utils.utils import (
     get_dataset_mode_from_name, get_datapoint_from_dataset_and_case
@@ -26,6 +26,9 @@ class Project:
 
     def get_experiments(self):
         return get_experiments_from_dataset(self.dataset_name)
+
+    def get_experiment(self, experiment_id):
+        return get_experiment_from_dataset(self.dataset_name, experiment_id)
 
     def get_sample_point(self, case: int, preprocessed: bool):
         return get_datapoint_from_dataset_and_case(self.dataset_name, case, preprocessed=preprocessed)
