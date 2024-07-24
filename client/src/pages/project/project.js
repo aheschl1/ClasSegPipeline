@@ -14,7 +14,7 @@ const ContentBlock = (props)=>{
     </div>
 }
 
-const LOAD_COUNT= 3;
+const LOAD_COUNT= 6;
 
 export default function ProjectPage(props){
     let {dataset} = useParams()
@@ -30,17 +30,29 @@ export default function ProjectPage(props){
     return <>
         <Navbar/>
         <div className="parent">
-            <ContentBlock className={rawExpanded ? "contentBlockE" : "contentBlock"} expand={()=>setRawExpanded(!rawExpanded)}>
-                <ImageView project={project} load_count={LOAD_COUNT} preprocessed={false}>
+            <ContentBlock className={rawExpanded ? "contentBlockE" : "contentBlock"} expand={()=> {
+                setRawExpanded(!rawExpanded)
+                setPreprocessedExpanded(false)
+                setExperimentsExpanded(false)
+            }}>
+                <ImageView project={project} load_count={!rawExpanded ? LOAD_COUNT : LOAD_COUNT*2} preprocessed={false} expanded={rawExpanded}>
                     <p style={{"text-align": "center"}}>Raw Images</p>
                 </ImageView>
             </ContentBlock>
-            <ContentBlock className={preprocessedExpanded ? "contentBlockE" : "contentBlock"} expand={()=>setPreprocessedExpanded(!preprocessedExpanded)}>
-                <ImageView project={project} load_count={LOAD_COUNT} preprocessed={true}>
+            <ContentBlock className={preprocessedExpanded ? "contentBlockE" : "contentBlock"} expand={()=> {
+                setPreprocessedExpanded(!preprocessedExpanded);
+                setRawExpanded(false);
+                setExperimentsExpanded(false)
+            }}>
+                <ImageView project={project} load_count={!preprocessedExpanded ? LOAD_COUNT : LOAD_COUNT*2} preprocessed={true} expanded={preprocessedExpanded}>
                     <p style={{"text-align": "center"}}>Preprocessed Images</p>
                 </ImageView>
             </ContentBlock>
-            <ContentBlock className={experimentsExpanded ? "contentBlockE" : "contentBlock"} expand={()=>setExperimentsExpanded(!experimentsExpanded)}>
+            <ContentBlock className={experimentsExpanded ? "contentBlockE" : "contentBlock"} expand={()=> {
+                setExperimentsExpanded(!experimentsExpanded)
+                setRawExpanded(false)
+                setPreprocessedExpanded(false)
+            }}>
                 <Experiments project={project}>
                     <p style={{"text-align": "center"}}>Experiments</p>
                 </Experiments>

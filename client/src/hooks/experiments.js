@@ -14,11 +14,7 @@ export function useExperiments(project){
 }
 
 export function useExperiment(dataset, experiment){
-    let [experimentData, setExperimentData] = useState({
-        name: "",
-        fold: "",
-        checkpoints: []
-    })
+    let [experimentData, setExperimentData] = useState(undefined)
 
     useEffect(()=>{
         fetch(`http://localhost:3001/projects/${dataset}/experiments/${experiment}`)

@@ -1,3 +1,5 @@
+import os.path
+
 from flask import Flask, send_file
 from flask_cors import CORS, cross_origin
 
@@ -58,3 +60,10 @@ def get_experiments(project_id):
 def get_experiment(project_id, experiment_id):
     project = Project(project_id)
     return project.get_experiment(experiment_id)
+
+
+@app.route("/README.md")
+@cross_origin()
+def get_readme():
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    return send_file(f"{repo_root}/README.md")

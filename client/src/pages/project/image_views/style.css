@@ -8,6 +8,17 @@ img{
 
 .imageContainer{
     display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 8px;
+    justify-content: center;
+}
+
+.imageContainerE{
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+
+.p{
+    display: grid;
     grid-template-columns: 1fr;
     grid-gap: 8px;
     justify-content: center;

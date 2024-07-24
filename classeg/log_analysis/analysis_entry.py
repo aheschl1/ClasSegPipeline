@@ -28,6 +28,9 @@ class Analysis:
         # Convert the dictionary values to a list of lists
         self.grouped_logs = list(grouped_analyzers.values())
 
+    def get_analyzers(self):
+        return self.logs
+
     @staticmethod
     def _get_logs(folders):
         """
@@ -36,12 +39,12 @@ class Analysis:
         """
         logs = []
         for folder in folders:
-            time_stamp = folder.split('/')[-1]
+            name = folder.split('/')[-1]
             log_path = f"{folder}/logs.txt"
             if not os.path.exists(log_path):
                 print(f"No log file found in {folder}.")
             try:
-                logs.append(LogAnalyzer(log_path, time_stamp))
+                logs.append(LogAnalyzer(log_path, name))
             except Exception as e:
                 print(f"Skipping {log_path}. Likely incomplete log.")
         return logs
@@ -59,7 +62,7 @@ class Analysis:
     @staticmethod
     def _analyze_group(logs):
         constant_columns = ['Best Accuracy', 'Best Loss', 'Best Epoch', 'Mean Time (S)',
-                            'Total Params', 'Untrainable Params', 'Criterion', 'Optimizer', 'Timestamp', 'GPU Count']
+                            'Total Params', 'Untrainable Params', 'Criterion', 'Optimizer', 'Name', 'GPU Count']
         other_columns = list(logs[0].discriminating_args.keys())
         columns = constant_columns + other_columns
         df = pd.DataFrame(columns=columns)
@@ -72,7 +75,7 @@ class Analysis:
                    'Untrainable Params': log.untrainable_params,
                    'Criterion': log.loss_fn,
                    'Optimizer': log.optim,
-                   'Timestamp': log.time_stamp,
+                   'Name': log.name,
                    'GPU Count': log.gpu_count
                    }
             row.update(log.discriminating_args)
