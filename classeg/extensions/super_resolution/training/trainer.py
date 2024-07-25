@@ -105,7 +105,7 @@ class UnstableDiffusionTrainer(Trainer):
         log_image = epoch % 10 == 0
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
-            self.optim.zero_grad()
+            self.optim.zero_grad(set_to_none=True)
             if log_image:
                 self.logger.log_augmented_image(np.array(images[0].permute(1, 2, 0)), np.array(segmentations[0].squeeze()))
             images = images.to(self.device, non_blocking=True)
