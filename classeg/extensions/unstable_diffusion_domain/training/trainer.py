@@ -21,6 +21,7 @@ from classeg.extensions.unstable_diffusion_domain.utils.utils import (
 )
 import torch.nn.functional as F
 import os
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 class ForkedPdb(pdb.Pdb):
     """
@@ -70,7 +71,10 @@ class UnstableDiffusionTrainer(Trainer):
             self.dicriminator_lr_schedule.load_state_dict(state['dicriminator_lr_schedule'])
             self.d_optim.load_state_dict(state['d_optim'])
             if self.dicriminator is not None:
-                self.dicriminator.load_state_dict(state['discriminator'])
+                if self.world_size > 1:
+                    self.dicriminator.module.load_state_dict(state['discriminator'])
+                else:
+                    self.dicriminator.load_state_dict(state['discriminator'])
 
         self._instantiate_inferer(self.dataset_name, fold, unique_folder_name)
         self.infer_every: int = 5
@@ -104,7 +108,7 @@ class UnstableDiffusionTrainer(Trainer):
         :return: None
         """
         assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
-        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
+        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth", map_location=self.device)
         # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
         # one.
         self._current_epoch = checkpoint["current_epoch"]+1
@@ -152,13 +156,15 @@ class UnstableDiffusionTrainer(Trainer):
 
 
     def get_extra_checkpoint_data(self) -> torch.Dict[str, Any] | None:
-        return {
+        cp = {
             "diffusion_schedule": self.diffusion_schedule.state_dict(),
             "dicriminator_lr_schedule": self.dicriminator_lr_schedule.state_dict(),
             "d_optim": self.d_optim.state_dict(),
-            "discriminator": self.dicriminator.state_dict()
         }
-
+        if self.world_size > 1:
+            cp["discriminator"] = self.dicriminator.module.state_dict()
+        else:
+            cp["discriminator"] = self.dicriminator.state_dict()
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -371,7 +377,10 @@ class UnstableDiffusionTrainer(Trainer):
             )
         else:
             raise ValueError("You must set mode to unstable or concat.")
-        self.dicriminator = model.get_discriminator().to(self.device)
+        self.dicriminator = model.get_discriminator()
+        if self.world_size > 1:
+            self.dicriminator = DDP(self.dicriminator, device_ids=[self.device])
+        self.dicriminator = self.dicriminator.to(self.device)
         return model.to(self.device)
 
     def get_lr_scheduler(self, optim=None):
