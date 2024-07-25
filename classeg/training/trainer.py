@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from classeg.logging.logging import TensorboardLogger, WandBLogger
+from classeg.training.logging.logging import TensorboardLogger, WandBLogger
 from classeg.utils.constants import *
 from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json
 from classeg.utils.utils import write_json

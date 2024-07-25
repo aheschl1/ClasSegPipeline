@@ -33,13 +33,15 @@ setup(
         "wandb",
         "onnx",
         "torchmetrics",
+        "flask"
     ],
     entry_points={
         'console_scripts': [
             "classegPreprocess=classeg.cli.preprocess_entry:main",
             "classegTrain=classeg.cli.training_entry:main",
             "classegCreateExtension=classeg.cli.create_extension:main",
-            "classegInference=classeg.cli.inference_entry:main"
+            "classegInference=classeg.cli.inference_entry:main",
+            "classegRunUI=classeg.cli.run_ui:main"
         ]
     },
     packages=find_packages(),
