@@ -47,7 +47,7 @@ class Trainer:
     """
 
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
-                 config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1):
+                 config_name: str, resume: bool = False, cache: bool = False, world_size: int = 1, **_):
         """
         Initializes the Trainer class.
 
@@ -64,13 +64,14 @@ class Trainer:
         if not torch.cuda.is_available():
             if world_size > 1:
                 raise SystemExit("Distributed training is not supported on CPU, and no GPU is available.")
-            warnings.warn("Training on CPU is not recommended, but not GPU is available!")
+            warnings.warn("Training on CPU is not recommended, but no GPU is available!")
             gpu_id = "cpu"
         self.cache = cache
         self.dataset_name = dataset_name
         self.mode = get_dataset_mode_from_name(self.dataset_name)
         self.fold = fold
         self.world_size = world_size
+        self._is_logger = gpu_id in [0, "cpu"]
         self.device = gpu_id
         self.resume = resume
         self.config_name = config_name
@@ -83,7 +84,7 @@ class Trainer:
         self.logger = TensorboardLogger(self.output_dir) if LOGGER_TYPE == TENSORBOARD else \
             WandBLogger(self.output_dir, dataset_name=self.dataset_name, config=self.config)
         self._assert_preprocess_ready_for_train()
-        if gpu_id in [0, "cpu"]:
+        if self._is_logger:
             log("Config:", self.config)
         self.seperator = (
             "======================================================================="
@@ -96,10 +97,12 @@ class Trainer:
         self.model = self.get_model(model_path).to(self.device)
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[gpu_id])
+        if COMPILE:
+            self.model = torch.compile(self.model)
         self.loss = self.get_loss()
         self.optim: torch.optim = self.get_optim()
         self.lr_scheduler = self.get_lr_scheduler()
-        if self.device in [0, "cpu"]:
+        if self._is_logger:
             log(f"Optim being used is {self.optim}")
         self._save_self_file()
         if resume:
@@ -107,7 +110,7 @@ class Trainer:
             log(f"Successfully loaded epochs info on rank {self.device}. Starting at {self._current_epoch}")
         # -1 because we increment the epoch by 1 when loading the checkpoint
         self.logger.set_current_epoch(self._current_epoch+1)
-        if self.device in [0, "cpu"]:
+        if self._is_logger:
             all_params = sum(param.numel() for param in self.model.parameters())
             trainable_params = sum(
                 p.numel() for p in self.model.parameters() if p.requires_grad
@@ -155,7 +158,7 @@ class Trainer:
         output_dir = f"{RESULTS_ROOT}/{self.dataset_name}/fold_{self.fold}/{session_id}"
         os.makedirs(output_dir, exist_ok=True)
         logging.basicConfig(level=logging.INFO, filename=f"{output_dir}/logs.txt", force=True)
-        if self.device in [0, "cpu"]:
+        if self._is_logger:
             print(f"Sending logging and outputs to {output_dir}")
         return output_dir
 
@@ -241,6 +244,7 @@ class Trainer:
         """
         Starts the training process.
         """
+        torch.backends.cudnn.benchmark = True
         epochs = self.config["epochs"]
         start_time = time.time()
         # last values to show change
@@ -253,18 +257,18 @@ class Trainer:
             if self.world_size > 1:
                 self.train_dataloader.sampler.set_epoch(epoch)
                 self.val_dataloader.sampler.set_epoch(epoch)
-            if self.device in [0, "cpu"]:
+            if self._is_logger:
                 log(self.seperator)
                 log(f"Epoch {epoch+1}/{epochs} running...")
                 if epoch == 0 and self.world_size > 1:
-                    log("First epochs will be slow due to loading forking workers in ddp.")
+                    log("First epochs will be slow due to forking workers in ddp.")
             self.model.train()
             mean_train_loss = self.train_single_epoch(epoch)
             self.model.eval()
             with torch.no_grad():
                 mean_val_loss = self.eval_single_epoch(epoch)
             self._save_checkpoint("latest")  # saving model every epoch
-            if self.device in [0, "cpu"]:
+            if self._is_logger:
                 log("Learning rate: ", self.lr_scheduler.optimizer.param_groups[0]["lr"])
                 log(f"Train loss: {mean_train_loss} --change-- {mean_train_loss - last_train_loss}")
                 log(f"Val loss: {mean_val_loss} --change-- {mean_val_loss - last_val_loss}")
@@ -277,13 +281,13 @@ class Trainer:
             last_val_loss = mean_val_loss
             # If best model, save!
             if mean_val_loss < self._best_val_loss:
-                if self.device in [0, "cpu"]:
+                if self._is_logger:
                     log(BEST_EPOCH_CELEBRATION)
                 self._best_val_loss = mean_val_loss
                 self._save_checkpoint("best")
             epoch_end_time = time.time()
-            if self.device in [0, "cpu"]:
-                log(f"Process {self.device} took {epoch_end_time - epoch_start_time} seconds.")
+            log(f"Process {self.device} took {epoch_end_time - epoch_start_time} seconds.")
+            if self._is_logger:
                 self.logger.epoch_end(
                     mean_train_loss,
                     mean_val_loss,
@@ -294,14 +298,11 @@ class Trainer:
             if self.world_size > 1:
                 dist.barrier()
 
-        # Now training is completed, print some stuff
-        if self.world_size > 1:
-            dist.barrier()
         self._save_checkpoint("final")  # save the final weights
         self.post_training()
         end_time = time.time()
         seconds_taken = end_time - start_time
-        if self.device in [0, "cpu"]:
+        if self._is_logger:
             log(self.seperator)
             log(f"Finished training {epochs} epochs.")
             log(f"{seconds_taken} seconds")
@@ -315,7 +316,7 @@ class Trainer:
 
         :param save_name: The name of the checkpoint to save.
         """
-        if self.device in [0, "cpu"]:
+        if self._is_logger:
             checkpoint = {}
             path = f"{self.output_dir}/{save_name}.pth"
             if self.world_size > 1:
@@ -337,7 +338,7 @@ class Trainer:
         :return: None
         """
         assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
-        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
+        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth", map_location=self.device)
         # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
         # one.
         self._current_epoch = checkpoint["current_epoch"]+1
@@ -356,7 +357,7 @@ class Trainer:
         :return: Learning rate scheduler.
         """
         scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
-        if self.device in [0, "cpu"]:
+        if self._is_logger:
             log(f"Scheduler being used is {scheduler}")
         return scheduler
 
@@ -367,13 +368,20 @@ class Trainer:
         :return: Optimizer object.
         """
         from torch.optim import Adam
-
-        optim = Adam(
-            self.model.parameters(),
-            lr=self.config["lr"],
-            weight_decay=self.config.get('weight_decay', 0)
-            # momentum=self.config.get('momentum', 0)
-        )
+        from torch.distributed.optim import ZeroRedundancyOptimizer
+        if self.world_size > 1:
+            optim = ZeroRedundancyOptimizer(
+                self.model.parameters(),
+                optimizer_class=Adam,
+                lr=self.config["lr"],
+                weight_decay=self.config.get('weight_decay', 0)
+            )
+        else:
+            optim = Adam(
+                self.model.parameters(),
+                lr=self.config["lr"],
+                weight_decay=self.config.get('weight_decay', 0)
+            )
         return optim
 
     def get_model(self, path: str) -> nn.Module:

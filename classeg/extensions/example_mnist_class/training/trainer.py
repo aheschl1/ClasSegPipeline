@@ -79,7 +79,7 @@ class ClassificationTrainer(Trainer):
         # ForkedPdb().set_trace()
         log_image = epoch % 10 == 0
         for data, labels, _ in tqdm(self.train_dataloader):
-            self.optim.zero_grad()
+            self.optim.zero_grad(set_to_none=True)
             if log_image:
                 self.logger.log_augmented_image(data[0])
             labels = labels.to(self.device, non_blocking=True)

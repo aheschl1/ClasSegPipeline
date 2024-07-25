@@ -71,7 +71,7 @@ class SegmentationTrainer(Trainer):
         # ForkedPdb().set_trace()
         log_image = epoch % 10 == 0
         for data, labels, _ in tqdm.tqdm(self.train_dataloader):
-            self.optim.zero_grad()
+            self.optim.zero_grad(set_to_none=True)
             if log_image:
                 self.logger.log_augmented_image(data[0], mask=labels[0].squeeze().cpu().numpy())
             labels = labels.to(self.device, non_blocking=True)
