@@ -160,7 +160,7 @@ class UnstableDiffusionTrainer(Trainer):
         print(f"Max t sample is {self.diffusion_schedule.compute_max_at_step(self.diffusion_schedule._step)}")
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
-            self.optim.zero_grad()
+            self.optim.zero_grad(set_none=True)
             if log_image:
                 self.logger.log_augmented_image(images[0], mask=segmentations[0].squeeze().numpy())
             images = images.to(self.device, non_blocking=True)
