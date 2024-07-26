@@ -37,7 +37,8 @@ class UnstableDiffusionInferer(Inferer):
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.ddim = os.environ.get("DDIM", False) in ["True", "true", "1"]
-        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=self.ddim)
+        self.step = 2 if self.ddim else 1
+        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=self.ddim, timesteps=self.config["max_timestep"]//self.step)
         self.timesteps = self.config["max_timestep"]
         self.kwargs = kwargs
         self.dataset_id = dataset_id
@@ -118,7 +119,7 @@ class UnstableDiffusionInferer(Inferer):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
-                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model, jump=2 if self.ddim else 1)
+                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model)
                 # Binarize the mask
                 xt_im = xt_im.detach().cpu().permute(0,2,3,1)
                 xt_seg = xt_seg.detach().cpu().permute(0,2,3,1)
@@ -136,7 +137,7 @@ class UnstableDiffusionInferer(Inferer):
         self.post_infer()
         return xt_im, xt_seg
 
-    def progressive_denoise(self, batch_size, in_shape, model=None, jump=1):
+    def progressive_denoise(self, batch_size, in_shape, model=None):
         if model is None:
             model = self.model
         xt_im = torch.randn(
@@ -156,7 +157,9 @@ class UnstableDiffusionInferer(Inferer):
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
         # self.timesteps = 1
-        for t in tqdm(range(self.timesteps - 1, -1, -jump), desc="running inference"):
+        i = 0
+        for t in tqdm(range(self.timesteps - 1, -1, -self.step), desc="running inference"):
+            i += 1
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             noise_prediction_im, noise_prediciton_seg = model(
                 xt_im, xt_seg, time_tensor
@@ -168,7 +171,8 @@ class UnstableDiffusionInferer(Inferer):
                 noise_prediciton_seg,
                 t,
                 clamp=False,
-                jump=jump,
+                jump=self.step,
+                i=i
             )
         return xt_im, xt_seg
     def post_infer(self):
