@@ -1,8 +1,9 @@
 import datetime
 import glob
-import importlib
+import logging
 import os.path
 import shutil
+import socketserver
 import warnings
 from multiprocessing.shared_memory import SharedMemory
 from typing import Type, List
@@ -11,9 +12,10 @@ import click
 import multiprocessing_logging
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group, destroy_process_group
+
 from classeg.training.trainer import Trainer
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataset_name_from_id, import_from_recursive, get_dataset_mode_from_name, \
+from classeg.utils.utils import get_dataset_name_from_id, get_dataset_mode_from_name, \
     get_preprocessed_datapoints, get_trainer_from_extension
 
 
@@ -29,15 +31,22 @@ def cleanup(dataset_name, fold, cache):
             ...
 
 
-def setup_ddp(rank: int, world_size: int) -> None:
+def _get_free_port() -> str:
+    with socketserver.TCPServer(("localhost", 0), None) as s:
+        free_port = s.server_address[1]
+    return str(free_port)
+
+
+def setup_ddp(rank: int, world_size: int, port: str) -> None:
     """
     Prepares the ddp on a specific process.
     :param rank: The device we are initializing.
     :param world_size: The total number of devices.
+    :param port: The port to use for communication.
     :return: None
     """
     os.environ['MASTER_ADDR'] = "localhost"
-    os.environ['MASTER_PORT'] = "12345"
+    os.environ['MASTER_PORT'] = port
     init_process_group(backend='nccl', rank=rank, world_size=world_size)
 
 
@@ -45,7 +54,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
                  fold: int, model: str,
                  session_id: str, resume: bool,
                  config: str, trainer_class: Type[Trainer], dataset_desc: str,
-                 cache: bool, kwargs: dict) -> None:
+                 cache: bool, port: str, kwargs: dict) -> None:
     """
     Launches training on a single process using pytorch ddp.
     :param config: The name of the config to load.
@@ -59,12 +68,12 @@ def ddp_training(rank, world_size: int, dataset_id: int,
     :param trainer_class: Trainer class to use
     :param dataset_desc: Trainer class to useZ,
     :param cache: Cache the data in memory
+    :param port: The port to use for communication
     :param kwargs: Extra arguments to pass to the trainer
     :return: Nothing
     """
-    setup_ddp(rank, world_size)
+    setup_ddp(rank, world_size, port)
     dataset_name = get_dataset_name_from_id(dataset_id, dataset_desc)
-    trainer = None
     try:
         trainer = trainer_class(
             dataset_name,
@@ -80,10 +89,10 @@ def ddp_training(rank, world_size: int, dataset_id: int,
         )
         trainer.train()
     except Exception as e:
-        cleanup(dataset_name, fold, cache)
         raise e
-    destroy_process_group()
-    cleanup(dataset_name, fold, cache)
+    finally:
+        destroy_process_group()
+        cleanup(dataset_name, fold, cache)
 
 
 @click.command()
@@ -168,48 +177,27 @@ def main(
 
     mode = get_dataset_mode_from_name(get_dataset_name_from_id(dataset_id, dataset_desc))
     trainer_class = get_trainer_from_extension(extension, dataset_name)
-    print(f"Training detected mode {mode}")
+    logging.info(f"Training detected mode {mode}")
     # This sets the behavior of some modules in json models utils.
-    session_id = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%f") if name is None else name
+    session_id = datetime.datetime.now().strftime("%d_%H_%M_%f") if name is None else name
     if gpus > 1:
+        port = _get_free_port()
         mp.spawn(
             ddp_training,
-            args=(
-                gpus,
-                dataset_id,
-                fold,
-                model,
-                session_id,
-                resume,
-                config,
-                trainer_class,
-                dataset_desc,
-                cache,
-                kwargs
-            ),
+            args=(gpus, dataset_id, fold, model, session_id, resume,
+                  config, trainer_class, dataset_desc, cache, port, kwargs),
             nprocs=gpus,
-            join=True,
+            join=True
         )
     elif gpus == 1:
-        trainer = None
         try:
-            trainer = trainer_class(
-                dataset_name,
-                fold,
-                model,
-                0,
-                session_id,
-                config,
-                resume=resume,
-                cache=cache,
-                world_size=1,
-                **kwargs
-            )
+            trainer = trainer_class(dataset_name, fold, model, 0, session_id, config,
+                                    resume=resume, cache=cache, world_size=1, **kwargs)
             trainer.train()
-            cleanup(dataset_name, fold, cache)
         except Exception as e:
-            cleanup(dataset_name, fold, cache)
             raise e
+        finally:
+            cleanup(dataset_name, fold, cache)
     else:
         raise NotImplementedError("You must set gpus to >= 1")
 

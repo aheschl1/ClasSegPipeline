@@ -1,23 +1,19 @@
-import logo from './logo.svg';
 import './App.css';
-import {useProjects} from "./hooks/projects.js";
-import ProjectTile from './widgets/tiles/project_tile'
-
-function inspectProject(projectName){
-    console.log(projectName)
-}
+import ProjectPage from "./pages/project/project";
+import Home from "./pages/home/home";
+import {Route, Routes} from "react-router-dom";
+import About from "./pages/about";
+import ExperimentPage from "./pages/experiment/experiment";
 
 function App() {
-    let projects = useProjects();
-    return (
-        <div className="App">
-            <div className="ProjectTiles">
-                {projects.map((p)=>
-                    <ProjectTile onClick={()=>inspectProject(p.name)} project={p} key={p.name}/>
-                )}
-            </div>
-        </div>
-    );
+    return <>
+        <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path={"/projects/:dataset"} element={<ProjectPage/>}/>
+            <Route path={"/projects/:dataset/experiments/:experiment"} element={<ExperimentPage/>}/>
+        </Routes>
+    </>
 }
 
 export default App;

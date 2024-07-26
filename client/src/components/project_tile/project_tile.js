@@ -1,12 +1,10 @@
-import './tilesStyles.css';
+import './style.css';
 
 function Tile(props) {
     // console.log(project)
     let {project, onClick} = props;
     let {name, type, preprocessed_available, raw_available, experiment_count} = project;
 
-    let description =
-        `Type: ${type}\nPreprocessed: ${preprocessed_available}\nRaw Available: ${raw_available}\nExperiments: ${experiment_count}`;
     return (
         <div className="ProjectTile">
             <h3>{name}</h3>

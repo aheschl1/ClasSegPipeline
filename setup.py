@@ -30,7 +30,8 @@ setup(
         "wandb",
         "onnx",
         "torchmetrics",
-        "flask"
+        "flask",
+        "flask_cors"
     ],
     entry_points={
         'console_scripts': [

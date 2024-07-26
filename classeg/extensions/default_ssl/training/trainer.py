@@ -63,7 +63,7 @@ class SelfSupervisedTrainer(Trainer):
         i = 0.
         for data, _, _ in tqdm.tqdm(self.train_dataloader):
             i += 1
-            self.optim.zero_grad()
+            self.optim.zero_grad(set_to_none=True)
             if log_image:
                 self.logger.log_augmented_image(data[0])
 

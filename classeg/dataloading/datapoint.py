@@ -119,7 +119,10 @@ class Datapoint:
             label = self.reader_writer.read(self.label, **kwargs)
             label = Datapoint.standardize(label)
         elif self.mode == CLASSIFICATION:
-            label = np.array(int(self.label))
+            try:
+                label = np.array(int(self.label))
+            except ValueError:
+                label = self.label
 
         return image, label
 

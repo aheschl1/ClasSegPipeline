@@ -1,0 +1,22 @@
+
+.experimentContainer{
+    display: grid;
+    margin: 8px;
+}
+
+.experiment{
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    margin: 10px;
+    padding: 10px;
+    border: 1px solid #000;
+    border-radius: 5px;
+    p{
+        margin: 0 8px 0 8px;
+        padding: 0;
+    }
+    button{
+        margin: 8px 0 0 0;
+    }
+}
