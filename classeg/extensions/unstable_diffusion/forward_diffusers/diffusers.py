@@ -112,6 +112,53 @@ class Diffuser:
         )
 
 
+class DDIMDiffuser(Diffuser):
+    def prepare_betas(self):
+        raise Exception("DDIM Diffuser should not be used. Override it with linear or cosine diffuser")
+    
+    def inference_call(self, 
+                       im: torch.Tensor, 
+                       seg: torch.Tensor, 
+                       predicted_noise_im: torch.Tensor, 
+                       predicted_noise_seg: torch.Tensor, 
+                       t: int, 
+                       clamp=False, 
+                       training_time=False,
+                       steps=1):
+        """
+        For use in inference mode
+        If clamp is true, clamps data between -1 and 1
+        """
+        if isinstance(t, int):
+            t = torch.tensor([t]).to(im.device)
+
+        alphas = self._alphas.to(im.device)
+        alpha_bars = self._alpha_bars.to(im.device)
+        for i in range(steps):
+            if t[0] == 0:
+                break
+            alpha_t = alphas[t]
+            alpha_t_bar = alpha_bars[t]
+            
+            alpha_tm1 = alphas[t - 1]
+            alpha_tm1_bar = alpha_bars[t - 1]
+            
+            a = torch.sqrt(alpha_tm1)
+            b = torch.frac(im - torch.sqrt(1-alpha_t_bar) * predicted_noise_im*im)
+            c = torch.sqrt(1-alpha_tm1_bar)*predicted_noise_im
+
+            data_im = a*b-c
+            
+            # SEG
+            a = torch.sqrt(alpha_tm1)
+            b = torch.frac(seg - torch.sqrt(1-alpha_t_bar) * predicted_noise_seg*seg)
+            c = torch.sqrt(1-alpha_tm1_bar)*predicted_noise_seg
+
+            data_seg = a*b-c
+            t -= 1
+
+        return data_im, data_seg
+
 class LinearDiffuser(Diffuser):
     def prepare_betas(self):
         return torch.linspace(self.min_beta, self.max_beta, self.timesteps)
