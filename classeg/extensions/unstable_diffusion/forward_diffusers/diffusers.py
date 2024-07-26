@@ -66,7 +66,7 @@ class Diffuser:
         seg:torch.Tensor,
         predicted_noise_im: torch.Tensor, 
         predicted_noise_seg: torch.Tensor, 
-        t: int, clamp=False, training_time=False,
+        t: int, clamp=False, training_time=False, jump=0
     ):
         """
         For use in inference mode
@@ -124,7 +124,7 @@ class DDIMDiffuser(Diffuser):
                        t: int, 
                        clamp=False, 
                        training_time=False,
-                       steps=1):
+                       jump=1):
         """
         For use in inference mode
         If clamp is true, clamps data between -1 and 1
@@ -134,10 +134,9 @@ class DDIMDiffuser(Diffuser):
 
         alphas = self._alphas.to(im.device)
         alpha_bars = self._alpha_bars.to(im.device)
-        for i in range(steps):
+        for i in range(jump):
             if t[0] == 0:
                 break
-            alpha_t = alphas[t]
             alpha_t_bar = alpha_bars[t]
             
             alpha_tm1 = alphas[t - 1]
@@ -175,3 +174,9 @@ class CosDiffuser(Diffuser):
         betas = 1 - alphas_cumulative_prod[1:] / alphas_cumulative_prod[:-1]
         betas = torch.clip(betas, self.min_beta, self.max_beta)
         return betas
+
+class LinearDDIM(LinearDiffuser, DDIMDiffuser):
+    ...
+
+class CosDDIM(CosDiffuser, DDIMDiffuser):
+    ...
