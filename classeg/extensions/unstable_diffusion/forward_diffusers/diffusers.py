@@ -132,29 +132,40 @@ class DDIMDiffuser(Diffuser):
         if isinstance(t, int):
             t = torch.tensor([t]).to(im.device)
 
-        alphas = self._alphas.to(im.device)
+        # alphas = self._alphas.to(im.device)
         alpha_bars = self._alpha_bars.to(im.device)
-        for i in range(jump):
-            if t[0] == 0:
-                break
-            alpha_t_bar = alpha_bars[t]
-            
-            alpha_tm1 = alphas[t - 1]
-            alpha_tm1_bar = alpha_bars[t - 1]
-            
-            a = torch.sqrt(alpha_tm1)
-            b = torch.frac(im - torch.sqrt(1-alpha_t_bar) * predicted_noise_im*im)
-            c = torch.sqrt(1-alpha_tm1_bar)*predicted_noise_im
 
-            data_im = a*b-c
-            
-            # SEG
-            a = torch.sqrt(alpha_tm1)
-            b = torch.frac(seg - torch.sqrt(1-alpha_t_bar) * predicted_noise_seg*seg)
-            c = torch.sqrt(1-alpha_tm1_bar)*predicted_noise_seg
+        alpha_t_bar = alpha_bars[t]
+        alpha_tm1_bar = alpha_bars[t - 1]
 
-            data_seg = a*b-c
-            t -= 1
+        im0_t = (im- predicted_noise_im*(1-alpha_t_bar).sqrt() )/(alpha_t_bar.sqrt())
+        c2 = (1-alpha_tm1_bar).sqrt()
+        data_im = alpha_tm1_bar.sqrt()*im0_t + c2*predicted_noise_im
+
+        seg0_t = (seg- predicted_noise_seg*(1-alpha_t_bar).sqrt() )/(alpha_t_bar.sqrt())
+        c2 = (1-alpha_tm1_bar).sqrt()
+        data_seg = alpha_tm1_bar.sqrt()*seg0_t + c2*predicted_noise_seg
+        # for _ in range(jump):
+        #     if t[0] == 0:
+        #         break
+        #     alpha_t_bar = alpha_bars[t]
+            
+        #     alpha_tm1 = alphas[t - 1]
+        #     alpha_tm1_bar = alpha_bars[t - 1]
+            
+        #     a = torch.sqrt(alpha_tm1)
+        #     b = torch.frac(im - torch.sqrt(1-alpha_t_bar) * predicted_noise_im*im)
+        #     c = torch.sqrt(1-alpha_tm1_bar)*predicted_noise_im
+
+        #     data_im = a*b-c
+            
+        #     # SEG
+        #     a = torch.sqrt(alpha_tm1)
+        #     b = torch.frac(seg - torch.sqrt(1-alpha_t_bar) * predicted_noise_seg*seg)
+        #     c = torch.sqrt(1-alpha_tm1_bar)*predicted_noise_seg
+
+        #     data_seg = a*b-c
+        #     t -= 1
 
         return data_im, data_seg
 
