@@ -1,10 +1,8 @@
 
 
 export function postTrainExperiment(project, name, fold, extension, model, config){
-    //@app.route("/train/<project_id>/<experiment_name>/<fold>/<model>/<extension_name>", methods=["POST"])
     if(name === "" || fold === ""){
         throw new Error("Name and Fold are required")
-        return
     }
     if (model === ""){
         model = "None"
