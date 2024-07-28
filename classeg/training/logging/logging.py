@@ -79,6 +79,10 @@ class Logger:
     def cleanup(self):
         raise NotImplementedError("Method not implemented in parent class.")
 
+    @abstractmethod
+     def log_histogram(self, data, title):
+        raise NotImplementedError("Method not implemented in parent class.")
+
     def __del__(self):
         self.cleanup()
 
@@ -133,6 +137,10 @@ class TensorboardLogger(Logger):
         self.image_step += 1
         self.summary_writer.flush()
 
+     def log_histogram(self, data, title):
+        self.summary_writer.add_histogram(title, data, self.epoch)
+        self.summary_writer.flush()
+         
     def log_net_structure(self, net, *inputs):
         try:
             self.summary_writer.add_graph(net, list(inputs))
@@ -268,6 +276,11 @@ class WandBLogger(Logger):
     def log_image_infered(self, image, **masks):
         wandb.log({
             "infered_image": wandb.Image(image, masks={k:{"mask_data":v} for k,v in masks.items()})
+        }, step=self.epoch)
+
+    def log_histogram(self, data:dict, title):
+        wandb.log({
+            title: wandb.Histogram(sequence=data)
         }, step=self.epoch)
 
     def cleanup(self):
