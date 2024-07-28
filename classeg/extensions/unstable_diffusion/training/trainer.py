@@ -21,6 +21,7 @@ from classeg.extensions.unstable_diffusion.utils.utils import (
 import torch.nn.functional as F
 import os
 
+
 class ForkedPdb(pdb.Pdb):
     """
     A Pdb subclass that may be used
@@ -61,7 +62,7 @@ class UnstableDiffusionTrainer(Trainer):
             self.diffusion_schedule = VoidScheduler(self.forward_diffuser)
         self.optim, self.d_optim = self.optim
 
-        self.dicriminator_lr_schedule =  self.get_lr_scheduler(self.d_optim)
+        self.dicriminator_lr_schedule = self.get_lr_scheduler(self.d_optim)
         if resume:
             state = torch.load(f"{self.output_dir}/latest.pth")
 
@@ -76,7 +77,7 @@ class UnstableDiffusionTrainer(Trainer):
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 1)
         self.gan_weight = self.config.get("gan_weight", 0.5)
-            
+
         del self.loss
 
     def load_checkpoint(self, weights_name) -> None:
@@ -89,7 +90,7 @@ class UnstableDiffusionTrainer(Trainer):
         checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth")
         # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
         # one.
-        self._current_epoch = checkpoint["current_epoch"]+1
+        self._current_epoch = checkpoint["current_epoch"] + 1
         if self.world_size > 1:
             self.model.module.load_state_dict(checkpoint["weights"])
         else:
@@ -132,7 +133,6 @@ class UnstableDiffusionTrainer(Trainer):
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
         self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
 
-
     def get_extra_checkpoint_data(self) -> torch.Dict[str, Any] | None:
         return {
             "diffusion_schedule": self.diffusion_schedule.state_dict(),
@@ -140,7 +140,6 @@ class UnstableDiffusionTrainer(Trainer):
             "d_optim": self.d_optim.state_dict(),
             "discriminator": self.dicriminator.state_dict()
         }
-
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -169,7 +168,8 @@ class UnstableDiffusionTrainer(Trainer):
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([im_noise, seg_noise], dim=1))
+            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
+                                       torch.concat([im_noise, seg_noise], dim=1))
             dis_loss = 0.0
             if self.gan_weight > 0:
                 # convert x_t to x_{t-1} and descriminate the goods
@@ -193,8 +193,9 @@ class UnstableDiffusionTrainer(Trainer):
                 fake_label = torch.zeros((images.shape[0],)).to(self.device)
                 real_label = torch.ones((images.shape[0],)).to(self.device)
                 # Fool the discriminator
-                gen_loss = gen_loss*self.recon_weight
-                gen_loss += self.gan_weight*self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(), real_label)
+                gen_loss = gen_loss * self.recon_weight
+                gen_loss += self.gan_weight * self.gan_loss(self.model.discriminate(self.dicriminator, predicted_concat, t).squeeze(),
+                                                            real_label)
                 # Train discriminator
                 self.d_optim.zero_grad()
                 real_loss = self.gan_loss(self.model.discriminate(self.dicriminator, real_concat, t).squeeze(), real_label)
@@ -207,7 +208,7 @@ class UnstableDiffusionTrainer(Trainer):
             # update model
             # gen_loss = gen_loss*self.recon_weight
             gen_loss.backward()
-        
+
             self.optim.step()
             self.d_optim.step()
             # self.diffusion_schedule.step()
@@ -215,7 +216,7 @@ class UnstableDiffusionTrainer(Trainer):
             # self.lr_scheduler.step()
 
             # gather data
-            running_loss += (gen_loss+dis_loss).item() * images.shape[0]
+            running_loss += (gen_loss + dis_loss).item() * images.shape[0]
             total_items += images.shape[0]
 
         return running_loss / total_items
@@ -234,8 +235,7 @@ class UnstableDiffusionTrainer(Trainer):
         correct = (predictions == labels).sum()
         total = labels.shape[0]
 
-        self.logger.log_scalar(correct/total, "Metrics/DisriminatorAccuracy")
-
+        self.logger.log_scalar(correct / total, "Metrics/DisriminatorAccuracy")
 
     # noinspection PyTypeChecker
     @override
@@ -260,11 +260,12 @@ class UnstableDiffusionTrainer(Trainer):
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
-            
+
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1), torch.concat([noise_im, noise_seg], dim=1))
+            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
+                                       torch.concat([noise_im, noise_seg], dim=1))
             # convert x_t to x_{t-1} and descriminate the goods
             dis_loss = 0.0
             if self.gan_weight > 0:
@@ -301,9 +302,9 @@ class UnstableDiffusionTrainer(Trainer):
                 # calculate the loss
                 dis_loss += real_loss + fake_loss
 
-            running_loss += (self.gan_weight*dis_loss + self.recon_weight*gen_loss).item() * images.shape[0]
+            running_loss += (self.gan_weight * dis_loss + self.recon_weight * gen_loss).item() * images.shape[0]
             total_items += images.shape[0]
-# gather data
+        # gather data
         if self.gan_weight > 0:
             all_discriminator_predictions_real = torch.tensor(all_discriminator_predictions_real)
             all_discriminator_predictions_fake = torch.tensor(all_discriminator_predictions_fake)
@@ -336,9 +337,8 @@ class UnstableDiffusionTrainer(Trainer):
             result_im = result_im[0]
             result_seg = result_seg[0].round().squeeze()
 
-            result_seg[result_seg>0]=1
-            result_seg[result_seg!=1]=0
-
+            result_seg[result_seg > 0] = 1
+            result_seg[result_seg != 1] = 0
 
             self.logger.log_image_infered(result_im.numpy().astype(np.float32), mask=result_seg.numpy().astype(np.float32))
 
@@ -348,7 +348,7 @@ class UnstableDiffusionTrainer(Trainer):
         if mode == "concat":
             model = ConcatDiffusion(
                 **self.config["model_args"]
-            )    
+            )
         elif mode == "unstable":
             model = UnstableDiffusion(
                 **self.config["model_args"]

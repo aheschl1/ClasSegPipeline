@@ -119,6 +119,10 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
+    def log_histogram(self, data, title):
+        self.summary_writer.add_histogram(title, data, self.epoch)
+        self.summary_writer.flush()
+
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
         fig = Logger.build_confusion_matrix(predictions, labels, class_names)
 
@@ -245,6 +249,11 @@ class WandBLogger(Logger):
             ),
         }
         wandb.log(data, step=self.epoch)
+
+    def log_histogram(self, data:dict, title):
+        wandb.log({
+            title: wandb.Histogram(sequence=data)
+        }, step=self.epoch)
 
     def log_net_structure(self, net, *inputs):
         if not self.has_logged_net:
