@@ -1,6 +1,6 @@
 
 
-export function postTrainExperiment(project, name, fold, extension, model){
+export function postTrainExperiment(project, name, fold, extension, model, config){
     //@app.route("/train/<project_id>/<experiment_name>/<fold>/<model>/<extension_name>", methods=["POST"])
     if(name === "" || fold === ""){
         throw new Error("Name and Fold are required")
@@ -13,7 +13,7 @@ export function postTrainExperiment(project, name, fold, extension, model){
         extension = "None"
     }
 
-    fetch(`http://localhost:3001/train/${project}/${name}/${fold}/${model}/${extension}`, {
+    fetch(`http://localhost:3001/train/${project}/${name}/${fold}/${model}/${extension}/${config}`, {
         method: "POST",
     }).then((response)=>{
         if(response.status === 200){

@@ -73,9 +73,9 @@ def get_readme():
     return send_file(f"{repo_root}/README.md")
 
 
-@app.route("/train/<project_id>/<experiment_name>/<fold>/<model>/<extension_name>", methods=["POST"])
+@app.route("/train/<project_id>/<experiment_name>/<fold>/<model>/<extension_name>/<config>", methods=["POST"])
 @cross_origin()
-def train(project_id, experiment_name, fold, model, extension_name):
+def train(project_id, experiment_name, fold, model, extension_name, config):
     dataset_id = int(project_id.split("_")[-1])
     dataset_desc = None
     if project_id.count("_") > 1:
@@ -84,7 +84,6 @@ def train(project_id, experiment_name, fold, model, extension_name):
     model = model if model != "None" else None
     extension_name = extension_name if extension_name != "None" else None
     gpus = 1
-    config = "config"
     name = experiment_name
 
     command = f"classegTrain -d {dataset_id} -f {fold} -g {gpus} -c {config} -n {name}"

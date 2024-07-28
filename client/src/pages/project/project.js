@@ -15,12 +15,12 @@ const ContentBlock = (props)=>{
     </div>
 }
 
-function trainExperiment(project, name, fold, extension, model){
-    if(name === "" || fold === ""){
-        alert("Name and Fold are required")
+function trainExperiment(project, name, fold, extension, model, config){
+    if(name === "" || fold === "" || config === "Select Config"){
+        alert("Name, Fold, and Config are required")
         return
     }
-    postTrainExperiment(project, name, fold, extension, model)
+    postTrainExperiment(project, name, fold, extension, model, config)
 }
 
 const LOAD_COUNT= 6;
@@ -85,20 +85,27 @@ export default function ProjectPage(props){
                             "padding": buildingExperiment ? "10px" : "0",
                         }}>
                             <div style={{
-                                    "display": "grid",
-                                    "gridTemplateColumns": "1fr"
+                                "display": "grid",
+                                "gridTemplateColumns": "1fr"
                             }}>
                                 <input id="experimentNameInput" type="text" placeholder={"Experiment Name (Required)"}/>
                                 <input id="experimentFold" type="number" placeholder={"Fold (Required)"}/>
                                 <input id="experimentExtension" type="text" placeholder={"Extension (Default)"}/>
                                 <input id="experimentModel" type="text" placeholder={"Model (None)"}/>
+                                <select id="experimentConfig">
+                                    <option selected="">Select Config</option>
+                                    {project.configs.map((c, _)=> {
+                                        return <option>{c}</option>
+                                    })}
+                                </select>
                                 <button
                                     onClick={() => trainExperiment(
                                         project.name,
                                         document.getElementById("experimentNameInput").value,
                                         document.getElementById("experimentFold").value,
                                         document.getElementById("experimentExtension").value,
-                                        document.getElementById("experimentModel").value
+                                        document.getElementById("experimentModel").value,
+                                        document.getElementById("experimentConfig").value
                                     )}
                                 >Train
                                 </button>

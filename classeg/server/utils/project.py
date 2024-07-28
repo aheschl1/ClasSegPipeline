@@ -39,6 +39,12 @@ class Project:
     def get_preprocessed(self, case: int):
         return self.get_sample_point(case, preprocessed=True)
 
+    def get_configs(self):
+        if not os.path.exists(f"{PREPROCESSED_ROOT}/{self.dataset_name}"):
+            return []
+        return [x.split('.')[0].split('/')[-1] for x in glob.glob(f"{PREPROCESSED_ROOT}/{self.dataset_name}/*") if
+                ".json" in x and 'id_to_label' not in x and 'label_to_id' not in x and 'folds' not in x and 'case_label_mapping' not in x]
+
     def to_dict(self):
         preprocessed_available = os.path.exists(f"{PREPROCESSED_ROOT}/{self.dataset_name}")
         return {
@@ -47,4 +53,5 @@ class Project:
             "preprocessed_available": preprocessed_available,
             "raw_available": os.path.exists(f"{RAW_ROOT}/{self.dataset_name}"),
             "experiment_count": self.get_experiment_count(),
+            "configs": self.get_configs()
         }
