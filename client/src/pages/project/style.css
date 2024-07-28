@@ -53,3 +53,13 @@
     right: 0;
     width: min-content;
 }
+
+input{
+    padding: 5px;
+    margin: 0 0 5px;
+}
+
+select{
+    padding: 5px;
+    margin: 0 0 5px;
+}

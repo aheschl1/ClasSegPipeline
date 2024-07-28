@@ -54,7 +54,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
                  fold: int, model: str,
                  session_id: str, resume: bool,
                  config: str, trainer_class: Type[Trainer], dataset_desc: str,
-                 cache: bool, port: str, kwargs: dict) -> None:
+                 mem_cache: bool, port: str, kwargs: dict) -> None:
     """
     Launches training on a single process using pytorch ddp.
     :param config: The name of the config to load.
@@ -67,7 +67,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
     :param resume: Continue training from latest epoch
     :param trainer_class: Trainer class to use
     :param dataset_desc: Trainer class to useZ,
-    :param cache: Cache the data in memory
+    :param mem_cache: Cache the data in memory
     :param port: The port to use for communication
     :param kwargs: Extra arguments to pass to the trainer
     :return: Nothing
@@ -82,7 +82,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
             rank,
             session_id,
             config,
-            cache=cache,
+            cache=mem_cache,
             resume=resume,
             world_size=world_size,
             **kwargs
@@ -92,7 +92,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
         raise e
     finally:
         destroy_process_group()
-        cleanup(dataset_name, fold, cache)
+        cleanup(dataset_name, fold, mem_cache)
 
 
 @click.command()
@@ -107,7 +107,7 @@ def ddp_training(rank, world_size: int, dataset_id: int,
 @click.option("-extension", "-ext", help="Name of the extension that you want to use.", type=str, default=None)
 @click.option("-dataset_desc", "-dd", required=False, default=None,
               help="Description of dataset. Useful if you have overlapping ids.")  # 10
-@click.option("--cache", help="Cache the data in memory.", type=bool, is_flag=True)
+@click.option("--mem_cache", help="Cache the data in memory.", type=bool, is_flag=True)
 @click.option("--force_override", "--fo",
               help="Ignore that the experiment name is the same as one existing, even though you did not specify to resume.",
               is_flag=True, type=bool)
@@ -122,7 +122,7 @@ def main(
         name: str,
         extension: str,
         dataset_desc: str,
-        cache: bool,
+        mem_cache: bool,
         force_override: bool,
         extra_args: List[str]
 ) -> None:
@@ -137,7 +137,7 @@ def main(
     :param name: The name of the output folder. Will timestamp by default.
     :param extension: The name of the trainer class to use
     :param dataset_desc: Dataset description
-    :param cache: Cache the data in memory
+    :param mem_cache: Cache the data in memory
     :param force_override:
     :param extra_args: Extra arguments to pass to the extension.
     :return:
@@ -185,19 +185,19 @@ def main(
         mp.spawn(
             ddp_training,
             args=(gpus, dataset_id, fold, model, session_id, resume,
-                  config, trainer_class, dataset_desc, cache, port, kwargs),
+                  config, trainer_class, dataset_desc, mem_cache, port, kwargs),
             nprocs=gpus,
             join=True
         )
     elif gpus == 1:
         try:
             trainer = trainer_class(dataset_name, fold, model, 0, session_id, config,
-                                    resume=resume, cache=cache, world_size=1, **kwargs)
+                                    resume=resume, cache=mem_cache, world_size=1, **kwargs)
             trainer.train()
         except Exception as e:
             raise e
         finally:
-            cleanup(dataset_name, fold, cache)
+            cleanup(dataset_name, fold, mem_cache)
     else:
         raise NotImplementedError("You must set gpus to >= 1")
 

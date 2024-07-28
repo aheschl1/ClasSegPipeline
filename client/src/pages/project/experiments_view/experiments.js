@@ -2,10 +2,6 @@ import './style.css'
 import {useExperiments} from "../../../hooks/experiments";
 import {useNavigate} from "react-router-dom";
 
-const inspectExperiment = ()=>{
-
-}
-
 export default function Experiments(props) {
     let {project} = props
     let experiments = useExperiments(project)
