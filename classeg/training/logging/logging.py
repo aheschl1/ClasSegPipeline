@@ -80,7 +80,7 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-     def log_histogram(self, data, title):
+    def log_histogram(self, data, title):
         raise NotImplementedError("Method not implemented in parent class.")
 
     def __del__(self):
@@ -137,7 +137,7 @@ class TensorboardLogger(Logger):
         self.image_step += 1
         self.summary_writer.flush()
 
-     def log_histogram(self, data, title):
+    def log_histogram(self, data, title):
         self.summary_writer.add_histogram(title, data, self.epoch)
         self.summary_writer.flush()
          
