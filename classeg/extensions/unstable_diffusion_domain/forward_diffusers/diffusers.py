@@ -66,7 +66,7 @@ class Diffuser:
         seg:torch.Tensor,
         predicted_noise_im: torch.Tensor, 
         predicted_noise_seg: torch.Tensor, 
-        t: int, clamp=False, training_time=False,**kwargs
+        t: int, clamp=False, training_time=False,
     ):
         """
         For use in inference mode
@@ -104,79 +104,13 @@ class Diffuser:
 
         return data_im, data_seg
 
-    def inference_call_alt(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, time_tensor: torch.Tensor, time_tensor_next: torch.Tensor, training_time=False ):
-        alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
-
-        a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
-        a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
-        beta_t = 1 - a_t / a_t_next
-
-        im0_from_e = (1.0/a_t).sqrt() * im - (1.0 / a_t -1).sqrt() * predicted_noise_im
-        seg0_from_e = (1.0/a_t).sqrt() * seg - (1.0 / a_t -1).sqrt() * predicted_noise_seg
-
-        im0_from_e = torch.clamp(im0_from_e, -1, 1)
-        seg0_from_e = torch.clamp(seg0_from_e, -1, 1)
-
-        mean_im = (
-            (a_t_next.sqrt() * beta_t) * im0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * im
-        ) / (1- a_t)
-
-        mean_seg = (
-            (a_t_next.sqrt() * beta_t) * seg0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * seg
-        ) / (1- a_t)
-
-
-        noise_im = torch.randn_like(im)
-        noise_seg = torch.randn_like(seg)
-
-        if not training_time and int(time_tensor[0].long()) > 0:
-            logvar = beta_t.log()
-            sample_im = mean_im + torch.exp(0.5 * logvar) * noise_im
-            sample_seg = mean_seg + torch.exp(0.5 * logvar) * noise_seg
-        else:
-            sample_im = mean_im
-            sample_seg = mean_seg   
-        return sample_im, sample_seg
+    def inference_call_alt(self, xt: torch.Tensor, predicted_noise: torch.Tensor): ...
 
     def prepare_betas(self):
         raise NotImplementedError(
             "Do not instantiate the base diffuser!!!!! Use a subclass instead"
         )
 
-
-class DDIMDiffuser(Diffuser):
-    def prepare_betas(self):
-        raise Exception("DDIM Diffuser should not be used. Override it with linear or cosine diffuser")
-    
-    def inference_call(self, 
-                       im: torch.Tensor, 
-                       seg: torch.Tensor, 
-                       predicted_noise_im: torch.Tensor, 
-                       predicted_noise_seg: torch.Tensor, 
-                       t: int, i=0, **kwargs):
-        """
-        For use in inference mode
-        If clamp is true, clamps data between -1 and 1
-        """
-        if isinstance(t, int):
-            t = torch.tensor([t]).to(im.device)
-
-        # alphas = self._alphas.to(im.device)
-        alpha_bars = self._alpha_bars.to(im.device)
-        
-        alpha_t_bar = alpha_bars[-i]
-        alpha_tm1_bar = alpha_bars[-i-1]
-
-
-        im0_t = (im-predicted_noise_im*(1-alpha_t_bar).sqrt())/alpha_t_bar.sqrt()
-        c2 = (1-alpha_tm1_bar).sqrt()
-        data_im = alpha_tm1_bar.sqrt()*im0_t + c2*predicted_noise_im
-
-        seg0_t = (seg- predicted_noise_seg*(1-alpha_t_bar).sqrt() )/(alpha_t_bar.sqrt())
-        c2 = (1-alpha_tm1_bar).sqrt()
-        data_seg = alpha_tm1_bar.sqrt()*seg0_t + c2*predicted_noise_seg
-
-        return data_im, data_seg
 
 class LinearDiffuser(Diffuser):
     def prepare_betas(self):
@@ -194,18 +128,3 @@ class CosDiffuser(Diffuser):
         betas = 1 - alphas_cumulative_prod[1:] / alphas_cumulative_prod[:-1]
         betas = torch.clip(betas, self.min_beta, self.max_beta)
         return betas
-
-class LinearDDIM(LinearDiffuser, DDIMDiffuser):
-    def prepare_betas(self):
-        return torch.cat([torch.zeros(1), torch.linspace(self.min_beta, self.max_beta, self.timesteps)], dim=0)
-
-class CosDDIM(CosDiffuser, DDIMDiffuser):
-    def prepare_betas(self, s=0.008):
-        def f(t):
-            return torch.cos((t / self.timesteps + s) / (1 + s) * 0.5 * torch.pi) ** 2
-
-        x = torch.linspace(0, self.timesteps, self.timesteps + 1)
-        alphas_cumulative_prod = f(x) / f(torch.tensor([0]))
-        betas = 1 - alphas_cumulative_prod[1:] / alphas_cumulative_prod[:-1]
-        betas = torch.clip(betas, self.min_beta, self.max_beta)
-        return torch.cat([torch.zeros(1), betas],dim=1)

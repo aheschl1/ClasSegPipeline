@@ -8,8 +8,9 @@ import torch.nn as nn
 from overrides import override
 from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
+import numpy as np
 
-from classeg.extensions.super_resolution.inference.inferer import UnstableDiffusionInferer
+from classeg.extensions.super_resolution.inference.inferer import SuperResolutionInferer
 from classeg.extensions.super_resolution.model.unstable_diffusion import UnstableDiffusion
 from classeg.training.trainer import Trainer, log
 from classeg.extensions.super_resolution.utils.utils import (
@@ -86,7 +87,7 @@ class UnstableDiffusionTrainer(Trainer):
         return train_transforms, val_transforms
 
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
-        self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
+        self._inferer = SuperResolutionInferer(dataset_name, fold, result_folder, "latest", None)
 
     @override
     def train_single_epoch(self, epoch) -> float:
@@ -96,7 +97,7 @@ class UnstableDiffusionTrainer(Trainer):
 
         optimizer: self.optim
         loss: self.loss
-        logger: self.log_helper
+        logger: self.logger
         model: self.model
         """
         running_loss = 0.0
@@ -104,9 +105,9 @@ class UnstableDiffusionTrainer(Trainer):
         log_image = epoch % 10 == 0
         # ForkedPdb().set_trace()
         for images, segmentations, _ in tqdm(self.train_dataloader):
-            self.optim.zero_grad()
+            self.optim.zero_grad(set_to_none=True)
             if log_image:
-                self.log_helper.log_augmented_image(images[0], segmentations[0])
+                self.logger.log_augmented_image(np.array(images[0].permute(1, 2, 0)), np.array(segmentations[0].squeeze()))
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
 
@@ -136,7 +137,7 @@ class UnstableDiffusionTrainer(Trainer):
 
         optimizer: self.optim
         loss: self.loss
-        logger: self.log_helper
+        logger: self.logger
         model: self.model
         """
         running_loss = 0.0
@@ -159,7 +160,7 @@ class UnstableDiffusionTrainer(Trainer):
             running_loss += gen_loss.item() * images.shape[0]
             total_items += images.shape[0]
 
-        # self.log_helper.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
+        # self.logger.log_scalar("Metrics/seg_divergence", total_divergence / len(self.val_dataloader), epoch)
         return running_loss / total_items
 
     @override
@@ -167,8 +168,8 @@ class UnstableDiffusionTrainer(Trainer):
         return
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
-            result_im, result_seg = self._inferer.infer()
-            self.log_helper.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
+            result_im, result_seg = self._inferer.infer(model=self.model)
+            self.logger.log_image_infered(result_im.transpose(2, 0, 1), epoch, mask=result_seg.transpose(2, 0, 1))
 
     @override
     def get_model(self, path) -> nn.Module:

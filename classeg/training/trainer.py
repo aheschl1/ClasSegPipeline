@@ -17,7 +17,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from classeg.logging.logging import TensorboardLogger, WandBLogger
+from classeg.training.logging.logging import TensorboardLogger, WandBLogger
 from classeg.utils.constants import *
 from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json
 from classeg.utils.utils import write_json
@@ -279,7 +279,7 @@ class Trainer:
             if mean_val_loss < self._best_val_loss:
                 if self.device in [0, "cpu"]:
                     log(BEST_EPOCH_CELEBRATION)
-                best_val_loss = mean_val_loss
+                self._best_val_loss = mean_val_loss
                 self._save_checkpoint("best")
             epoch_end_time = time.time()
             if self.device in [0, "cpu"]:
@@ -405,6 +405,7 @@ class Trainer:
         :return: The loss function to be used.
         """
         ...
+
 
     @property
     def data_shape(self) -> Tuple[int, int, int]:

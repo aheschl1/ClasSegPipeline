@@ -9,6 +9,9 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.tensorboard import SummaryWriter
 import wandb
 import socket
+import uuid
+
+from classeg.utils.constants import WANDB_ENTITY, WANDB_API_KEY
 
 
 class Logger:
@@ -65,19 +68,15 @@ class Logger:
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_graph(self, points: List[Tuple[float, float]], epoch, title="2D Graph"):
+    def log_graph(self, points: List[Tuple[float, float]], title="2D Graph"):
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         raise NotImplementedError("Method not implemented in parent class.")
 
     @abstractmethod
     def cleanup(self):
-        raise NotImplementedError("Method not implemented in parent class.")
-
-    @abstractmethod
-    def log_histogram(self, data, title, epoch):
         raise NotImplementedError("Method not implemented in parent class.")
 
     def __del__(self):
@@ -120,8 +119,8 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-    def log_histogram(self, data, title, epoch):
-        self.summary_writer.add_histogram(title, data, epoch)
+    def log_histogram(self, data, title):
+        self.summary_writer.add_histogram(title, data, self.epoch)
         self.summary_writer.flush()
 
     def plot_confusion_matrix(self, predictions: List, labels: List, class_names, set_name: str = "val"):
@@ -154,25 +153,25 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
-    def log_graph(self, points: List[Tuple[float, float]], epoch, title="2D Graph"):
+    def log_graph(self, points: List[Tuple[float, float]], title="2D Graph"):
         fig = plt.figure()
         x_values, y_values = zip(*points)
         plt.plot(x_values, y_values)
-        self.summary_writer.add_figure(title, fig, epoch)
+        self.summary_writer.add_figure(title, fig, self.epoch)
         plt.close(fig)
         self.summary_writer.flush()
 
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         self.summary_writer.add_image(
             "Infered Images",
             image,
-            epoch
+            self.epoch
         )
         for key, value in masks.items():
             self.summary_writer.add_image(
                 f"Infered {key}",
                 value,
-                epoch
+                self.epoch
             )
         self.summary_writer.flush()
 
@@ -196,17 +195,30 @@ class WandBLogger(Logger):
 
     def __init__(self, output_dir: str, current_epoch=0, dataset_name=None, config=None) -> None:
         super().__init__(output_dir, current_epoch)
+        resume = False
+        if os.path.exists(f"{output_dir}/.wandb_id.txt"):
+            with open(f"{output_dir}/.wandb_id.txt", "r") as f:
+                resume = True
+                wandb_id = str(f.read()).strip()
+        else:
+            wandb_id = str(uuid.uuid4())
+            with open(f"{output_dir}/.wandb_id.txt", "w") as f:
+                f.write(wandb_id)
+
         name = output_dir.split("/")[-1]
         wandb.require("core")
-        wandb.login()
+        wandb.login(
+            key=WANDB_API_KEY
+        )
         wandb.init(
             project=dataset_name,
             dir=f"{output_dir}",
             name=name,
-            id=name,
-            resume="must" if os.path.exists(f"{output_dir}/wandb") else None,
+            id=wandb_id,
+            resume="must" if resume else None,
             config=config,
-            mode="online" if isOnline() else "offline"
+            mode="online" if isOnline() else "offline",
+            entity=WANDB_ENTITY
         )
         self.has_logged_net = False
 
@@ -238,6 +250,11 @@ class WandBLogger(Logger):
         }
         wandb.log(data, step=self.epoch)
 
+    def log_histogram(self, data:dict, title):
+        wandb.log({
+            title: wandb.Histogram(sequence=data)
+        }, step=self.epoch)
+
     def log_net_structure(self, net, *inputs):
         if not self.has_logged_net:
             self.has_logged_net = True
@@ -251,21 +268,16 @@ class WandBLogger(Logger):
             "trainable_params": trainable
         }, step=self.epoch)
 
-    def log_histogram(self, data, title, epoch):
-        wandb.log({
-            title: wandb.Histogram(data)
-        }, step=epoch)
-
-    def log_graph(self, points: List[Tuple[float, float]], epoch, x="x", y="y", title="2D Graph"):
+    def log_graph(self, points: List[Tuple[float, float]], x="x", y="y", title="2D Graph"):
         table = wandb.Table(data=points, columns=[x, y])
         wandb.log({
             title: wandb.plot.line(table, x=x, y=y, title=title)
-        }, step=epoch)
+        }, step=self.epoch)
 
-    def log_image_infered(self, image, epoch, **masks):
+    def log_image_infered(self, image, **masks):
         wandb.log({
-            "infered_image": wandb.Image(image, masks=masks)
-        }, step=epoch)
+            "infered_image": wandb.Image(image, masks={k:{"mask_data":v} for k,v in masks.items()})
+        }, step=self.epoch)
 
     def cleanup(self):
         wandb.finish()

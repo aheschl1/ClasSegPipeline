@@ -366,6 +366,7 @@ class ConcatDiffusion(nn.Module):
             layer_depth=2,
             channels=None,
             time_emb_dim=100,
+            realfy=False,
             **kwargs
     ):
 
@@ -431,11 +432,57 @@ class ConcatDiffusion(nn.Module):
                 padding=1,
             ),
         )
-    
+        if realfy:
+            self.realfier = self._get_realfier()
+        else:
+            self.realfier = None
+
+    def realfy(self, x, t):
+        t = self._sinusoidal_embedding(t)
+        t = self.t_proj(t)
+        x = self.realfier[0](x)
+
+        return self.realfier[2](self.realfier[1](x, t))
+
+    def _get_realfier(self):
+        return nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(
+                    in_channels=self.im_channels,
+                    out_channels=self.channels[0],
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                ),
+                nn.GroupNorm(8, self.channels[0]),
+                nn.SiLU(),
+            ),
+            DownBlock(
+                in_channels=self.channels[0],
+                out_channels=self.channels[0],
+                time_emb_dim=self.time_emb_dim,
+                downsample=False,
+                num_layers=self.layer_depth,
+                apply_zero_conv=False,
+                apply_scale_u=False
+            ),
+            nn.Sequential(
+                nn.GroupNorm(8, self.channels[0]),
+                nn.SiLU(),
+                nn.Conv2d(
+                    in_channels=self.channels[0],
+                    out_channels=self.im_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1,
+                ),
+            ),
+        ])
+
     def get_discriminator(self):
         return nn.ModuleList([
             nn.Conv2d(
-                in_channels=self.im_channels + self.seg_channels,
+                in_channels=self.im_channels,
                 out_channels=self.channels[0],
                 kernel_size=3,
                 stride=1,
@@ -559,6 +606,7 @@ if __name__ == "__main__":
     x = torch.zeros(2, 3, 128, 128)
     m = torch.zeros(2, 1, 128, 128)
     t = torch.zeros(2)
-    model = ConcatDiffusion(3, 1, channels=[16, 32, 64], shared_encoder=True)
-    out = model(x, m, t)
-    print(out[0].shape, out[1].shape)
+    model = ConcatDiffusion(3, 1, channels=[16, 32, 64], shared_encoder=True, realfy=True)
+    im, seg = model(x, m, t)
+    im = model.realfy(im, t)
+    print(im.shape, seg.shape)
