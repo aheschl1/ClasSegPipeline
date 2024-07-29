@@ -104,7 +104,39 @@ class Diffuser:
 
         return data_im, data_seg
 
-    def inference_call_alt(self, xt: torch.Tensor, predicted_noise: torch.Tensor): ...
+    def inference_call_alt(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, time_tensor: torch.Tensor, time_tensor_next: torch.Tensor, training_time=False ):
+        alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
+
+        a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
+        a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
+        beta_t = 1 - a_t / a_t_next
+
+        im0_from_e = (1.0/a_t).sqrt() * im - (1.0 / a_t -1).sqrt() * predicted_noise_im
+        seg0_from_e = (1.0/a_t).sqrt() * seg - (1.0 / a_t -1).sqrt() * predicted_noise_seg
+
+        im0_from_e = torch.clamp(im0_from_e, -1, 1)
+        seg0_from_e = torch.clamp(seg0_from_e, -1, 1)
+
+        mean_im = (
+            (a_t_next.sqrt() * beta_t) * im0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * im
+        ) / (1- a_t)
+
+        mean_seg = (
+            (a_t_next.sqrt() * beta_t) * seg0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * seg
+        ) / (1- a_t)
+
+
+        noise_im = torch.randn_like(im)
+        noise_seg = torch.randn_like(seg)
+
+        if not training_time and int(time_tensor[0].long()) > 0:
+            logvar = beta_t.log()
+            sample_im = mean_im + torch.exp(0.5 * logvar) * noise_im
+            sample_seg = mean_seg + torch.exp(0.5 * logvar) * noise_seg
+        else:
+            sample_im = mean_im
+            sample_seg = mean_seg   
+        return sample_im, sample_seg
 
     def prepare_betas(self):
         raise NotImplementedError(

@@ -28,7 +28,7 @@ with open(os.path.expanduser("~/.classegrc"), "r") as config_file:
 if "wandb_entity" in current_config and "WANDB_ENTITY" not in os.environ:
     os.environ["WANDB_ENTITY"] = current_config["wandb_entity"]
 
-LOGGER_TYPE = current_config["logger"]
+LOGGER_TYPE = current_config.get("logger", None)
 
 RAW_ROOT = os.getenv('RAW_ROOT', current_config.get("RAW_ROOT", None))
 if RAW_ROOT is None or not os.path.exists(RAW_ROOT):
@@ -51,7 +51,7 @@ AUTOENCODER = os.getenv('AUTOENCODER')
 #                              '(in ~/.bashrc or ~/.profile), and make sure that the path exists.')
 
 
-BEST_EPOCH_CELEBRATION = current_config.get("best_epoch_celebration", "Vamos, That is a new best epoch, saving the state!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+BEST_EPOCH_CELEBRATION = current_config.get("best_epoch_celebration", "That is a new best epoch, saving the state!")
 DEFAULT_PROCESSES = current_config.get("default_processes", os.cpu_count())
 MODEL_BUCKET_DIRECTORY = current_config.get(
     "model_bucket_directory",
