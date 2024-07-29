@@ -28,6 +28,7 @@ class SuperResolutionInferer(Inferer):
                  input_root: str,
                  late_model_instantiation=True,
                  output_name=None,
+                 infer_timesteps: int=1000,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -36,8 +37,9 @@ class SuperResolutionInferer(Inferer):
         :param weights: The name of the weights to load.
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
-        self.forward_diffuser = get_forward_diffuser_from_config(self.config)
         self.timesteps = self.config["max_timestep"]
+        self.infer_timesteps = int(infer_timesteps)
+        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=(self.infer_timesteps < 1000), timesteps=self.timesteps)
         self.output_name = output_name
         self.kwargs = kwargs
         self.entries = []
@@ -85,6 +87,7 @@ class SuperResolutionInferer(Inferer):
 
         handle the result in fields
         """
+
         segs = segs/segs.max()
         segs = segs[:, 0:1, ...]
         # plt.imshow(seg[0].permute(1, 2, 0))
@@ -111,63 +114,31 @@ class SuperResolutionInferer(Inferer):
         #     save_path = f"{self.lookup_root}/{input('Please enter a new save path: ')}"
 
         # os.mkdir(save_path)
+
         self.model.eval()
         with torch.no_grad():
-            xt_im = torch.randn(
-                (
-                    image.shape[0],
-                    self.config["model_args"]["im_channels"],
-                    *self.config["target_size"],
-                )
-            )
-            xt_seg = torch.randn(
-               (
-                   image.shape[0],
-                   self.config["model_args"]["seg_channels"],
-                   *self.config["target_size"],
-               )
-            )
-            xt_im = xt_im.to(self.device)
-            xt_seg = xt_seg.to(self.device)
-            # print(xt_seg.shape, xt_im.shape, image.shape, seg.shape)
-            # self.timesteps = 2
-            for t in tqdm(range(self.timesteps - 1, -1, -1), desc="running inference"):
-                time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
-
-                noise_prediction_im, noise_prediciton_seg = self.model(
-                    xt_im, xt_seg, torch.cat([image, seg], dim=1), time_tensor
-                )
-                xt_im, xt_seg = self.forward_diffuser.inference_call(
-                    xt_im,
-                    xt_seg,
-                    noise_prediction_im,
-                    noise_prediciton_seg,
-                    t,
-                    clamp=False,
-                )
-                if t == 0:
-                    print("Waring: not unbitifying. Only good for binary")
-                    xt_seg = xt_seg.round().cpu().permute(0, 2, 3, 1).numpy().astype(float)
-                    xt_seg -= xt_seg.min()
-                    xt_seg *= 255 / xt_seg.max()
-                    xt_seg = xt_seg.astype(np.uint8)
-
-                    xt_im = xt_im.cpu().permute(0, 2, 3, 1).numpy()
-                    xt_im -= xt_im.min()
-                    xt_im *= 255 / xt_im.max()
-                    xt_im = xt_im.astype(np.uint8)
-
-                    for i in range(xt_im.shape[0]):
-                        cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1]}", cv2.cvtColor(xt_im[i], cv2.COLOR_RGB2BGR))
-                        cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg[i])
-
-                        self.entries.append({
-                            'IID': i,
-                            'GID': 1,
-                            'Image': f"{'/'.join(save_path.split('/')[-2:])}/{datapoints[i].im_path.split('/')[-1]}",
-                            'Mask':  f"{'/'.join(save_path.split('/')[-2:])}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
-                            'Label': 1
-                        })
+            in_shape = list(self.config["target_size"])
+            xt_im, xt_seg = self.progressive_denoise(image.shape[0], in_shape, model=self.model)
+            
+            print("Waring: not unbitifying. Only good for binary")
+            xt_seg = xt_seg.round().cpu().permute(0, 2, 3, 1).numpy().astype(float)
+            xt_seg -= xt_seg.min()
+            xt_seg *= 255 / xt_seg.max()
+            xt_seg = xt_seg.astype(np.uint8)
+            xt_im = xt_im.cpu().permute(0, 2, 3, 1).numpy()
+            xt_im -= xt_im.min()
+            xt_im *= 255 / xt_im.max()
+            xt_im = xt_im.astype(np.uint8)
+            for i in range(xt_im.shape[0]):
+                cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1]}", cv2.cvtColor(xt_im[i], cv2.COLOR_RGB2BGR))
+                cv2.imwrite(f"{save_path}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png", xt_seg[i])
+                self.entries.append({
+                    'IID': i,
+                    'GID': 1,
+                    'Image': f"{'/'.join(save_path.split('/')[-2:])}/{datapoints[i].im_path.split('/')[-1]}",
+                    'Mask':  f"{'/'.join(save_path.split('/')[-2:])}/{datapoints[i].im_path.split('/')[-1].split('.')[0]}_seg.png",
+                    'Label': 1
+                })
 
         # xt_im = xt_im.detach().cpu()
                     
@@ -176,6 +147,43 @@ class SuperResolutionInferer(Inferer):
         # xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
         # return xt_im, xt_seg
 
+    def progressive_denoise(self, batch_size, in_shape, model=None):
+        if model is None:
+            model = self.model
+        xt_im = torch.randn(
+            (
+                batch_size,
+                self.config["model_args"]["im_channels"],
+                *in_shape,
+            )
+        )
+        xt_seg = torch.randn(
+           (
+               batch_size,
+               self.config["model_args"]["seg_channels"],
+               *in_shape,
+           )
+        )
+        xt_im = xt_im.to(self.device)
+        xt_seg = xt_seg.to(self.device)
+        
+        skip = self.timesteps // self.infer_timesteps
+        seq = range(self.timesteps-1, -1, -skip)
+        for t in tqdm(seq, desc="Running Inference"):
+            time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
+            t_n = t - skip if t !=0 else -1
+            noise_prediction_im, noise_prediciton_seg = model(
+                xt_im, xt_seg, time_tensor
+            )
+            xt_im, xt_seg = self.forward_diffuser.inference_call(
+                xt_im,
+                xt_seg,
+                noise_prediction_im,
+                noise_prediciton_seg,
+                t,
+                t_n,
+            )            
+        return xt_im, xt_seg
 
     def pre_infer(self) -> str:
         """
