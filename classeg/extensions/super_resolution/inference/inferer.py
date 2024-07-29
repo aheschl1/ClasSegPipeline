@@ -118,12 +118,13 @@ class SuperResolutionInferer(Inferer):
         self.model.eval()
         with torch.no_grad():
             in_shape = list(self.config["target_size"])
-            xt_im, xt_seg = self.progressive_denoise(image.shape[0], in_shape, model=self.model)
+            xt_im, xt_seg = self.progressive_denoise(image.shape[0], in_shape, model=self.model, image=image, seg=seg)
             
             print("Waring: not unbitifying. Only good for binary")
-            xt_seg = xt_seg.round().cpu().permute(0, 2, 3, 1).numpy().astype(float)
+            xt_seg = xt_seg.cpu().permute(0, 2, 3, 1).numpy().astype(float)
             xt_seg -= xt_seg.min()
-            xt_seg *= 255 / xt_seg.max()
+            xt_seg /= xt_seg.max()
+            xt_seg = xt_seg.round() * 255
             xt_seg = xt_seg.astype(np.uint8)
             xt_im = xt_im.cpu().permute(0, 2, 3, 1).numpy()
             xt_im -= xt_im.min()
@@ -147,7 +148,7 @@ class SuperResolutionInferer(Inferer):
         # xt_seg = xt_seg.round()[0].cpu().permute(1, 2, 0).numpy()
         # return xt_im, xt_seg
 
-    def progressive_denoise(self, batch_size, in_shape, model=None):
+    def progressive_denoise(self, batch_size, in_shape, model, image, seg):
         if model is None:
             model = self.model
         xt_im = torch.randn(
@@ -173,7 +174,7 @@ class SuperResolutionInferer(Inferer):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
             noise_prediction_im, noise_prediciton_seg = model(
-                xt_im, xt_seg, time_tensor
+                xt_im, xt_seg, torch.cat([image, seg], dim=1), time_tensor
             )
             xt_im, xt_seg = self.forward_diffuser.inference_call(
                 xt_im,
@@ -198,7 +199,7 @@ class SuperResolutionInferer(Inferer):
         if self.output_name is None:
             return super().pre_infer()
         else:
-            save_path = f'{self.lookup_root}/{self.output_name}'
+            save_path = f'{self.lookup_root}/super_resolved/{self.output_name}'
             if os.path.exists(save_path):
                 shutil.rmtree(save_path)
             os.makedirs(save_path)

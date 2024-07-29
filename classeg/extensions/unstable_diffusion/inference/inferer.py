@@ -29,6 +29,7 @@ class UnstableDiffusionInferer(Inferer):
                  input_root: str,
                  late_model_instantiation=True,
                  infer_timesteps: int = 1000,
+                 sr_timesteps = None,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -39,6 +40,11 @@ class UnstableDiffusionInferer(Inferer):
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.timesteps = self.config["max_timestep"]
         self.infer_timesteps = int(infer_timesteps)
+        if sr_timesteps is None:
+            self.sr_timesteps = self.infer_timesteps
+        else:
+            self.sr_timesteps = int(sr_timesteps)
+        
         self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=(self.infer_timesteps < 1000), timesteps=self.timesteps)
         self.kwargs = kwargs
         self.dataset_id = dataset_id
@@ -224,7 +230,8 @@ class UnstableDiffusionInferer(Inferer):
         (or not, if you did something else)
         """
         print("===============================super resolving===============================")
-        super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v3", "latest", self.save_path, output_name=self.name, infer_timesteps=self.infer_timesteps)
+        super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v3", "latest", 
+                                               self.save_path, output_name=self.name, infer_timesteps=self.sr_timesteps)
         super_inferer.infer()
         ...
         
