@@ -104,8 +104,20 @@ class Diffuser:
 
         return data_im, data_seg
 
-    def inference_call_alt(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, time_tensor: torch.Tensor, time_tensor_next: torch.Tensor, training_time=False ):
+    def prepare_betas(self):
+        raise NotImplementedError(
+            "Do not instantiate the base diffuser!!!!! Use a subclass instead"
+        )
+
+
+class DDIMDiffuser(Diffuser):
+    def prepare_betas(self):
+        raise Exception("DDIM Diffuser should not be used. Override it with linear or cosine diffuser")
+    
+    def inference_call(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, t: int, t_n = None, training_time=False ):
         alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
+        time_tensor = (torch.ones(im.shape[0], device=im.device) * t).long()
+        time_tensor_next = (torch.ones(im.shape[0], device=im.device) * t_n).long()
 
         a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
         a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
@@ -137,47 +149,6 @@ class Diffuser:
             sample_im = mean_im
             sample_seg = mean_seg   
         return sample_im, sample_seg
-
-    def prepare_betas(self):
-        raise NotImplementedError(
-            "Do not instantiate the base diffuser!!!!! Use a subclass instead"
-        )
-
-
-class DDIMDiffuser(Diffuser):
-    def prepare_betas(self):
-        raise Exception("DDIM Diffuser should not be used. Override it with linear or cosine diffuser")
-    
-    def inference_call(self, 
-                       im: torch.Tensor, 
-                       seg: torch.Tensor, 
-                       predicted_noise_im: torch.Tensor, 
-                       predicted_noise_seg: torch.Tensor, 
-                       t: int, i=0, **kwargs):
-        """
-        For use in inference mode
-        If clamp is true, clamps data between -1 and 1
-        """
-        if isinstance(t, int):
-            t = torch.tensor([t]).to(im.device)
-
-        # alphas = self._alphas.to(im.device)
-        alpha_bars = self._alpha_bars.to(im.device)
-        
-        alpha_t_bar = alpha_bars[-i]
-        alpha_tm1_bar = alpha_bars[-i-1]
-
-
-        c1 = 0 * ((1 - alpha_t_bar / alpha_tm1_bar) * (1 - alpha_t_bar) / (1 - alpha_t_bar)).sqrt()
-        c2 = ((1-alpha_tm1_bar) - c1 ** 2).sqrt()
-
-        im0_t = (im-predicted_noise_im*(1-alpha_t_bar).sqrt())/alpha_t_bar.sqrt()
-        data_im = alpha_tm1_bar.sqrt()*im0_t + c2*predicted_noise_im + c1*torch.randn_like(im)
-
-        seg0_t = (seg- predicted_noise_seg*(1-alpha_t_bar).sqrt() )/(alpha_t_bar.sqrt())
-        data_seg = alpha_tm1_bar.sqrt()*seg0_t + c2*predicted_noise_seg+ c1*torch.randn_like(seg)
-
-        return data_im, data_seg
 
 class LinearDiffuser(Diffuser):
     def prepare_betas(self):

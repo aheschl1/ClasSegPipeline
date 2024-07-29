@@ -28,6 +28,7 @@ class UnstableDiffusionInferer(Inferer):
                  weights: str,
                  input_root: str,
                  late_model_instantiation=True,
+                 infer_timesteps: int = 1000,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -36,10 +37,9 @@ class UnstableDiffusionInferer(Inferer):
         :param weights: The name of the weights to load.
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
-        self.ddim = os.environ.get("DDIM", False) in ["True", "true", "1"]
-        self.step = 2 if self.ddim else 1
-        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=self.ddim, timesteps=self.config["max_timestep"]//self.step)
         self.timesteps = self.config["max_timestep"]
+        self.infer_timesteps = infer_timesteps
+        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=(infer_timesteps < 1000), timesteps=self.timesteps)
         self.kwargs = kwargs
         self.dataset_id = dataset_id
         self.name = name
@@ -97,7 +97,6 @@ class UnstableDiffusionInferer(Inferer):
         num_samples = num_samples if num_samples is not None else int(self.kwargs.get("s", 1000))
         run_name  = self.kwargs.get("r", "Inference")
 
-        timestep = int(self.kwargs.get("t", 1000))
         # Inference generates folders with the csv file
         save_path = f'{self.pre_infer(build_model=model is None)}/{run_name}'
         self.save_path = save_path
@@ -122,7 +121,7 @@ class UnstableDiffusionInferer(Inferer):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
-                xt_im, xt_seg = self.progressive_denoise_time(batch_size, in_shape, timestep, model=model)
+                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model)
                 # Binarize the mask
                 xt_im = xt_im.detach().cpu().permute(0,2,3,1)
                 xt_seg = xt_seg.detach().cpu().permute(0,2,3,1)
@@ -140,6 +139,45 @@ class UnstableDiffusionInferer(Inferer):
         self.post_infer()
         return xt_im, xt_seg
 
+    # def progressive_denoise(self, batch_size, in_shape, model=None):
+    #     if model is None:
+    #         model = self.model
+    #     xt_im = torch.randn(
+    #         (
+    #             batch_size,
+    #             self.config["model_args"]["im_channels"],
+    #             *in_shape,
+    #         )
+    #     )
+    #     xt_seg = torch.randn(
+    #        (
+    #            batch_size,
+    #            self.config["model_args"]["seg_channels"],
+    #            *in_shape,
+    #        )
+    #     )
+    #     xt_im = xt_im.to(self.device)
+    #     xt_seg = xt_seg.to(self.device)
+    #     # self.timesteps = 1
+    #     i = 0
+    #     for t in tqdm(range(self.timesteps - 1, -1, -self.step), desc="running inference"):
+    #         i += 1
+    #         time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
+    #         noise_prediction_im, noise_prediciton_seg = model(
+    #             xt_im, xt_seg, time_tensor
+    #         )
+    #         xt_im, xt_seg = self.forward_diffuser.inference_call(
+    #             xt_im,
+    #             xt_seg,
+    #             noise_prediction_im,
+    #             noise_prediciton_seg,
+    #             t,
+    #             clamp=False,
+    #             jump=self.step,
+    #             i=i
+    #         )
+    #     return xt_im, xt_seg
+    
     def progressive_denoise(self, batch_size, in_shape, model=None):
         if model is None:
             model = self.model
@@ -159,52 +197,12 @@ class UnstableDiffusionInferer(Inferer):
         )
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
-        # self.timesteps = 1
-        i = 0
-        for t in tqdm(range(self.timesteps - 1, -1, -self.step), desc="running inference"):
-            i += 1
-            time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
-            noise_prediction_im, noise_prediciton_seg = model(
-                xt_im, xt_seg, time_tensor
-            )
-            xt_im, xt_seg = self.forward_diffuser.inference_call(
-                xt_im,
-                xt_seg,
-                noise_prediction_im,
-                noise_prediciton_seg,
-                t,
-                clamp=False,
-                jump=self.step,
-                i=i
-            )
-        return xt_im, xt_seg
-    
-    def progressive_denoise_time(self, batch_size, in_shape, num_timesteps, model=None):
-        if model is None:
-            model = self._get_model
-        xt_im = torch.randn(
-            (
-                batch_size,
-                self.config["model_args"]["im_channels"],
-                *in_shape,
-            )
-        )
-        xt_seg = torch.randn(
-           (
-               batch_size,
-               self.config["model_args"]["seg_channels"],
-               *in_shape,
-           )
-        )
-        xt_im = xt_im.to(self.device)
-        xt_seg = xt_seg.to(self.device)
         
-        skip = self.timesteps // num_timesteps
-        seq = range(0, self.timesteps, skip)
-        seq_next = [-1] + list(seq[:-1])
-        for t, t_n in tqdm(zip(reversed(seq), reversed(seq_next)), desc="Running Inference"):
+        skip = -(self.timesteps // self.infer_timesteps)
+        seq = range(self.timesteps-1, -1, skip)
+        for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
-            time_tensor_next = (torch.ones(xt_im.shape[0]) * t_n).to(xt_im.device).long()
+            t_n = t - skip if t !=0 else -1
             noise_prediction_im, noise_prediciton_seg = model(
                 xt_im, xt_seg, time_tensor
             )
@@ -213,8 +211,8 @@ class UnstableDiffusionInferer(Inferer):
                 xt_seg,
                 noise_prediction_im,
                 noise_prediciton_seg,
-                time_tensor,
-                time_tensor_next,
+                t,
+                t_n,
             )            
         return xt_im, xt_seg
 
