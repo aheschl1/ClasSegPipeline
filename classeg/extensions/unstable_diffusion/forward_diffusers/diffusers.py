@@ -168,13 +168,14 @@ class DDIMDiffuser(Diffuser):
         alpha_tm1_bar = alpha_bars[-i-1]
 
 
+        c1 = 0 * ((1 - alpha_t_bar / alpha_tm1_bar) * (1 - alpha_t_bar) / (1 - alpha_t_bar)).sqrt()
+        c2 = ((1-alpha_tm1_bar) - c1 ** 2).sqrt()
+
         im0_t = (im-predicted_noise_im*(1-alpha_t_bar).sqrt())/alpha_t_bar.sqrt()
-        c2 = (1-alpha_tm1_bar).sqrt()
-        data_im = alpha_tm1_bar.sqrt()*im0_t + c2*predicted_noise_im
+        data_im = alpha_tm1_bar.sqrt()*im0_t + c2*predicted_noise_im + c1*torch.randn_like(im)
 
         seg0_t = (seg- predicted_noise_seg*(1-alpha_t_bar).sqrt() )/(alpha_t_bar.sqrt())
-        c2 = (1-alpha_tm1_bar).sqrt()
-        data_seg = alpha_tm1_bar.sqrt()*seg0_t + c2*predicted_noise_seg
+        data_seg = alpha_tm1_bar.sqrt()*seg0_t + c2*predicted_noise_seg+ c1*torch.randn_like(seg)
 
         return data_im, data_seg
 
