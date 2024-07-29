@@ -118,7 +118,6 @@ class DDIMDiffuser(Diffuser):
         alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
         time_tensor = (torch.ones(im.shape[0], device=im.device) * t).long()
         time_tensor_next = (torch.ones(im.shape[0], device=im.device) * t_n).long()
-
         a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
         a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
         beta_t = 1 - a_t / a_t_next

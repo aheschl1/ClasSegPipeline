@@ -38,8 +38,8 @@ class UnstableDiffusionInferer(Inferer):
         """
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.timesteps = self.config["max_timestep"]
-        self.infer_timesteps = infer_timesteps
-        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=(infer_timesteps < 1000), timesteps=self.timesteps)
+        self.infer_timesteps = int(infer_timesteps)
+        self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=(self.infer_timesteps < 1000), timesteps=self.timesteps)
         self.kwargs = kwargs
         self.dataset_id = dataset_id
         self.name = name
@@ -198,15 +198,15 @@ class UnstableDiffusionInferer(Inferer):
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
         
-        skip = -(self.timesteps // self.infer_timesteps)
-        seq = range(self.timesteps-1, -1, skip)
+        skip = self.timesteps // self.infer_timesteps
+        seq = range(self.timesteps-1, -1, -skip)
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
             noise_prediction_im, noise_prediciton_seg = model(
                 xt_im, xt_seg, time_tensor
             )
-            xt_im, xt_seg = self.forward_diffuser.inference_call_alt(
+            xt_im, xt_seg = self.forward_diffuser.inference_call(
                 xt_im,
                 xt_seg,
                 noise_prediction_im,
