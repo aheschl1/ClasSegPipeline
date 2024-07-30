@@ -6,10 +6,10 @@ import subprocess
 from flask import Flask, send_file
 from flask_cors import CORS, cross_origin
 
-from classeg.server.dataset_queries.read_available import get_available_datasets
-from classeg.server.utils.caching import cache_array_as_image, clear_cache
-from classeg.server.utils.project import Project
-from classeg.server.utils.utils import get_terminal_command
+from classeg.ui_server.dataset_queries.read_available import get_available_datasets
+from classeg.ui_server.utils.caching import cache_array_as_image, clear_cache
+from classeg.ui_server.utils.project import Project
+from classeg.ui_server.utils.utils import get_terminal_command
 
 app = Flask(__name__)
 cors = CORS(app)

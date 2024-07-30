@@ -11,6 +11,7 @@ export default function Home() {
     return (
         <>
             <Navbar/>
+            <p>This UI is still under development, and more features will come.</p>
             <div className="ProjectTiles">
                 {projects.map((p)=>
                     <ProjectTile onClick={()=>navigate(`/projects/${p.name}`)} project={p} key={p.name}/>

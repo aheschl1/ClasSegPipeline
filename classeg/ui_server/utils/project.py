@@ -1,7 +1,7 @@
 import glob
 import os.path
 
-from classeg.server.utils.results import get_experiments_from_dataset, get_experiment_from_dataset
+from classeg.ui_server.utils.results import get_experiments_from_dataset, get_experiment_from_dataset
 from classeg.utils.constants import *
 from classeg.utils.utils import (
     get_dataset_mode_from_name, get_datapoint_from_dataset_and_case

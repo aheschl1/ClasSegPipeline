@@ -9,7 +9,7 @@ export FLASK_ENV=development
 export FLASK_APP=app.py
 """
 CLIENT_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client')
-APP_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'server', 'app.py')
+APP_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ui_server', 'app.py')
 
 
 def _run_frontend():
