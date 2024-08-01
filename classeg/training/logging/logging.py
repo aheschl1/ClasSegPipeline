@@ -245,7 +245,7 @@ class WandBLogger(Logger):
         data = {
             "augmented_image": wandb.Image(
                 image,
-                masks=None if mask is None else {"augmented_mask": mask},
+                masks=None if mask is None else {"augmented_mask": {"mask_data": mask}},
             ),
         }
         wandb.log(data, step=self.epoch)
