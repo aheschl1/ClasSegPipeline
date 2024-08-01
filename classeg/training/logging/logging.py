@@ -206,7 +206,7 @@ class WandBLogger(Logger):
                 f.write(wandb_id)
 
         name = output_dir.split("/")[-1]
-        wandb.require("core")
+        #wandb.require("core")
         wandb.login(
             key=WANDB_API_KEY
         )

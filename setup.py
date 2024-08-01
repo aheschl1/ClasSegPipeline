@@ -20,7 +20,7 @@ setup(
         "pyyaml~=6.0.1",
         "tqdm~=4.65.0",
         "seaborn~=0.12.2",
-        "pandas~=2.1.4",
+        "pandas",
         "SimpleITK~=2.3.1",
         "einops~=0.7.0",
         "albumentations~=1.4.11",
