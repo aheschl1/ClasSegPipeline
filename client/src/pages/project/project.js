@@ -6,6 +6,7 @@ import ImageView from "./image_views/image_view";
 import Experiments from "./experiments_view/experiments";
 import {useState} from "react";
 import {postTrainExperiment} from "../../posts/train";
+import {useExtensions} from "../../hooks/extensions";
 
 
 const ContentBlock = (props)=>{
@@ -34,6 +35,7 @@ export default function ProjectPage(props){
     let [buildingExperiment, setBuildingExperiment] = useState(false)
 
     let project = useProject(dataset)
+    let extensions = useExtensions()
 
     const newExperiment = ()=>{
         setBuildingExperiment(!buildingExperiment)
@@ -90,8 +92,13 @@ export default function ProjectPage(props){
                             }}>
                                 <input id="experimentNameInput" type="text" placeholder={"Experiment Name (Required)"}/>
                                 <input id="experimentFold" type="number" placeholder={"Fold (Required)"}/>
-                                <input id="experimentExtension" type="text" placeholder={"Extension (Default)"}/>
                                 <input id="experimentModel" type="text" placeholder={"Model (None)"}/>
+                                <select id="experimentExtension">
+                                    <option selected="">{extensions[0]}</option>
+                                    {extensions.map((e, _)=> {
+                                        return <option>{e}</option>
+                                    })}
+                                </select>
                                 <select id="experimentConfig">
                                     <option selected="">Select Config</option>
                                     {project.configs.map((c, _)=> {

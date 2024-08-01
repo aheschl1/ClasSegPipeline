@@ -75,6 +75,18 @@ def get_preprocessor_from_extension(extension: Union[str, None], dataset_name: U
     return preprocessor_class
 
 
+def get_extensions():
+    """
+    Fetches all extensions.
+    :return: List of extensions.
+    """
+    classeg_root = os.path.dirname(os.path.dirname(__file__))
+    extensions = []
+    for loader, name, is_pkg in pkgutil.walk_packages(path=[f"{classeg_root}/extensions"]):
+        extensions.append(name)
+    return extensions
+
+
 def is_online():
     try:
         # connect to the host -- tells us if the host is actually
@@ -159,10 +171,6 @@ def get_dataset_name_from_id(id: Union[str, int], name: str = None) -> str:
     else:
         dataset_name = dataset_name.replace("_", f"_{name}_")
     return dataset_name
-
-
-if __name__ == "__main__":
-    print(get_dataset_name_from_id(420))
 
 
 def check_raw_exists(dataset_name: str) -> bool:

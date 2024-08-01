@@ -10,6 +10,7 @@ from classeg.ui_server.dataset_queries.read_available import get_available_datas
 from classeg.ui_server.utils.caching import cache_array_as_image, clear_cache
 from classeg.ui_server.utils.project import Project
 from classeg.ui_server.utils.utils import get_terminal_command
+from classeg.utils.utils import get_extensions
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -102,5 +103,9 @@ def train(project_id, experiment_name, fold, model, extension_name, config):
     return json.dumps({'message': f'Process started successfully'}), 200
 
 
-
+@app.route("/extensions")
+@cross_origin()
+def get_extensions_entry():
+    extensions = get_extensions()
+    return extensions
 
