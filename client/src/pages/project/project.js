@@ -17,6 +17,9 @@ const ContentBlock = (props)=>{
 }
 
 function trainExperiment(project, name, fold, extension, model, config){
+    if(extension === "No Extensions") {
+        alert("No Extensions Available")
+    }
     if(name === "" || fold === "" || config === "Select Config"){
         alert("Name, Fold, and Config are required")
         return
@@ -94,7 +97,7 @@ export default function ProjectPage(props){
                                 <input id="experimentFold" type="number" placeholder={"Fold (Required)"}/>
                                 <input id="experimentModel" type="text" placeholder={"Model (None)"}/>
                                 <select id="experimentExtension">
-                                    <option selected="">{extensions[0]}</option>
+                                    <option selected="">{extensions.length > 0 ? extensions[0] : "No Extensions"}</option>
                                     {extensions.map((e, _)=> {
                                         return <option>{e}</option>
                                     })}
