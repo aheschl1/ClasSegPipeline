@@ -78,6 +78,10 @@ class Logger:
     @abstractmethod
     def cleanup(self):
         raise NotImplementedError("Method not implemented in parent class.")
+    
+    @abstractmethod
+    def log_scalar(self, data, title):
+        raise NotImplementedError("Method not implemented in parent class.")
 
     def __del__(self):
         self.cleanup()
@@ -179,6 +183,10 @@ class TensorboardLogger(Logger):
         self.summary_writer.flush()
         self.summary_writer.close()
 
+    def log_scalar(self, data, title):
+        self.summary_writer.add_scalar(title, data, self.epoch)
+        self.summary_writer.flush()
+
 
 def isOnline():
     try:
@@ -206,7 +214,11 @@ class WandBLogger(Logger):
                 f.write(wandb_id)
 
         name = output_dir.split("/")[-1]
-        #wandb.require("core")
+        try:
+            wandb.require("core")
+        except:
+            ...
+            
         wandb.login(
             key=WANDB_API_KEY
         )
@@ -281,3 +293,8 @@ class WandBLogger(Logger):
 
     def cleanup(self):
         wandb.finish()
+
+    def log_scalar(self, data, title):
+        wandb.log({
+            title: data
+        }, step=self.epoch)
