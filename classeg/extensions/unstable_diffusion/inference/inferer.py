@@ -31,6 +31,7 @@ class UnstableDiffusionInferer(Inferer):
                  infer_timesteps: int = 1000,
                  sr_timesteps = None,
                  training=False,
+                 r="Inference", 
                  **kwargs):
         """
         Inferer for pipeline.
@@ -51,6 +52,7 @@ class UnstableDiffusionInferer(Inferer):
         self.kwargs = kwargs
         self.dataset_id = dataset_id
         self.name = name
+        self.run_name = r
 
     def get_augmentations(self):
         ...
@@ -103,7 +105,7 @@ class UnstableDiffusionInferer(Inferer):
     def infer(self, model=None, num_samples=None) -> Tuple[torch.Tensor, torch.Tensor]:
         # To infer we need the number of samples to generate, and name of folder
         num_samples = num_samples if num_samples is not None else int(self.kwargs.get("s", 1000))
-        run_name  = self.kwargs.get("r", "Inference")
+        run_name  = self.run_name
 
         # Inference generates folders with the csv file
         save_path = f'{self.pre_infer(build_model=model is None)}/{run_name}'
@@ -235,7 +237,7 @@ class UnstableDiffusionInferer(Inferer):
             return 
         print("===============================super resolving===============================")
         super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v3", "latest", 
-                                               self.save_path, output_name=self.name, infer_timesteps=self.sr_timesteps)
+                                               self.save_path, output_name=f"{self.name}_{self.run_name}", infer_timesteps=self.sr_timesteps)
         super_inferer.infer()
         ...
         

@@ -196,6 +196,7 @@ class SuperResolutionInferer(Inferer):
         )["weights"]
         self.model.load_state_dict(checkpoint)
         self.model = self.model.to(self.device)
+        print("!!!!!!Save path:", self.output_name)
         if self.output_name is None:
             return super().pre_infer()
         else:
