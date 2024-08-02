@@ -131,7 +131,7 @@ class UnstableDiffusionTrainer(Trainer):
         return train_transforms, val_transforms
 
     def _instantiate_inferer(self, dataset_name, fold, result_folder):
-        self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None)
+        self._inferer = UnstableDiffusionInferer(dataset_name, fold, result_folder, "latest", None, training=True)
 
     def get_extra_checkpoint_data(self) -> torch.Dict[str, Any] | None:
         return {

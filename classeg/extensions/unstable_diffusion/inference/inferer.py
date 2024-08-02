@@ -30,6 +30,7 @@ class UnstableDiffusionInferer(Inferer):
                  late_model_instantiation=True,
                  infer_timesteps: int = 1000,
                  sr_timesteps = None,
+                 training=False,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -40,6 +41,7 @@ class UnstableDiffusionInferer(Inferer):
         super().__init__(dataset_id, fold, name, weights, input_root, late_model_instantiation=late_model_instantiation)
         self.timesteps = self.config["max_timestep"]
         self.infer_timesteps = int(infer_timesteps)
+        self.training = training
         if sr_timesteps is None:
             self.sr_timesteps = self.infer_timesteps
         else:
@@ -229,6 +231,8 @@ class UnstableDiffusionInferer(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
+        if self.training:
+            return 
         print("===============================super resolving===============================")
         super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v3", "latest", 
                                                self.save_path, output_name=self.name, infer_timesteps=self.sr_timesteps)
