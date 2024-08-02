@@ -83,6 +83,10 @@ class Logger:
     def log_histogram(self, data, title):
         raise NotImplementedError("Method not implemented in parent class.")
 
+    @abstractmethod
+    def log_scalar(self, data, title):
+        raise NotImplementedError("Method not implemented in parent class.")
+
     def __del__(self):
         self.cleanup()
 
@@ -157,6 +161,10 @@ class TensorboardLogger(Logger):
         )
         self.summary_writer.flush()
 
+    def log_scalar(self, data, title):
+        self.summary_writer.add_scalar(title, data, self.epoch)
+        self.summary_writer.flush()
+
     def log_graph(self, points: List[Tuple[float, float]], title="2D Graph"):
         fig = plt.figure()
         x_values, y_values = zip(*points)
@@ -210,7 +218,11 @@ class WandBLogger(Logger):
                 f.write(wandb_id)
 
         name = output_dir.split("/")[-1]
-        wandb.require("core")
+        try:
+            wandb.require("core")
+        except:
+            ...
+
         wandb.login(
             key=WANDB_API_KEY
         )
@@ -265,6 +277,11 @@ class WandBLogger(Logger):
         wandb.log({
             "total_params": total,
             "trainable_params": trainable
+        }, step=self.epoch)
+
+    def log_scalar(self, data, title):
+        wandb.log({
+            title: data
         }, step=self.epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], x="x", y="y", title="2D Graph"):
