@@ -148,7 +148,23 @@ class DDIMDiffuser(Diffuser):
             sample_im = mean_im
             sample_seg = mean_seg   
         return sample_im, sample_seg
+    
+    def inference_call_alt(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, t: int, t_n = None, training_time=False ):
+        alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
+        time_tensor = (torch.ones(im.shape[0], device=im.device) * t).long()
+        time_tensor_next = (torch.ones(im.shape[0], device=im.device) * t_n).long()
+        a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
+        a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
+        
 
+        im0_from_e = (im - (1-a_t).sqrt() * predicted_noise_im) / (a_t.sqrt())
+        seg0_from_e = (seg - (1-a_t).sqrt() * predicted_noise_seg) / (a_t.sqrt())
+
+        next_im = a_t_next.sqrt() * im0_from_e + (1-a_t_next).sqrt() * predicted_noise_im
+        next_seg = a_t_next.sqrt() * seg0_from_e + (1-a_t_next).sqrt() * predicted_noise_seg
+        
+        return next_im, next_seg
+        
 class LinearDiffuser(Diffuser):
     def prepare_betas(self):
         return torch.linspace(self.min_beta, self.max_beta, self.timesteps)

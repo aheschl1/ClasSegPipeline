@@ -136,7 +136,6 @@ class DDIMDiffuser(Diffuser):
             (a_t_next.sqrt() * beta_t) * seg0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * seg
         ) / (1- a_t)
 
-        return mean_im, mean_seg
         noise_im = torch.randn_like(im)
         noise_seg = torch.randn_like(seg)
 
