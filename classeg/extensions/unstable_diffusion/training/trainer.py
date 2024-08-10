@@ -164,10 +164,18 @@ class UnstableDiffusionTrainer(Trainer):
                 self.logger.log_augmented_image(images[0], mask=segmentations[0].squeeze().numpy())
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
+            embedding = None
+            if self.model.__dict__.get("bonus_embedding", None) is not None:
+                embedding, recon = self.model.embbed_bonus(images)
+                recon_loss = self.recon_loss(recon, images)
+                recon_loss.backward()
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
-            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
+            if embedding is not None:
+                predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, embedding)
+            else:
+                predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                                        torch.concat([im_noise, seg_noise], dim=1))
             dis_loss = 0.0
