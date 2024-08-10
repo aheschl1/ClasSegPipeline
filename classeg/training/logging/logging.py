@@ -253,9 +253,9 @@ class WandBLogger(Logger):
             )
         }, step=self.epoch)
 
-    def log_augmented_image(self, image: Any, mask: Any = None):
+    def log_augmented_image(self, image: Any, mask: Any = None, name="augmented_image"):
         data = {
-            "augmented_image": wandb.Image(
+            name: wandb.Image(
                 image,
                 masks=None if mask is None else {"augmented_mask": {"mask_data": mask}},
             ),

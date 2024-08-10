@@ -102,7 +102,7 @@ class UnstableDiffusionInferer(Inferer):
             self.model = self.model.to(self.device)
         return save_path
 
-    def infer(self, model=None, num_samples=None) -> Tuple[torch.Tensor, torch.Tensor]:
+    def infer(self, model=None, num_samples=None, embed_sample=None) -> Tuple[torch.Tensor, torch.Tensor]:
         # To infer we need the number of samples to generate, and name of folder
         num_samples = num_samples if num_samples is not None else int(self.kwargs.get("s", 1000))
         run_name  = self.run_name
@@ -131,7 +131,7 @@ class UnstableDiffusionInferer(Inferer):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
-                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model)
+                xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model, embed_sample=embed_sample)
                 # Binarize the mask
                 xt_im = xt_im.detach().cpu().permute(0,2,3,1)
                 xt_seg = xt_seg.detach().cpu().permute(0,2,3,1)
@@ -188,7 +188,7 @@ class UnstableDiffusionInferer(Inferer):
     #         )
     #     return xt_im, xt_seg
     
-    def progressive_denoise(self, batch_size, in_shape, model=None):
+    def progressive_denoise(self, batch_size, in_shape, model=None, embed_sample=None):
         if model is None:
             model = self.model
         xt_im = torch.randn(
@@ -210,12 +210,20 @@ class UnstableDiffusionInferer(Inferer):
         
         skip = self.timesteps // self.infer_timesteps
         seq = range(self.timesteps-1, -1, -skip)
+        if embed_sample is not None:
+            embed_sample = torch.stack([embed_sample]*xt_im.shape[0], dim=0)
+            embed_sample, _ = model.embbed_bonus(embed_sample, recon_im=False)
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
-            noise_prediction_im, noise_prediciton_seg = model(
-                xt_im, xt_seg, time_tensor
-            )
+            if embed_sample is not None:
+                noise_prediction_im, noise_prediciton_seg = model(
+                    xt_im, xt_seg, time_tensor, embed_sample
+                )
+            else:
+                noise_prediction_im, noise_prediciton_seg = model(
+                    xt_im, xt_seg, time_tensor
+                )
             xt_im, xt_seg = self.forward_diffuser.inference_call(
                 xt_im,
                 xt_seg,

@@ -558,7 +558,7 @@ class UnstableDiffusion(nn.Module):
             )
         
         if bonus_embedding:
-            self.bonus_embedding_projector = nn.Linear(time_emb_dim, time_emb_dim),
+            self.bonus_embedding_projector = nn.Linear(time_emb_dim, time_emb_dim)
             self.bonus_embeddor, self.embedding_incorperator = self.get_bonus_embeddor()
             self.embed_decoder = nn.ModuleList()
             for layer in range(layers - 1, 0, -1):
@@ -571,7 +571,9 @@ class UnstableDiffusion(nn.Module):
                         time_emb_dim=self.time_emb_dim,
                         upsample=True,
                         num_layers=layer_depth,
-                        time=False
+                        time=False,
+                        skipped=False,
+                        attention=False
                     )
                 )
 
@@ -724,21 +726,22 @@ class UnstableDiffusion(nn.Module):
             im = layer(im, t, None)
         return discriminator[2](im)
     
-    def embbed_bonus(self, im) -> Tuple[torch.Tensor, torch.Tensor]:
+    def embbed_bonus(self, im, recon_im=True) -> Tuple[torch.Tensor, torch.Tensor]:
         im = self.bonus_embeddor[0](im)
         for layer in self.bonus_embeddor[1]:
             im = layer(im, None, None)
 
         recon = None
-        i = 0
-        for decoder in self.embed_decoder[:-1]:
-            i += 1
-            if recon is None:
-                recon = decoder(im, None, None, None)
-            else:
-                recon = decoder(recon, None, None, None)
+        if recon_im:
+            i = 0
+            for decoder in self.embed_decoder[:-1]:
+                i += 1
+                if recon is None:
+                    recon = decoder(im, None, None, None)
+                else:
+                    recon = decoder(recon, None, None, None)
 
-        return self.bonus_embeddor[2](im), self.embed_decoder[-1](recon)
+        return self.bonus_embeddor[2](im), None if recon is None else self.embed_decoder[-1](recon)
 
     def forward(self, im, seg, t, bonus_embedding=None):
         if bonus_embedding is not None:
