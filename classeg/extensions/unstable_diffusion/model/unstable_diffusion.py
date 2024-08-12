@@ -742,6 +742,15 @@ class UnstableDiffusion(nn.Module):
                     recon = decoder(recon, None, None, None)
 
         return self.bonus_embeddor[2](im), None if recon is None else self.embed_decoder[-1](recon)
+    
+    def recon_bonus_embed(self, embedding):
+        recon = embedding
+        i = 0
+        for decoder in self.embed_decoder[:-1]:
+            i += 1
+            recon = decoder(recon, None, None, None)
+        return self.embed_decoder[-1](recon)
+
 
     def forward(self, im, seg, t, bonus_embedding=None):
         if bonus_embedding is not None:

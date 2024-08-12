@@ -167,3 +167,6 @@ Autoencoders
 **/taming
 taming
 *.out
+*.tsv
+events.*
+*.pbtxt
