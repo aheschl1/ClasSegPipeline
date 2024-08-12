@@ -149,45 +149,6 @@ class UnstableDiffusionInferer(Inferer):
         self.post_infer()
         return xt_im, xt_seg
 
-    # def progressive_denoise(self, batch_size, in_shape, model=None):
-    #     if model is None:
-    #         model = self.model
-    #     xt_im = torch.randn(
-    #         (
-    #             batch_size,
-    #             self.config["model_args"]["im_channels"],
-    #             *in_shape,
-    #         )
-    #     )
-    #     xt_seg = torch.randn(
-    #        (
-    #            batch_size,
-    #            self.config["model_args"]["seg_channels"],
-    #            *in_shape,
-    #        )
-    #     )
-    #     xt_im = xt_im.to(self.device)
-    #     xt_seg = xt_seg.to(self.device)
-    #     # self.timesteps = 1
-    #     i = 0
-    #     for t in tqdm(range(self.timesteps - 1, -1, -self.step), desc="running inference"):
-    #         i += 1
-    #         time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
-    #         noise_prediction_im, noise_prediciton_seg = model(
-    #             xt_im, xt_seg, time_tensor
-    #         )
-    #         xt_im, xt_seg = self.forward_diffuser.inference_call(
-    #             xt_im,
-    #             xt_seg,
-    #             noise_prediction_im,
-    #             noise_prediciton_seg,
-    #             t,
-    #             clamp=False,
-    #             jump=self.step,
-    #             i=i
-    #         )
-    #     return xt_im, xt_seg
-    
     def progressive_denoise(self, batch_size, in_shape, model=None, embed_sample=None):
         if model is None:
             model = self.model
@@ -210,9 +171,8 @@ class UnstableDiffusionInferer(Inferer):
         
         skip = self.timesteps // self.infer_timesteps
         seq = range(self.timesteps-1, -1, -skip)
-        if embed_sample is not None:
+        if embed_sample is not None and len(embed_sample.shape) > 2:
             # TODO this needs to be turned into an actual system
-            embed_sample = torch.stack([embed_sample]*xt_im.shape[0], dim=0)
             embed_sample, _ = model.embbed_bonus(embed_sample, recon_im=False)
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
@@ -242,6 +202,7 @@ class UnstableDiffusionInferer(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
+        return
         if self.training:
             return 
         print("===============================super resolving===============================")
@@ -250,3 +211,24 @@ class UnstableDiffusionInferer(Inferer):
         super_inferer.infer()
         ...
         
+
+def get_embed():
+    mean_radius = 104
+    dimensions = 128
+    # sample from the n-sphere with radius mean_radius
+    embed = torch.randn(1, dimensions)
+    embed /= torch.norm(embed, dim=-1, keepdim=True)
+    embed *= mean_radius
+    print(embed.shape, torch.sqrt(torch.sum(embed**2)))
+
+if __name__ == "__main__":
+    inferer = UnstableDiffusionInferer(
+        421,
+        0,
+        "embed_one_encoder",
+        "best",
+        None
+    )
+    embed = get_embed()
+    exit(0)
+    inferer.infer(embed_sample=embed)

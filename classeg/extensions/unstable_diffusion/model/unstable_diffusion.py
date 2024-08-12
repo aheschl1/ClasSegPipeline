@@ -588,6 +588,8 @@ class UnstableDiffusion(nn.Module):
                 ),
             ))
 
+        nn.Parameter(torch.tensor(8, 8, 8))
+
     def _generate_encoder(self, time=True):
         encoder_layers = nn.ModuleList()
         for layer in range(self.layers - 1):
