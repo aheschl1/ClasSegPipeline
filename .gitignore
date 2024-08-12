@@ -170,3 +170,4 @@ taming
 *.tsv
 events.*
 *.pbtxt
+*.pt

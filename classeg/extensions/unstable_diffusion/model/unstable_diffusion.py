@@ -588,8 +588,6 @@ class UnstableDiffusion(nn.Module):
                 ),
             ))
 
-        nn.Parameter(torch.tensor(8, 8, 8))
-
     def _generate_encoder(self, time=True):
         encoder_layers = nn.ModuleList()
         for layer in range(self.layers - 1):
@@ -728,7 +726,7 @@ class UnstableDiffusion(nn.Module):
             im = layer(im, t, None)
         return discriminator[2](im)
     
-    def embbed_bonus(self, im, recon_im=True) -> Tuple[torch.Tensor, torch.Tensor]:
+    def embbed_bonus(self, im, recon_im=True, return_projected=True) -> Tuple[torch.Tensor, torch.Tensor]:
         im = self.bonus_embeddor[0](im)
         for layer in self.bonus_embeddor[1]:
             im = layer(im, None, None)
@@ -743,7 +741,7 @@ class UnstableDiffusion(nn.Module):
                 else:
                     recon = decoder(recon, None, None, None)
 
-        return self.bonus_embeddor[2](im), None if recon is None else self.embed_decoder[-1](recon)
+        return im if not return_projected else self.bonus_embeddor[2](im), None if recon is None else self.embed_decoder[-1](recon)
     
     def recon_bonus_embed(self, embedding):
         recon = embedding
