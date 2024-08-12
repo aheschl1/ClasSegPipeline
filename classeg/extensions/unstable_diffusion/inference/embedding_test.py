@@ -74,21 +74,25 @@ train_transforms = A.Compose(
 dataloader, _ = get_dataloaders_from_fold("Dataset_large_421", 0, train_transforms, train_transforms, True, config=config)
 # Set up the model and SummaryWriter
 model = get_model()
-name = "embedding_im_tr"
+name = "recon_random"
 writer = SummaryWriter(log_dir=f"./{name}")
 
 # Pass the images through the model and send the embeddings to SummaryWriter
 model.eval()
-embeddings_total = []
+# embeddings_total = []
 all_images = []
+embeddings = torch.randn(16, 256, 8, 8, device='cuda')
 with torch.no_grad():
     for images, *_ in tqdm.tqdm(dataloader):
-        all_images.append(torch.nn.functional.interpolate(images, size=(32, 32), mode="bilinear", align_corners=False))
-        images = images.to("cuda")
-        embeddings, _ = model.embbed_bonus(images, recon_im=False)
-        embeddings_total.append(embeddings.cpu())
+        # all_images.append(torch.nn.functional.interpolate(images, size=(32, 32), mode="bilinear", align_corners=False))
+        # images = images.to("cuda")
+        # embeddings, _ = model.embbed_bonus(images, recon_im=False)
+        recon = model.recon_bonus_embed(embeddings)
+        all_images.append(recon.cpu())
+        # embeddings_total.append(embeddings.cpu())
 
-writer.add_embedding(torch.cat(embeddings_total, dim=0), global_step=0, label_img=torch.cat(all_images, dim=0))
-
+# writer.add_embedding(torch.cat(embeddings_total, dim=0), global_step=0, label_img=torch.cat(all_images, dim=0))
+for i, im in enumerate(torch.cat(all_images, dim=0)):
+    writer.add_image("recon", im, global_step=i)
 # Close the SummaryWriter
 writer.close()
