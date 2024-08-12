@@ -211,6 +211,7 @@ class UnstableDiffusionInferer(Inferer):
         skip = self.timesteps // self.infer_timesteps
         seq = range(self.timesteps-1, -1, -skip)
         if embed_sample is not None:
+            # TODO this needs to be turned into an actual system
             embed_sample = torch.stack([embed_sample]*xt_im.shape[0], dim=0)
             embed_sample, _ = model.embbed_bonus(embed_sample, recon_im=False)
         for t in tqdm(seq, desc="Running Inference"):
