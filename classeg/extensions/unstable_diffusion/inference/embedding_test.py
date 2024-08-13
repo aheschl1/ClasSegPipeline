@@ -11,6 +11,9 @@ import json
 import matplotlib.pyplot as plt
 import tqdm
 import os
+import numpy as np
+import glob
+
 
 
 # Define your model class
@@ -22,6 +25,18 @@ class MyModel(torch.nn.Module):
     def forward(self, x):
         # Implement the forward pass of your model here
         return x
+    
+class DS(Dataset):
+    def __init__(self, root, t):
+        self.t = t
+        self.samples= glob.glob(f"{root}/*")
+
+    def __len__(self)   :
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        x = cv2.cvtColor(cv2.imread(self.samples[index]), cv2.COLOR_BGR2RGB).astype(np.float32)
+        return torch.from_numpy(self.t(image=x)['image']).float().permute(2, 0, 1)
 
 config = None
 results_root= f"/home/andrewheschl/Documents/Dataset/ClassPipeline/results/embed_one_encoder"
@@ -77,10 +92,12 @@ train_transforms = A.Compose(
     ],
     is_check_shapes=False
 )
-_, dataloader = get_dataloaders_from_fold("Dataset_large_421", 0, train_transforms, train_transforms, True, config=config)
+# _, dataloader = get_dataloaders_from_fold("Dataset_large_421", 0, train_transforms, train_transforms, True, config=config)
+dataset = DS("/home/andrewheschl/Desktop/poop", t=train_transforms)
+dataloader = DataLoader(dataset, batch_size=16, shuffle=True, num_workers=16)
 # Set up the model and SummaryWriter
 model = get_model()
-name = "recon_random_im2"
+name = "car"
 writer = SummaryWriter(log_dir=f"./{name}")
 
 # Pass the images through the model and send the embeddings to SummaryWriter
@@ -93,9 +110,10 @@ og_shape = None
 with torch.no_grad():
     loss = 0
     total_samples = 0
-    for images, *_ in tqdm.tqdm(dataloader):
+    for images in tqdm.tqdm(dataloader):
         images = images.to("cuda")
         embeddings, recon = model.embbed_bonus(images, recon_im=True, return_projected=False)
+        print(embeddings.shape, recon.shape)
         loss += torch.nn.functional.mse_loss(recon, images)*images.shape[0]
         total_samples += images.shape[0]
 
