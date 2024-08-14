@@ -121,7 +121,6 @@ class Datapoint:
             label = Datapoint.standardize(label)
         elif self.mode == CLASSIFICATION:
             label = np.array(int(self.label))
-
         return image, label
 
     def set_num_classes(self, n: int) -> None:
