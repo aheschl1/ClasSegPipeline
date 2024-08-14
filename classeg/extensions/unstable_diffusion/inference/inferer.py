@@ -242,6 +242,7 @@ class UnstableDiffusionInferer(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
+        return
         if self.training:
             return 
         print("===============================super resolving===============================")
