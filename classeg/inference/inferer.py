@@ -108,14 +108,14 @@ class Inferer:
         """
         ...
 
-    def get_dataloader(self) -> DataLoader:
+    def get_dataloader(self, batch_size=256) -> DataLoader:
         datapoints = self._get_datapoints()
         dataset = PipelineDataset(datapoints, self.dataset_name, transforms=self.get_augmentations())
         return DataLoader(
             dataset=dataset,
             pin_memory=True,
             num_workers=self.config["processes"],
-            batch_size=256,
+            batch_size=batch_size,
             collate_fn=batch_collate_fn
         )
 

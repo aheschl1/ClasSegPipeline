@@ -114,57 +114,42 @@ class DDIMDiffuser(Diffuser):
     def prepare_betas(self):
         raise Exception("DDIM Diffuser should not be used. Override it with linear or cosine diffuser")
     
-    def inference_call(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, t: int, t_n = None, training_time=False ):
+    def inference_call(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, t: int, t_n = None, training_time=False, ddim=False):
         alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
         time_tensor = (torch.ones(im.shape[0], device=im.device) * t).long()
         time_tensor_next = (torch.ones(im.shape[0], device=im.device) * t_n).long()
         a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
         a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
-        beta_t = 1 - a_t / a_t_next
-
-        im0_from_e = (1.0/a_t).sqrt() * im - (1.0 / a_t -1).sqrt() * predicted_noise_im
-        seg0_from_e = (1.0/a_t).sqrt() * seg - (1.0 / a_t -1).sqrt() * predicted_noise_seg
-
-        im0_from_e = torch.clamp(im0_from_e, -1, 1)
-        seg0_from_e = torch.clamp(seg0_from_e, -1, 1)
-
-        mean_im = (
-            (a_t_next.sqrt() * beta_t) * im0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * im
-        ) / (1- a_t)
-
-        mean_seg = (
-            (a_t_next.sqrt() * beta_t) * seg0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * seg
-        ) / (1- a_t)
-
-
-        noise_im = torch.randn_like(im)
-        noise_seg = torch.randn_like(seg)
-
-        if not training_time and int(time_tensor[0].long()) > 0:
-            logvar = beta_t.log()
-            sample_im = mean_im + torch.exp(0.5 * logvar) * noise_im
-            sample_seg = mean_seg + torch.exp(0.5 * logvar) * noise_seg
-        else:
-            sample_im = mean_im
-            sample_seg = mean_seg   
-        return sample_im, sample_seg
+        
+        if not ddim:
+            beta_t = 1 - a_t / a_t_next
+            im0_from_e = (1.0/a_t).sqrt() * im - (1.0 / a_t -1).sqrt() * predicted_noise_im
+            seg0_from_e = (1.0/a_t).sqrt() * seg - (1.0 / a_t -1).sqrt() * predicted_noise_seg
+            im0_from_e = torch.clamp(im0_from_e, -1, 1)
+            seg0_from_e = torch.clamp(seg0_from_e, -1, 1)
+            mean_im = (
+                (a_t_next.sqrt() * beta_t) * im0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * im
+            ) / (1- a_t)
+            mean_seg = (
+                (a_t_next.sqrt() * beta_t) * seg0_from_e + ((1-beta_t).sqrt() * (1- a_t_next)) * seg
+            ) / (1- a_t)
+            noise_im = torch.randn_like(im)
+            noise_seg = torch.randn_like(seg)
     
-    def inference_call_alt(self, im: torch.Tensor, seg: torch.Tensor, predicted_noise_im: torch.Tensor, predicted_noise_seg: torch.Tensor, t: int, t_n = None, training_time=False ):
-        alpha_bars = torch.cat([self._alpha_bars, torch.tensor([1.0])], dim=0).to(im.device)
-        time_tensor = (torch.ones(im.shape[0], device=im.device) * t).long()
-        time_tensor_next = (torch.ones(im.shape[0], device=im.device) * t_n).long()
-        a_t = alpha_bars[time_tensor.long()].view(-1, 1, 1, 1)
-        a_t_next = alpha_bars[time_tensor_next.long()].view(-1, 1, 1, 1)
-        
+            if not training_time and int(time_tensor[0].long()) > 0:
+                logvar = beta_t.log()
+                sample_im = mean_im + torch.exp(0.5 * logvar) * noise_im
+                sample_seg = mean_seg + torch.exp(0.5 * logvar) * noise_seg
+            else:
+                sample_im = mean_im
+                sample_seg = mean_seg
+        else:
+            im0_from_e = (im - (1-a_t).sqrt() * predicted_noise_im) / (a_t.sqrt())
+            seg0_from_e = (seg - (1-a_t).sqrt() * predicted_noise_seg) / (a_t.sqrt())
+            sample_im = a_t_next.sqrt() * im0_from_e + (1-a_t_next).sqrt() * predicted_noise_im
+            sample_seg = a_t_next.sqrt() * seg0_from_e + (1-a_t_next).sqrt() * predicted_noise_seg
+        return sample_im, sample_seg
 
-        im0_from_e = (im - (1-a_t).sqrt() * predicted_noise_im) / (a_t.sqrt())
-        seg0_from_e = (seg - (1-a_t).sqrt() * predicted_noise_seg) / (a_t.sqrt())
-
-        next_im = a_t_next.sqrt() * im0_from_e + (1-a_t_next).sqrt() * predicted_noise_im
-        next_seg = a_t_next.sqrt() * seg0_from_e + (1-a_t_next).sqrt() * predicted_noise_seg
-        
-        return next_im, next_seg
-        
 class LinearDiffuser(Diffuser):
     def prepare_betas(self):
         return torch.linspace(self.min_beta, self.max_beta, self.timesteps)

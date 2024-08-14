@@ -29,6 +29,8 @@ class SuperResolutionInferer(Inferer):
                  late_model_instantiation=True,
                  output_name=None,
                  infer_timesteps: int=1000,
+                 ddim: bool=False,
+                 batch: int=256,
                  **kwargs):
         """
         Inferer for pipeline.
@@ -40,6 +42,8 @@ class SuperResolutionInferer(Inferer):
         self.timesteps = self.config["max_timestep"]
         self.infer_timesteps = int(infer_timesteps)
         self.forward_diffuser = get_forward_diffuser_from_config(self.config, ddim=(self.infer_timesteps < 1000), timesteps=self.timesteps)
+        self.ddim = False if ddim in ["0", "F", "False", "f", "false"] else True
+        self.batch = int(batch)
         self.output_name = output_name
         self.kwargs = kwargs
         self.entries = []
@@ -183,6 +187,7 @@ class SuperResolutionInferer(Inferer):
                 noise_prediciton_seg,
                 t,
                 t_n,
+                ddim=self.ddim,
             )            
         return xt_im, xt_seg
 
@@ -204,7 +209,7 @@ class SuperResolutionInferer(Inferer):
             if os.path.exists(save_path):
                 shutil.rmtree(save_path)
             os.makedirs(save_path)
-            return save_path, self.get_dataloader()
+            return save_path, self.get_dataloader(self.batch)
 
     def post_infer(self):
         """
