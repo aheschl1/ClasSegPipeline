@@ -1,6 +1,6 @@
 Source code for the method described in the paper "SynthSet: Generative Diffusion Model for Semantic Segmentation in Precision Agriculture".
 
-This repository is a fork from the ClasSeg package, and implements functionality using the "super_resolution" and "unstable_diffusion" packages.
+This repository is a fork from the ClasSeg package, and implements functionality using the "super_resolution" and "unstable_diffusion" extensions.
 
 # ClasSeg - An Extendable Classification/Segmentation/SSL DL Pipeline
 ClasSeg is a pipeline which can handle multiple tasks and data types out of the box. This is a solid foundation for writing any type of deep learning project.
