@@ -202,10 +202,9 @@ class UnstableDiffusionInferer(Inferer):
         Take advantage of what you saved in infer_single_epoch to write something meaningful
         (or not, if you did something else)
         """
-        return
         if self.training:
             return 
-        print("===============================super resolving===============================")
+        print("===============================super resolving with super_resolution_v3===============================")
         super_inferer = SuperResolutionInferer(self.dataset_id, self.fold, "super_resolution_v3", "latest", 
                                                self.save_path, output_name=f"{self.name}_{self.run_name}", infer_timesteps=self.sr_timesteps)
         super_inferer.infer()
