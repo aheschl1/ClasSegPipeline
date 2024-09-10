@@ -1,25 +1,24 @@
+import os
 import pdb
 import sys
 from typing import Tuple, Any
 
 import albumentations as A
+import numpy as np
 import torch
 import torch.nn as nn
 from overrides import override
-import numpy as np
-from torch.optim.lr_scheduler import StepLR, CyclicLR, MultiStepLR
+from torch.optim.lr_scheduler import MultiStepLR
 from tqdm import tqdm
 
 from classeg.extensions.unstable_diffusion.forward_diffusers.scheduler import StepScheduler, VoidScheduler
 from classeg.extensions.unstable_diffusion.inference.inferer import UnstableDiffusionInferer
-from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.unstable_diffusion.model.concat_diffusion import ConcatDiffusion
-from classeg.training.trainer import Trainer, log
+from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
-import torch.nn.functional as F
-import os
+from classeg.training.trainer import Trainer, log
 
 
 class ForkedPdb(pdb.Pdb):
@@ -164,21 +163,11 @@ class UnstableDiffusionTrainer(Trainer):
                 self.logger.log_augmented_image(images[0], mask=segmentations[0].squeeze().numpy())
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device)
-            embedding = None
-            gen_loss = 0.0
-            if self.model.__dict__.get("bonus_embedding", None) is not None:
-                embedding, recon = self.model.embbed_bonus(images)
-                gen_loss += self.recon_loss(recon, images)
-                if log_image:
-                    self.logger.log_augmented_image(recon[0], name="embed_recon")
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # do prediction and calculate loss
-            if embedding is not None:
-                predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, embedding)
-            else:
-                predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss += self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
+            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                                        torch.concat([im_noise, seg_noise], dim=1))
             dis_loss = 0.0
             if self.gan_weight > 0:
@@ -270,19 +259,11 @@ class UnstableDiffusionTrainer(Trainer):
         for images, segmentations, _ in tqdm(self.val_dataloader):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
-            
-            embedding = None
-            gen_loss = 0.0
-            if self.model.__dict__.get("bonus_embedding", None) is not None:
-                embedding, recon = self.model.embbed_bonus(images)
-                gen_loss += self.recon_loss(recon, images)
 
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
-            if embedding is not None:
-                predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, embedding)
-            else:
-                predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
-            gen_loss += self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
+
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
+            gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                                        torch.concat([noise_im, noise_seg], dim=1))
             # convert x_t to x_{t-1} and descriminate the goods
             dis_loss = 0.0
@@ -343,11 +324,7 @@ class UnstableDiffusionTrainer(Trainer):
             self._save_checkpoint(f"epoch_{epoch}")
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
-            embed_sample = None
-            if self.model.__dict__.get("bonus_embedding", None) is not None:
-                embed_sample, _, _ = self.val_dataloader.dataset[0]
-                embed_sample = embed_sample.to(self.device)
-            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"], embed_sample=embed_sample)
+            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"])
             data_for_hist_im_R = result_im[..., 0].flatten()
             data_for_hist_im_G = result_im[..., 1].flatten()
             data_for_hist_im_B = result_im[..., 2].flatten()

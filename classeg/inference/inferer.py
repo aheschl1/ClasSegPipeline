@@ -108,14 +108,14 @@ class Inferer:
         """
         ...
 
-    def get_dataloader(self) -> DataLoader:
+    def get_dataloader(self, batch_size=256) -> DataLoader:
         datapoints = self._get_datapoints()
         dataset = PipelineDataset(datapoints, self.dataset_name, transforms=self.get_augmentations())
         return DataLoader(
             dataset=dataset,
             pin_memory=True,
             num_workers=self.config["processes"],
-            batch_size=256,
+            batch_size=batch_size,
             collate_fn=batch_collate_fn
         )
 
@@ -136,7 +136,7 @@ class Inferer:
     def _get_datapoints(self):
         if os.path.isdir(glob.glob(f"{self.input_root}/*")[0]):
             paths = [x for x in glob.glob(f"{self.input_root}/images/*") if not os.path.isdir(x)]
-            datapoints = [Datapoint(x, x.replace("images", "masks")) for x in paths]
+            datapoints = [Datapoint(x, x.replace("/images", "/masks")) for x in paths]
         else:
             paths = [x for x in glob.glob(f"{self.input_root}/*") if not os.path.isdir(x)]
             datapoints = [Datapoint(x, None) for x in paths]
