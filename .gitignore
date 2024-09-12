@@ -164,10 +164,11 @@ cython_debug/
 
 .DS_Store
 Autoencoders
-**/taming
-taming
 *.out
 *.tsv
 events.*
 *.pbtxt
 *.pt
+*.jpg
+*.png
+*.JPEG
