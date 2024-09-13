@@ -3,7 +3,9 @@ import yaml, json
 from classeg.training.trainer import Trainer
 from classeg.utils.constants import RAW_ROOT, PREPROCESSED_ROOT
 import os
+from classeg.training.trainer import log
 from classeg.utils.utils import get_dataloaders_from_fold
+from tqdm import tqdm
 
 class TamingTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
@@ -16,6 +18,10 @@ class TamingTrainer(Trainer):
         :param gpu_id: The gpu for this process to use.
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
+        self.dataset_name = dataset_name
+        self.fold = fold
+        self.device = gpu_id
+        self.output_dir = super()._prepare_output_directory(unique_folder_name)
         self.train_taming(config_name, dataset_name, fold, world_size)
         exit()
 
@@ -23,10 +29,18 @@ class TamingTrainer(Trainer):
     def train_taming(self, config_name: str, dataset_name: str, fold: int, world_size: int):
         config_path = f"{'/'.join(__file__.split('/')[:-1])}/taming-transformers/configs/{config_name}.yaml"
         with open(config_path) as f:
-            config = yaml.load(f)
+            config = yaml.load(f, Loader=yaml.FullLoader)
         train_files, val_files = self.get_training_image_list_file(dataset_name, fold)
-        config['model']['data']['params']['train']['params']['training_images_list_file'] = train_files
-        config['model']['data']['params']['validation']['params']['test_images_list_file'] = val_files
+        log(train_files)
+        log(val_files)
+        with open(f"{self.output_dir}/train_files.txt", 'w') as f:
+            # one path per line in txt file
+            f.write("\n".join(train_files))
+        with open(f"{self.output_dir}/val_files.txt", 'w') as f:
+            # one path per line in txt file
+            f.write("\n".join(val_files))
+        config['model']['data']['params']['train']['params']['training_images_list_file'] = f"{self.output_dir}/train_files.txt"
+        config['model']['data']['params']['validation']['params']['test_images_list_file'] = f"{self.output_dir}/val_files.txt"
 
         with open(config_path, 'w') as f:
             yaml.dump(config, f)
@@ -35,8 +49,7 @@ class TamingTrainer(Trainer):
         
     def get_training_image_list_file(self, dataset_name: str, fold: int) -> Tuple[str, str]:
         trainset, valset = get_dataloaders_from_fold(dataset_name, fold, preprocessed_data=False)
-
-        train_files = [f"{x.im_path}" for x in trainset.dataset]
-        val_files = [f"{x.im_path}" for x in valset.dataset]
-
+        train_files = [f"{x[-1].im_path}" for x in tqdm(trainset.dataset)]
+        val_files = [f"{x[-1].im_path}" for x in tqdm(valset.dataset)]
+        print(train_files)
         return train_files, val_files
