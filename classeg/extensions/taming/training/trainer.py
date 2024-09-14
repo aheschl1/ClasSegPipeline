@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 import yaml, json
 from classeg.training.trainer import Trainer
 from classeg.utils.constants import RAW_ROOT, PREPROCESSED_ROOT
@@ -6,6 +6,7 @@ import os
 from classeg.training.trainer import log
 from classeg.utils.utils import get_dataloaders_from_fold
 from tqdm import tqdm
+
 
 class TamingTrainer(Trainer):
     def __init__(self, dataset_name: str, fold: int, model_path: str, gpu_id: int, unique_folder_name: str,
@@ -20,17 +21,16 @@ class TamingTrainer(Trainer):
         """
         self.dataset_name = dataset_name
         self.fold = fold
+        self.config_name = config_name
+        self.world_size = world_size
         self.device = gpu_id
         self.output_dir = super()._prepare_output_directory(unique_folder_name)
-        self.train_taming(config_name, dataset_name, fold, world_size)
-        exit()
 
-
-    def train_taming(self, config_name: str, dataset_name: str, fold: int, world_size: int):
-        config_path = f"{'/'.join(__file__.split('/')[:-1])}/taming-transformers/configs/{config_name}.yaml"
+    def train_taming(self):
+        config_path = f"{'/'.join(__file__.split('/')[:-1])}/taming-transformers/configs/{self.config_name}.yaml"
         with open(config_path) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
-        train_files, val_files = self.get_training_image_list_file(dataset_name, fold)
+        train_files, val_files = self.get_training_image_list_file(self.dataset_name, self.fold)
         log(train_files)
         log(val_files)
         with open(f"{self.output_dir}/train_files.txt", 'w') as f:
@@ -44,12 +44,16 @@ class TamingTrainer(Trainer):
 
         with open(config_path, 'w') as f:
             yaml.dump(config, f)
-        
-        os.system(f"python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,' if world_size == 1 else '0,1'} --name {dataset_name}_{fold}")
-        
-    def get_training_image_list_file(self, dataset_name: str, fold: int) -> Tuple[str, str]:
+
+        os.system(
+            f"python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,' if self.world_size == 1 else '0,1'} --name {self.dataset_name}_{self.fold}")
+
+    def get_training_image_list_file(self, dataset_name: str, fold: int) -> Tuple[List[str], List[str]]:
         trainset, valset = get_dataloaders_from_fold(dataset_name, fold, preprocessed_data=False)
         train_files = [f"{x[-1].im_path}" for x in tqdm(trainset.dataset)]
         val_files = [f"{x[-1].im_path}" for x in tqdm(valset.dataset)]
         print(train_files)
         return train_files, val_files
+
+    def train(self):
+        self.train_taming()
