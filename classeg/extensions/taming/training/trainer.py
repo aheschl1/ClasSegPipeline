@@ -39,17 +39,17 @@ class TamingTrainer(Trainer):
         with open(f"{self.output_dir}/val_files.txt", 'w') as f:
             # one path per line in txt file
             f.write("\n".join(val_files))
-        config['model']['data']['params']['train']['params']['training_images_list_file'] = f"{self.output_dir}/train_files.txt"
-        config['model']['data']['params']['validation']['params']['test_images_list_file'] = f"{self.output_dir}/val_files.txt"
+        config['data']['params']['train']['params']['training_images_list_file'] = f"{self.output_dir}/train_files.txt"
+        config['data']['params']['validation']['params']['test_images_list_file'] = f"{self.output_dir}/val_files.txt"
 
         with open(config_path, 'w') as f:
             yaml.dump(config, f)
         
-        os.system(f"python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,' if world_size == 1 else '0,1'} --name {dataset_name}_{fold}")
+        os.system(f"conda activate taming; python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,' if world_size == 1 else '0,1'} --name {dataset_name}_{fold}")
         
     def get_training_image_list_file(self, dataset_name: str, fold: int) -> Tuple[str, str]:
         trainset, valset = get_dataloaders_from_fold(dataset_name, fold, preprocessed_data=False)
-        train_files = [f"{x[-1].im_path}" for x in tqdm(trainset.dataset)]
-        val_files = [f"{x[-1].im_path}" for x in tqdm(valset.dataset)]
+        train_files = [f"{x.im_path}" for x in tqdm(trainset.dataset.datapoints)]
+        val_files = [f"{x.im_path}" for x in tqdm(valset.dataset.datapoints)]
         print(train_files)
         return train_files, val_files
