@@ -44,18 +44,11 @@ class TamingTrainer(Trainer):
 
         with open(config_path, 'w') as f:
             yaml.dump(config, f)
-<<<<<<< HEAD
-        
-        os.system(f"conda activate taming; python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,' if world_size == 1 else '0,1'} --name {dataset_name}_{fold}")
-        
-    def get_training_image_list_file(self, dataset_name: str, fold: int) -> Tuple[str, str]:
-=======
 
         os.system(
-            f"python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,' if self.world_size == 1 else '0,1'} --name {self.dataset_name}_{self.fold}")
+            f"conda activate taming; python {'/'.join(__file__.split('/')[:-1])}/taming-transformers/main.py --base {config_path} -t True --gpus {'0,1' if self.world_size == 1 else '0,1'} --name {self.dataset_name}_{self.fold}")
 
     def get_training_image_list_file(self, dataset_name: str, fold: int) -> Tuple[List[str], List[str]]:
->>>>>>> 851a2a3e5c0cb73acc879d1aae173bffcf5d33cc
         trainset, valset = get_dataloaders_from_fold(dataset_name, fold, preprocessed_data=False)
         train_files = [f"{x.im_path}" for x in tqdm(trainset.dataset.datapoints)]
         val_files = [f"{x.im_path}" for x in tqdm(valset.dataset.datapoints)]
