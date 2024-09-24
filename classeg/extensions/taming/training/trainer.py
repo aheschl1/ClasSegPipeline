@@ -15,7 +15,6 @@ class TamingTrainer(Trainer):
         Trainer class for training and checkpointing of networks.
         :param dataset_name: The name of the dataset to use.
         :param fold: The fold in the dataset to use.
-        :param model_path: The path to the json that defines the architecture.
         :param gpu_id: The gpu for this process to use.
         :param resume_training: None if we should train from scratch, otherwise the model weights that should be used.
         """
@@ -31,8 +30,8 @@ class TamingTrainer(Trainer):
         with open(config_path) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         train_files, val_files = self.get_training_image_list_file(self.dataset_name, self.fold)
-        log(train_files)
-        log(val_files)
+        # log(train_files)
+        # log(val_files)
         with open(f"{self.output_dir}/train_files.txt", 'w') as f:
             # one path per line in txt file
             f.write("\n".join(train_files))
@@ -52,7 +51,6 @@ class TamingTrainer(Trainer):
         trainset, valset = get_dataloaders_from_fold(dataset_name, fold, preprocessed_data=False)
         train_files = [f"{x.im_path}" for x in tqdm(trainset.dataset.datapoints)]
         val_files = [f"{x.im_path}" for x in tqdm(valset.dataset.datapoints)]
-        print(train_files)
         return train_files, val_files
 
     def train(self):

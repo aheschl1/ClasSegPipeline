@@ -105,7 +105,7 @@ class UnstableDiffusionInferer(Inferer):
     def infer(self, model=None, num_samples=None, embed_sample=None) -> Tuple[torch.Tensor, torch.Tensor]:
         # To infer we need the number of samples to generate, and name of folder
         num_samples = num_samples if num_samples is not None else int(self.kwargs.get("s", 1000))
-        run_name  = self.run_name
+        run_name = self.run_name
 
         # Inference generates folders with the csv file
         save_path = f'{self.pre_infer(build_model=model is None)}/{run_name}'
@@ -171,9 +171,11 @@ class UnstableDiffusionInferer(Inferer):
         
         skip = self.timesteps // self.infer_timesteps
         seq = range(self.timesteps-1, -1, -skip)
-        if embed_sample is not None and len(embed_sample.shape) > 2:
+        if embed_sample is not None:
+            embed_sample = embed_sample.to(self.device)
+        if embed_sample is not None and len(embed_sample.shape) > 2: # is it already embedded?
             # TODO this needs to be turned into an actual system
-            embed_sample, _ = model.embbed_bonus(embed_sample, recon_im=False)
+            embed_sample = model.embed_image(embed_sample)
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1

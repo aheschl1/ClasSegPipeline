@@ -241,7 +241,7 @@ class Trainer:
         """
         Starts the training process.
         """
-        epochs = 2000 #self.config["epochs"]
+        epochs = self.config["epochs"]
         start_time = time.time()
         # last values to show change
         last_train_loss = 0

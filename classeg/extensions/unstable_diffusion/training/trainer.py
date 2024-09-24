@@ -76,6 +76,7 @@ class UnstableDiffusionTrainer(Trainer):
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 1)
         self.gan_weight = self.config.get("gan_weight", 0.5)
+        self.do_image_embedding = self.config.get("do_image_embedding", False)
 
         del self.loss
 
@@ -165,8 +166,13 @@ class UnstableDiffusionTrainer(Trainer):
             segmentations = segmentations.to(self.device)
 
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
+            # image emebdding
+            im_embedding = None
+            if self.do_image_embedding:
+                im_embedding = self.model.embed_image(images)
             # do prediction and calculate loss
-            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
+
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, im_embedding)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                                        torch.concat([im_noise, seg_noise], dim=1))
             dis_loss = 0.0
@@ -262,7 +268,12 @@ class UnstableDiffusionTrainer(Trainer):
 
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
-            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t)
+            # image emebdding
+            im_embedding = None
+            if self.do_image_embedding:
+                im_embedding = self.model.embed_image(images)
+
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, im_embedding)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                                        torch.concat([noise_im, noise_seg], dim=1))
             # convert x_t to x_{t-1} and descriminate the goods
@@ -324,7 +335,10 @@ class UnstableDiffusionTrainer(Trainer):
             self._save_checkpoint(f"epoch_{epoch}")
         if epoch % self.infer_every == 0 and self.device == 0:
             print("Running inference to log")
-            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"])
+            images_to_embed = None  # BxCxHxW
+            if self.do_image_embedding:
+                images_to_embed, *_ = next(iter(self.val_dataloader))
+            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"], embed_sample=images_to_embed)
             data_for_hist_im_R = result_im[..., 0].flatten()
             data_for_hist_im_G = result_im[..., 1].flatten()
             data_for_hist_im_B = result_im[..., 2].flatten()
@@ -345,12 +359,15 @@ class UnstableDiffusionTrainer(Trainer):
     def get_model(self, path) -> nn.Module:
         mode = self.config["mode"]
         if mode == "concat":
+            if self.config.get("do_image_embedding", False):
+                raise "Image embedding is not supported in concat mode"
             model = ConcatDiffusion(
                 **self.config["model_args"]
             )
         elif mode == "unstable":
             model = UnstableDiffusion(
-                **self.config["model_args"]
+                **self.config["model_args"],
+                do_image_embedding=self.config.get("do_image_embedding", False)
             )
         else:
             raise ValueError("You must set mode to unstable or concat.")

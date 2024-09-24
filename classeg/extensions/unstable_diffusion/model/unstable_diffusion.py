@@ -51,7 +51,9 @@ class DownBlock(nn.Module):
             downsample=True,
             attention=False,
             apply_zero_conv=False,
-            apply_scale_u=False
+            apply_scale_u=False,
+            takes_time=True,
+            verbose=False
     ) -> None:
         """
         TODO GroupNorm
@@ -59,7 +61,8 @@ class DownBlock(nn.Module):
         """
         super().__init__()
         self.perform_attention = attention
-
+        self.verbose = verbose
+        self.takes_time = takes_time
         self.apply_zero_conv = apply_zero_conv
         self.apply_scale_u = apply_scale_u
         assert not self.apply_scale_u or not self.apply_zero_conv, "Cannot do both scaleu and zero conv"
@@ -86,9 +89,12 @@ class DownBlock(nn.Module):
                 for i in range(num_layers)
             ]
         )
-        self.time_embedding_layer = nn.ModuleList(
-            [TimeEmbedder(time_emb_dim, out_channels) for _ in range(num_layers)]
-        )
+        if verbose:
+            print('Time embedding dim: ', time_emb_dim, out_channels)
+        if self.takes_time:
+            self.time_embedding_layer = nn.ModuleList(
+                [TimeEmbedder(time_emb_dim, out_channels) for _ in range(num_layers)]
+            )
         self.second_residual_convs = nn.ModuleList(
             [
                 nn.Sequential(
@@ -129,7 +135,8 @@ class DownBlock(nn.Module):
             else nn.Identity()
         )
 
-    def forward(self, x, time_embedding, residual_connection=None):
+    def forward(self, x, time_embedding=None, residual_connection=None):
+        assert (time_embedding is not None) == self.takes_time, "Time embedding is required if takes_time is True"
         out = x
         if residual_connection is not None:
             if self.apply_zero_conv:
@@ -143,12 +150,10 @@ class DownBlock(nn.Module):
         for layer in range(self.num_layers):
             res_input = out
             out = self.first_residual_convs[layer](out)
-            out = (
-                    out
-                    + self.time_embedding_layer[layer](time_embedding, out.shape[0])[
-                      :, :, None, None
-                      ]
-            )
+            # Add 'time'
+            if time_embedding is not None:
+                out = out + self.time_embedding_layer[layer](time_embedding, out.shape[0])[:, :, None, None]
+            
             out = self.second_residual_convs[layer](out)
             # Skipped connection
             out = out + self.pointwise_convolution[layer](res_input)
@@ -419,22 +424,17 @@ class UnstableDiffusion(nn.Module):
             layer_depth=2,
             channels=None,
             time_emb_dim=100,
-            shared_encoder=False,
-            apply_zero_conv=False,
-            apply_scale_u=True,
-            super_resolution=False,
-    ):
+            image_embedding_dim=64,
+            do_image_embedding=False,
+            shared_encoder=False
+):
 
         super(UnstableDiffusion, self).__init__()
-        self.apply_scale_u = apply_scale_u
-        assert (
-                not shared_encoder or not apply_zero_conv
-        ), "Zero conv requires separate encoders"
-        self.apply_zero_conv = apply_zero_conv
         self.time_emb_dim = time_emb_dim
+        self.image_embedding_dim = image_embedding_dim
+        self.do_image_embedding = do_image_embedding
         self.im_channels = im_channels
         self.seg_channels = seg_channels
-        self.super_resolution = super_resolution
         if channels is None:
             channels = [16, 32, 64]
         layers = len(channels)
@@ -509,6 +509,36 @@ class UnstableDiffusion(nn.Module):
                 )
             )
 
+        # Image Embedding
+        if self.do_image_embedding:
+            self.image_embedding_generator = nn.Sequential(
+                nn.Conv2d(im_channels, channels[0], kernel_size=3, padding=1),
+                nn.ReLU(),
+                self._generate_encoder(take_time=False, sequential=True),
+                nn.ReLU(),
+                nn.Conv2d(channels[-1], self.image_embedding_dim, kernel_size=3, padding=1, stride=2),
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten(start_dim=1)
+            )
+
+            self.image_embedding_integrator = DownBlock(
+                in_channels=channels[-1],
+                out_channels=channels[-1],
+                time_emb_dim=self.image_embedding_dim,
+                downsample=False,
+                attention=True,
+                verbose=False
+            )
+
+            self.seg_embedding_integrator = DownBlock(
+                in_channels=channels[-1],
+                out_channels=channels[-1],
+                time_emb_dim=self.image_embedding_dim,
+                downsample=False,
+                attention=True,
+                verbose=False
+            )
+
         self.output_layer_im = nn.Sequential(
             nn.GroupNorm(8, channels[0]),
             nn.SiLU(),
@@ -531,25 +561,7 @@ class UnstableDiffusion(nn.Module):
             ),
         )
 
-        if super_resolution:
-            self.super_im = UpBlock(
-                in_channels=channels[0],
-                out_channels=channels[0],
-                time_emb_dim=self.time_emb_dim,
-                upsample=True,
-                num_layers=2,
-                skipped =False
-            )
-            self.super_seg = UpBlock(
-                in_channels=channels[0],
-                out_channels=channels[0],
-                time_emb_dim=self.time_emb_dim,
-                upsample=True,
-                num_layers=2,
-                skipped =False
-            )
-
-    def _generate_encoder(self):
+    def _generate_encoder(self, take_time=True, sequential=False):
         encoder_layers = nn.ModuleList()
         for layer in range(self.layers - 1):
             # We want to build a downblock here.
@@ -562,10 +574,13 @@ class UnstableDiffusion(nn.Module):
                     time_emb_dim=self.time_emb_dim,
                     downsample=True,
                     num_layers=self.layer_depth,
-                    apply_zero_conv=self.apply_zero_conv,
-                    apply_scale_u=self.apply_scale_u
+                    apply_zero_conv=False,
+                    takes_time=take_time,
+                    apply_scale_u=True
                 )
             )
+        if sequential:
+            return nn.Sequential(*encoder_layers)
         return encoder_layers
 
     def _sinusoidal_embedding(self, t):
@@ -607,9 +622,7 @@ class UnstableDiffusion(nn.Module):
                 skipped_connections_seg.append(seg_out)
             return im_out, seg_out, skipped_connections_im, skipped_connections_seg
         # =========== NOT SHARED ENCODER ===========
-        for i, (im_encode, seg_encode) in enumerate(
-                zip(self.encoder_layers, self.encoder_layers_mask)
-        ):
+        for i, (im_encode, seg_encode) in enumerate(zip(self.encoder_layers, self.encoder_layers_mask)):
             if i == 0:
                 im_out, seg_out = im_encode(im_out, t), seg_encode(seg_out, t)
             else:
@@ -652,15 +665,14 @@ class UnstableDiffusion(nn.Module):
         for layer in discriminator[1]:
             im = layer(im, t, None)
         return discriminator[2](im)
+    
+    def embed_image(self, im):
+        assert self.do_image_embedding, "Image embedding is not enabled"
+        return self.image_embedding_generator(im)
 
-    def forward(self, im, seg, t):
-
-        if self.super_resolution:
-            assert im.shape[2] == 256, "Only 256 resolution supported with super resolution"
-            im = nn.functional.interpolate(im, scale_factor=1/2, mode='bilinear')
-            seg = nn.functional.interpolate(seg, scale_factor=1/2, mode='bilinear')
-
+    def forward(self, im, seg, t, img_embedding=None):
         assert im.shape[2] == 128, "Only 128 resolution supported"
+        assert (img_embedding is not None) == self.do_image_embedding, "Image embedding is not enabled"
 
         # ======== TIME ========
         t = self._sinusoidal_embedding(t)
@@ -672,6 +684,11 @@ class UnstableDiffusion(nn.Module):
         im_out, seg_out, skipped_connections_im, skipped_connections_seg = (
             self._encode_forward(im_out, seg_out, t)
         )
+        # Raw image embedding for controllable datasewt generation
+        if self.do_image_embedding:
+            im_out = self.image_embedding_integrator(im_out, img_embedding)
+            seg_out = self.seg_embedding_integrator(seg_out, img_embedding)
+
         # ======== MIDDLE ========
         im_out, seg_out = self.middle_layer(im_out, seg_out, t)
         # ======== DECODE ========
@@ -685,37 +702,14 @@ class UnstableDiffusion(nn.Module):
                 seg_decode(seg_out, skipped_connections_seg[-i], im_out, t),
             )
         # ======== EXIT ========
-        if self.super_resolution:
-            im_out = self.super_im(im_out, time_embedding=t)
-            seg_out = self.super_seg(seg_out, time_embedding=t)
         im_out = self.output_layer_im(im_out)
         seg_out = self.output_layer_seg(seg_out)
         return im_out, seg_out
-
-
-# if __name__ == "__main__":
-#     torch.cuda.empty_cache()
-#     in_shape = 32
-#     im = torch.randn(1, 3, in_shape, in_shape).float().cuda(0)
-#     seg = torch.randn(1, 1, in_shape, in_shape).float().cuda(0)
-
-#     unet = UnstableDiffusion(
-#         im_channels=3,
-#         seg_channels=1,
-#         channels=[32, 64],
-#         layer_depth=2
-#     ).cuda(0)
-#     # y = down(z, torch.randn(1, 8, 64*2, 64*2).cuda(), torch.ones(100).float().cuda())
-#     y = unet(im, seg, torch.rand((1)).cuda(0))
 
 
 if __name__ == "__main__":
     x = torch.zeros(2, 3, 128, 128).cuda()
     m = torch.zeros(2, 1, 128, 128).cuda()
     t = torch.zeros(2).cuda()
-    model = UnstableDiffusion(3, 1, channels=[16, 32, 64]).cuda()
-    out = model(x, m, t)
-    print(out[0].shape, out[1].shape)
-
-    out2 = model.descriminate(x, t)
-    print(out2.shape)
+    model = UnstableDiffusion(3, 1, channels=[16, 32, 256], do_image_embedding=True).cuda()
+    out = model(x, m, t, torch.zeros(2, 64).cuda())
