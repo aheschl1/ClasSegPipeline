@@ -231,5 +231,4 @@ if __name__ == "__main__":
         None
     )
     embed = get_embed()
-    exit(0)
     inferer.infer(embed_sample=embed)
