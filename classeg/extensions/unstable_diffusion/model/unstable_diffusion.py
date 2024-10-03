@@ -480,34 +480,10 @@ class UnstableDiffusion(nn.Module):
             time_emb_dim=self.time_emb_dim,
         )
         # Decoder IM
-        self.im_decoder_layers = nn.ModuleList()
-        for layer in range(layers - 1, 0, -1):
-            in_channels = channels[layer]
-            out_channels = channels[layer - 1]
-            self.im_decoder_layers.append(
-                UpBlock(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    time_emb_dim=self.time_emb_dim,
-                    upsample=True,
-                    num_layers=layer_depth
-                )
-            )
+        self.im_decoder_layers = self._generate_decoder()
 
         # Decoder SEG
-        self.seg_decoder_layers = nn.ModuleList()
-        for layer in range(layers - 1, 0, -1):
-            in_channels = channels[layer]
-            out_channels = channels[layer - 1]
-            self.seg_decoder_layers.append(
-                UpBlock(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    time_emb_dim=self.time_emb_dim,
-                    upsample=True,
-                    num_layers=layer_depth
-                )
-            )
+        self.seg_decoder_layers = self._generate_decoder()
 
         # Image Embedding
         if self.do_image_embedding:
@@ -582,6 +558,24 @@ class UnstableDiffusion(nn.Module):
         if sequential:
             return nn.Sequential(*encoder_layers)
         return encoder_layers
+
+    def _generate_decoder(self, sequential=False):
+        decoder_layers = nn.ModuleList()
+        for layer in range(self.layers - 1, 0, -1):
+            in_channels = self.channels[layer]
+            out_channels = self.channels[layer - 1]
+            decoder_layers.append(
+                UpBlock(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    time_emb_dim=self.time_emb_dim,
+                    upsample=True,
+                    num_layers=self.layer_depth
+                )
+            )
+        if sequential:
+            return nn.Sequential(*decoder_layers)
+        return decoder_layers
 
     def _sinusoidal_embedding(self, t):
         assert self.time_emb_dim % 2 == 0
