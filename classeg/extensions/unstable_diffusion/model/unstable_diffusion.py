@@ -699,6 +699,7 @@ class UnstableDiffusion(nn.Module):
             self._encode_forward(im_out, seg_out, t)
         )
         # Raw image embedding for controllable datasewt generation
+        embed_recon_out = None
         if self.do_image_embedding:
             im_out = self.image_embedding_integrator(im_out, img_embedding)
             seg_out = self.seg_embedding_integrator(seg_out, img_embedding)
@@ -720,7 +721,7 @@ class UnstableDiffusion(nn.Module):
         # ======== EXIT ========
         im_out = self.output_layer_im(im_out)
         seg_out = self.output_layer_seg(seg_out)
-        return im_out, seg_out
+        return im_out, seg_out, embed_recon_out
 
 
 if __name__ == "__main__":
