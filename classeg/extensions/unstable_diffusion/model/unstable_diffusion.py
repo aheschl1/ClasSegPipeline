@@ -691,7 +691,7 @@ class UnstableDiffusion(nn.Module):
         assert self.do_context_embedding, "Image embedding is not enabled"
         return self.context_embedding_generator(im)
 
-    def forward(self, im, seg, t, img_embedding=None):
+    def forward(self, im, seg, t, img_embedding=None, do_recon=True):
         assert im.shape[2] == 128, "Only 128 resolution supported"
         assert (img_embedding is not None) == self.do_context_embedding, "context embedding is not enabled"
 
@@ -711,8 +711,9 @@ class UnstableDiffusion(nn.Module):
             im_out = self.image_context_integrator(im_out, img_embedding)
             seg_out = self.seg_context_integrator(seg_out, img_embedding)
 
-            embed_recon = self.image_context_decoder(img_embedding)
-            embed_recon_out = self.output_layer_embed(embed_recon)
+            if do_recon:
+                embed_recon = self.image_context_decoder(img_embedding)
+                embed_recon_out = self.output_layer_embed(embed_recon)
 
         # ======== MIDDLE ========
         im_out, seg_out = self.middle_layer(im_out, seg_out, t)
