@@ -515,11 +515,11 @@ class UnstableDiffusion(nn.Module):
                 verbose=False
             )
 
-            downsampled_dim = 128 / (2 ** (len(self.channels) - 1))
+            downsampled_dim = int(128 / (2 ** (len(self.channels) - 1)))
             self.image_embedding_decoder = nn.Sequential(
                 # TODO figure out the best way to go from
                 # B x image_embedding_dim to B x channels[-1] x H x W
-                nn.ConvTranspose2d(self.image_embedding_dim, channels[-1], kernel_size=2*downsampled_dim),
+                nn.ConvTranspose2d(self.image_embedding_dim, channels[-1], kernel_size=downsampled_dim),
                 nn.ReLU(),
                 self._generate_decoder(sequential=True)
             )
@@ -703,6 +703,7 @@ class UnstableDiffusion(nn.Module):
         if self.do_image_embedding:
             im_out = self.image_embedding_integrator(im_out, img_embedding)
             seg_out = self.seg_embedding_integrator(seg_out, img_embedding)
+            img_embedding = img_embedding.unsqueeze(-1).unsqueeze(-1)
             embed_recon = self.image_embedding_decoder(img_embedding)
             embed_recon_out = self.output_layer_embed(embed_recon)
 
