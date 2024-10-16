@@ -180,7 +180,7 @@ class UnstableDiffusionInferer(Inferer):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
             if embed_sample is not None:
-                noise_prediction_im, noise_prediciton_seg, _ = model(
+                noise_prediction_im, noise_prediciton_seg = model(
                     xt_im, xt_seg, time_tensor, embed_sample
                 )
             else:
