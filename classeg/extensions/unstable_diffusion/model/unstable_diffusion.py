@@ -418,6 +418,51 @@ class UpBlock(nn.Module):
         # print('output shape: ', out.shape)
         return out
 
+class ContextIntegrator(nn.Module):
+    def __init__(self, channels, time_emb_dim, context_embedding_dim):
+        super(ContextIntegrator, self).__init__()
+        self.context_embedding_dim = context_embedding_dim
+        self.time_emb_dim = time_emb_dim
+
+        self.context_embedding_projector = nn.Sequential(
+            nn.ReLU(),
+            nn.Linear(context_embedding_dim, channels)
+        )
+        self.time_embedding_layer = TimeEmbedder(time_emb_dim, channels)
+        
+        self.cross_attention_norm = nn.GroupNorm(8, num_channels=channels)
+        self.context_norm = nn.GroupNorm(8, num_channels=channels)
+
+        self.cross_attention = nn.MultiheadAttention(channels, 4, batch_first=True)
+        self.convolution = nn.Conv2d(channels*2, channels, kernel_size=1)
+    
+    def forward(self, x, t, context_embedding):
+        """
+        Integrate time as is normal, then do a cross attention with the context embedding, then do conv, then skip
+        context_embedding: B x context_embedding_dim
+        x: B x C x H x W
+        """
+        out = x + self.time_embedding_layer(t, x.shape[0])[:, :, None, None]
+        context_embedding = self.context_embedding_projector(context_embedding)
+        # Do cross attention betwene the image x ~ [N, C, H, W] and the context embedding ~ [N, C]
+        N, C, H, W = out.shape
+        in_attn = out.reshape(N, C, H * W)
+        in_attn = self.cross_attention_norm(in_attn).transpose(1, 2)
+
+        kv_attn = context_embedding.reshape(N, C, 1)
+        kv_attn = self.context_norm(kv_attn).transpose(1, 2)
+
+        out_attn, _ = self.cross_attention(
+            in_attn, kv_attn, kv_attn
+        )
+
+        out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W) # [N, C, H, W]
+        x = torch.cat([x, out_attn], dim=1) # [N, 2C, H, W]
+        x = self.convolution(x) # [N, C, H, W]
+
+        return x
+
+
 
 class UnstableDiffusion(nn.Module):
     def __init__(
@@ -501,22 +546,16 @@ class UnstableDiffusion(nn.Module):
                 nn.Linear(channels[-1]*2*(downsampled_dim//2)*(downsampled_dim//2), context_embedding_dim)
             )
 
-            self.image_context_integrator = DownBlock(
-                in_channels=channels[-1],
-                out_channels=channels[-1],
-                time_emb_dim=self.context_embedding_dim,
-                downsample=False,
-                attention=True,
-                verbose=False
+            self.image_context_integrator = ContextIntegrator(
+                channels=channels[-1],
+                time_emb_dim=self.time_emb_dim,
+                context_embedding_dim=self.context_embedding_dim
             )
 
-            self.seg_context_integrator = DownBlock(
-                in_channels=channels[-1],
-                out_channels=channels[-1],
-                time_emb_dim=self.context_embedding_dim,
-                downsample=False,
-                attention=True,
-                verbose=False
+            self.seg_context_integrator = ContextIntegrator(
+                channels=channels[-1],
+                time_emb_dim=self.time_emb_dim,
+                context_embedding_dim=self.context_embedding_dim
             )
 
             self.image_context_decoder = nn.Sequential(
@@ -708,8 +747,8 @@ class UnstableDiffusion(nn.Module):
         # Raw image embedding for controllable datasewt generation
         embed_recon_out = None
         if self.do_context_embedding:
-            im_out = self.image_context_integrator(im_out, img_embedding)
-            seg_out = self.seg_context_integrator(seg_out, img_embedding)
+            im_out = self.image_context_integrator(im_out, t, img_embedding)
+            seg_out = self.seg_context_integrator(seg_out, t, img_embedding)
 
             if do_recon:
                 embed_recon = self.image_context_decoder(img_embedding)
