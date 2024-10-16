@@ -536,15 +536,19 @@ class UnstableDiffusion(nn.Module):
         # Context Embedding
         if self.do_context_embedding:
             downsampled_dim = int(128 / (2 ** (len(self.channels) - 1)))
-            self.context_embedding_generator = nn.Sequential(
-                nn.Conv2d(im_channels, channels[0], kernel_size=3, padding=1),
-                nn.ReLU(),
-                self._generate_encoder(take_time=False, sequential=True),
-                nn.ReLU(),
-                nn.Conv2d(channels[-1], channels[-1]*2, kernel_size=3, padding=1, stride=2),
-                nn.Flatten(start_dim=1),
-                nn.Linear(channels[-1]*2*(downsampled_dim//2)*(downsampled_dim//2), context_embedding_dim)
-            )
+            self.context_embedding_generator = nn.ModuleList([
+                nn.Sequential(
+                    nn.Conv2d(im_channels, channels[0], kernel_size=3, padding=1),
+                    nn.ReLU(),
+                    self._generate_encoder(take_time=False, sequential=True)
+                ),
+                nn.Sequential(
+                    nn.ReLU(),
+                    nn.Conv2d(channels[-1], channels[-1]*2, kernel_size=3, padding=1, stride=2),
+                    nn.Flatten(start_dim=1),
+                    nn.Linear(channels[-1]*2*(downsampled_dim//2)*(downsampled_dim//2), context_embedding_dim)
+                )
+            ])
 
             self.image_context_integrator = ContextIntegrator(
                 channels=channels[-1],
@@ -557,17 +561,7 @@ class UnstableDiffusion(nn.Module):
                 time_emb_dim=self.time_emb_dim,
                 context_embedding_dim=self.context_embedding_dim
             )
-
-            self.image_context_decoder = nn.Sequential(
-                # TODO figure out the best way to go from
-                # B x image_embedding_dim to B x channels[-1] x H x W
-                nn.Linear(self.context_embedding_dim, channels[-1]*2*(downsampled_dim//2)*(downsampled_dim//2)),
-                nn.Unflatten(1, (channels[-1]*2, downsampled_dim//2, downsampled_dim//2)),
-                nn.ReLU(),
-                nn.ConvTranspose2d(channels[-1]*2, channels[-1], kernel_size=4, stride=2, padding=1),
-                nn.ReLU(),
-                self._generate_decoder(sequential=True, skipped=False)
-            )
+            self.image_context_decoder = self._generate_decoder(sequential=True, skipped=False)
 
             self.output_layer_embed = nn.Sequential(
                 nn.GroupNorm(8, channels[0]),
@@ -726,11 +720,18 @@ class UnstableDiffusion(nn.Module):
             im = layer(im, t, None)
         return discriminator[2](im)
     
-    def embed_image(self, im):
+    def embed_image(self, im, recon=True):
         assert self.do_context_embedding, "Image embedding is not enabled"
-        return self.context_embedding_generator(im)
+        encoded = self.context_embedding_generator[0](im)
+        code = self.context_embedding_generator[1](encoded)
+        decoded = None
+        if recon:
+            decoded = self.image_context_decoder(encoded)
+            decoded = self.output_layer_embed(decoded)
+        
+        return code, decoded
 
-    def forward(self, im, seg, t, img_embedding=None, do_recon=True):
+    def forward(self, im, seg, t, img_embedding=None):
         assert im.shape[2] == 128, "Only 128 resolution supported"
         assert (img_embedding is not None) == self.do_context_embedding, "context embedding is not enabled"
 
@@ -745,14 +746,9 @@ class UnstableDiffusion(nn.Module):
             self._encode_forward(im_out, seg_out, t)
         )
         # Raw image embedding for controllable datasewt generation
-        embed_recon_out = None
         if self.do_context_embedding:
             im_out = self.image_context_integrator(im_out, t, img_embedding)
             seg_out = self.seg_context_integrator(seg_out, t, img_embedding)
-
-            if do_recon:
-                embed_recon = self.image_context_decoder(img_embedding)
-                embed_recon_out = self.output_layer_embed(embed_recon)
 
         # ======== MIDDLE ========
         im_out, seg_out = self.middle_layer(im_out, seg_out, t)
@@ -769,7 +765,7 @@ class UnstableDiffusion(nn.Module):
         # ======== EXIT ========
         im_out = self.output_layer_im(im_out)
         seg_out = self.output_layer_seg(seg_out)
-        return im_out, seg_out, embed_recon_out
+        return im_out, seg_out
 
 
 if __name__ == "__main__":

@@ -175,13 +175,13 @@ class UnstableDiffusionInferer(Inferer):
             embed_sample = embed_sample.to(self.device)
         if embed_sample is not None and len(embed_sample.shape) > 2: # is it already embedded?
             # TODO this needs to be turned into an actual system
-            embed_sample = model.embed_image(embed_sample)
+            embed_sample, _ = model.embed_image(embed_sample, recon=False)
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
             if embed_sample is not None:
                 noise_prediction_im, noise_prediciton_seg, _ = model(
-                    xt_im, xt_seg, time_tensor, embed_sample, do_recon=False
+                    xt_im, xt_seg, time_tensor, embed_sample
                 )
             else:
                 noise_prediction_im, noise_prediciton_seg = model(

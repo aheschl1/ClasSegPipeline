@@ -171,11 +171,12 @@ class UnstableDiffusionTrainer(Trainer):
             im_noise, seg_noise, images, segmentations, t = self.forward_diffuser(images, segmentations)
             # image emebdding
             context_embedding = None
+            context_recon = None
             if self.do_context_embedding:
-                context_embedding = self.model.embed_image(images)
+                context_embedding, context_recon = self.model.embed_image(images)
             # do prediction and calculate loss
 
-            predicted_noise_im, predicted_noise_seg, context_recon = self.model(images, segmentations, t, context_embedding)
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, context_embedding)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                                         torch.concat([im_noise, seg_noise], dim=1))
             if self.do_context_embedding:
@@ -276,19 +277,11 @@ class UnstableDiffusionTrainer(Trainer):
 
             # image emebdding
             context_embedding = None
+            context_recon = None
             if self.do_context_embedding:
-                context_embedding = self.model.embed_image(images)
+                context_embedding, context_recon = self.model.embed_image(images)
 
-
-            # predicted_noise_im, predicted_noise_seg, context_recon = self.model(images, segmentations, t, context_embedding)
-            # if self.do_image_embedding:
-            #     gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg, context_recon], dim=1),
-            #                                torch.concat([im_noise, seg_noise, images_original], dim=1))
-            # else:
-            #     gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
-            #                                torch.concat([im_noise, seg_noise], dim=1))
-
-            predicted_noise_im, predicted_noise_seg, context_recon = self.model(images, segmentations, t, context_embedding)
+            predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, context_embedding)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                             torch.concat([noise_im, noise_seg], dim=1))
             if self.do_context_embedding:
