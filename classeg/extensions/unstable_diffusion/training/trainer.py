@@ -18,6 +18,7 @@ from classeg.extensions.unstable_diffusion.model.unstable_diffusion import Unsta
 from classeg.extensions.unstable_diffusion.utils.utils import (
     get_forward_diffuser_from_config,
 )
+from classeg.extensions.unstable_diffusion.training.covariance_loss import CovarianceLoss
 from classeg.training.trainer import Trainer, log
 
 
@@ -76,6 +77,10 @@ class UnstableDiffusionTrainer(Trainer):
         self.recon_loss, self.gan_loss = self.loss
         self.recon_weight = self.config.get("recon_weight", 1)
         self.gan_weight = self.config.get("gan_weight", 0.5)
+        
+        self.covariance_weight = self.config.get("covariance_weight", 0)
+        self.covariance_loss = CovarianceLoss()
+
         self.do_context_embedding = self.config.get("do_context_embedding", False)
         self.context_recon_weight = self.config.get("context_recon_weight", 0.5)
 
@@ -181,6 +186,7 @@ class UnstableDiffusionTrainer(Trainer):
                                         torch.concat([im_noise, seg_noise], dim=1))
             if self.do_context_embedding:
                 gen_loss += self.context_recon_weight * self.recon_loss(context_recon, images_original)
+                gen_loss += self.covariance_weight * self.covariance_loss(context_embedding)
 
             dis_loss = 0.0
             if self.gan_weight > 0:
@@ -286,6 +292,7 @@ class UnstableDiffusionTrainer(Trainer):
                             torch.concat([noise_im, noise_seg], dim=1))
             if self.do_context_embedding:
                 gen_loss += self.context_recon_weight * self.recon_loss(context_recon, images)
+                gen_loss += self.covariance_weight * self.covariance_loss(context_embedding)
             # convert x_t to x_{t-1} and descriminate the goods
             dis_loss = 0.0
             if self.gan_weight > 0:
