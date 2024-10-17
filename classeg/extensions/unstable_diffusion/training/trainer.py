@@ -356,9 +356,7 @@ class UnstableDiffusionTrainer(Trainer):
             if self.do_context_embedding:
                 images_to_embed, *_ = next(iter(self.val_dataloader))
 
-            self.model.eval()
-            with torch.no_grad():
-                result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"], embed_sample=images_to_embed)
+            result_im, result_seg = self._inferer.infer(model=self.model, num_samples=self.config["batch_size"], embed_sample=images_to_embed)
             data_for_hist_im_R = result_im[..., 0].flatten()
             data_for_hist_im_G = result_im[..., 1].flatten()
             data_for_hist_im_B = result_im[..., 2].flatten()

@@ -434,7 +434,10 @@ class ContextIntegrator(nn.Module):
         self.context_norm = nn.GroupNorm(8, num_channels=channels)
 
         self.cross_attention = nn.MultiheadAttention(channels, 4, batch_first=True)
-        self.convolution = nn.Conv2d(channels*2, channels, kernel_size=1)
+        self.convolution = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1)
+        )
     
     def forward(self, x, t, context_embedding):
         """
@@ -457,10 +460,8 @@ class ContextIntegrator(nn.Module):
         )
 
         out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W) # [N, C, H, W]
-        x = torch.cat([x, out_attn], dim=1) # [N, 2C, H, W]
-        x = self.convolution(x) # [N, C, H, W]
 
-        return x
+        return self.convolution(out+out_attn)
 
 
 
