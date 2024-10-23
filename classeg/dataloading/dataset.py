@@ -68,12 +68,15 @@ class PipelineDataset(Dataset):
         if self.transforms is not None:
             if isinstance(self.transforms, albumentations.Compose):
                 # Albumentations takes [H, W, C]
-                result = self.transforms(
-                    image=image.transpose((1, 2, 0)),
-                    mask=label.transpose((1, 2, 0))
-                )
+                if label is not None:
+                    result = self.transforms(
+                        image=image.transpose((1, 2, 0)),
+                        mask=label.transpose((1, 2, 0))
+                    )
+                else:
+                    result = self.transforms(image=image.transpose((1, 2, 0)))
                 image = result["image"].transpose((2, 0, 1))
-                label = result["mask"].transpose((2, 0, 1))
+                label = None if label is None else result["mask"].transpose((2, 0, 1))
             else:
                 # Torchvision and monai transforms take [C, ...]
                 image = self.transforms(torch.from_numpy(image))

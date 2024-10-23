@@ -438,14 +438,15 @@ class ContextIntegrator(nn.Module):
             nn.ReLU(),
             nn.Conv2d(channels, channels, kernel_size=3, padding=1)
         )
-    
+        print("WARNING NO TIME USED!")
     def forward(self, x, t, context_embedding):
         """
         Integrate time as is normal, then do a cross attention with the context embedding, then do conv, then skip
         context_embedding: B x context_embedding_dim
         x: B x C x H x W
         """
-        out = x + self.time_embedding_layer(t, x.shape[0])[:, :, None, None]
+        # out = x + self.time_embedding_layer(t, x.shape[0])[:, :, None, None]
+        out = x
         context_embedding = self.context_embedding_projector(context_embedding)
         # Do cross attention betwene the image x ~ [N, C, H, W] and the context embedding ~ [N, C]
         N, C, H, W = out.shape
@@ -562,7 +563,10 @@ class UnstableDiffusion(nn.Module):
                 time_emb_dim=self.time_emb_dim,
                 context_embedding_dim=self.context_embedding_dim
             )
-            self.image_context_decoder = self._generate_decoder(sequential=True, skipped=False)
+            self.image_context_decoder = nn.Sequential(
+                self._generate_decoder(sequential=True, skipped=False),
+                nn.Sigmoid()
+            )
 
             self.output_layer_embed = nn.Sequential(
                 nn.GroupNorm(8, channels[0]),
@@ -746,13 +750,12 @@ class UnstableDiffusion(nn.Module):
         im_out, seg_out, skipped_connections_im, skipped_connections_seg = (
             self._encode_forward(im_out, seg_out, t)
         )
-        # Raw image embedding for controllable datasewt generation
+        # ======== MIDDLE ========
+        im_out, seg_out = self.middle_layer(im_out, seg_out, t)
+        # Raw image embedding for controllable dataset generation
         if self.do_context_embedding:
             im_out = self.image_context_integrator(im_out, t, img_embedding)
             seg_out = self.seg_context_integrator(seg_out, t, img_embedding)
-
-        # ======== MIDDLE ========
-        im_out, seg_out = self.middle_layer(im_out, seg_out, t)
         # ======== DECODE ========
         i = 0
         for im_decode, seg_decode in zip(

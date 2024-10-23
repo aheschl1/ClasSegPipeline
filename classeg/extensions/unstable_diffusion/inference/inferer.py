@@ -17,7 +17,7 @@ from classeg.utils.utils import read_json
 from classeg.utils.constants import RESULTS_ROOT
 from classeg.extensions.unstable_diffusion.model.unstable_diffusion import UnstableDiffusion
 from classeg.extensions.unstable_diffusion.model.concat_diffusion import ConcatDiffusion
-
+import albumentations as A
 from classeg.extensions.unstable_diffusion.preprocessing.bitifier import bitmask_to_label
 from classeg.extensions.super_resolution.inference.inferer import SuperResolutionInferer
 class UnstableDiffusionInferer(Inferer):
@@ -55,7 +55,23 @@ class UnstableDiffusionInferer(Inferer):
         self.run_name = r
 
     def get_augmentations(self):
-        ...
+        import cv2
+        print(self.config.get("target_size", [512, 512]))
+        resize_image = A.Resize(*self.config.get("target_size", [512, 512]), interpolation=cv2.INTER_CUBIC)
+
+        def my_resize(image=None, mask=None, **kwargs):
+            if image is not None:
+                return resize_image(image=image)["image"]
+
+        val_transforms = A.Compose(
+            [
+                A.RandomCrop(width=512, height=512, p=1),
+                A.Lambda(image=my_resize, p=1),
+                A.ToFloat()
+            ],
+            is_check_shapes=False
+        )
+        return val_transforms
 
     def _get_model(self):
         """
@@ -72,7 +88,8 @@ class UnstableDiffusionInferer(Inferer):
             )    
         elif mode == "unstable":
             model = UnstableDiffusion(
-                **self.config["model_args"]
+                **self.config["model_args"],
+                do_context_embedding=self.config.get("do_context_embedding", False)
             )
         else:
             raise ValueError("You must set mode to unstable or concat.")
@@ -104,7 +121,11 @@ class UnstableDiffusionInferer(Inferer):
 
     def infer(self, model=None, num_samples=None, embed_sample=None) -> Tuple[torch.Tensor, torch.Tensor]:
         # To infer we need the number of samples to generate, and name of folder
-        num_samples = num_samples if num_samples is not None else int(self.kwargs.get("s", 1000))
+        dataloader = None
+        if embed_sample is None:
+            dataloader = self.get_dataloader(batch_size=self.config['batch_size'])
+
+        num_samples = num_samples if num_samples is not None else min(int(self.kwargs.get("s", 1000)), len(dataloader.dataset))
         run_name = self.run_name
 
         # Inference generates folders with the csv file
@@ -131,6 +152,8 @@ class UnstableDiffusionInferer(Inferer):
                 if ((num_samples - case_num) < batch_size):
                     batch_size = (num_samples - case_num)
                 
+                if dataloader is not None:
+                    embed_sample,*_ = next(iter(dataloader))
                 xt_im, xt_seg = self.progressive_denoise(batch_size, in_shape, model=model, embed_sample=embed_sample)
                 # Binarize the mask
                 xt_im = xt_im.detach().cpu().permute(0,2,3,1)
@@ -168,14 +191,20 @@ class UnstableDiffusionInferer(Inferer):
         )
         xt_im = xt_im.to(self.device)
         xt_seg = xt_seg.to(self.device)
-        
         skip = self.timesteps // self.infer_timesteps
         seq = range(self.timesteps-1, -1, -skip)
         if embed_sample is not None:
             embed_sample = embed_sample.to(self.device)
+        torch.save(embed_sample, "/home/student/andrewheschl/Documents/Diffusion_ClasSeg/embed_sample.pt")
+        print("here")
         if embed_sample is not None and len(embed_sample.shape) > 2: # is it already embedded?
             # TODO this needs to be turned into an actual system
-            embed_sample, _ = model.embed_image(embed_sample, recon=False)
+            embed_sample, recon = model.embed_image(embed_sample, recon=True)
+            # save all recons and originals to disk
+            torch.save(recon, "/home/student/andrewheschl/Documents/Diffusion_ClasSeg/recon.pt")
+            # torch.save(embed_sample, "/home/student/andrewheschl/Documents/Diffusion_ClasSeg/embed_sample.pt")
+
+            # torch.save(embed_sample, "/home/student/andrewheschl/Documents/Diffusion_ClasSeg/embed.pt")
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
