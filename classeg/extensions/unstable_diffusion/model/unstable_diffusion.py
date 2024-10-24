@@ -438,7 +438,6 @@ class ContextIntegrator(nn.Module):
             nn.ReLU(),
             nn.Conv2d(channels, channels, kernel_size=3, padding=1)
         )
-        print("WARNING NO TIME USED!")
     def forward(self, x, t, context_embedding):
         """
         Integrate time as is normal, then do a cross attention with the context embedding, then do conv, then skip
@@ -564,8 +563,7 @@ class UnstableDiffusion(nn.Module):
                 context_embedding_dim=self.context_embedding_dim
             )
             self.image_context_decoder = nn.Sequential(
-                self._generate_decoder(sequential=True, skipped=False),
-                nn.Sigmoid()
+                self._generate_decoder(sequential=True, skipped=False)
             )
 
             self.output_layer_embed = nn.Sequential(
@@ -577,6 +575,7 @@ class UnstableDiffusion(nn.Module):
                     kernel_size=3,
                     padding=1,
                 ),
+                nn.Sigmoid()
             )
 
         self.output_layer_im = nn.Sequential(

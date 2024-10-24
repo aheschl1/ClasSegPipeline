@@ -291,6 +291,12 @@ class WandBLogger(Logger):
             "infered_image": wandb.Image(image, masks={k:{"mask_data":v} for k,v in masks.items()})
         }, step=self.epoch)
 
+
+    def log_image(self, title, image, **masks):
+        wandb.log({
+            title: wandb.Image(image, masks={k:{"mask_data":v} for k,v in masks.items()})
+        }, step=self.epoch)
+
     def cleanup(self):
         wandb.finish()
 

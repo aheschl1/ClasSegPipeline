@@ -179,6 +179,8 @@ class UnstableDiffusionTrainer(Trainer):
             context_recon = None
             if self.do_context_embedding:
                 context_embedding, context_recon = self.model.embed_image(images)
+                if log_image:
+                    self.logger.log_image("Recon", context_recon[0])
             # do prediction and calculate loss
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, context_embedding)
