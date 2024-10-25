@@ -281,19 +281,21 @@ class UnstableDiffusionTrainer(Trainer):
             images = images.to(self.device, non_blocking=True)
             segmentations = segmentations.to(self.device, non_blocking=True)
 
+            images_original = images
+
             noise_im, noise_seg, images, segmentations, t = self.forward_diffuser(images, segmentations)
 
             # image emebdding
             context_embedding = None
             context_recon = None
             if self.do_context_embedding:
-                context_embedding, context_recon = self.model.embed_image(images)
+                context_embedding, context_recon = self.model.embed_image(images_original)
 
             predicted_noise_im, predicted_noise_seg = self.model(images, segmentations, t, context_embedding)
             gen_loss = self.recon_loss(torch.concat([predicted_noise_im, predicted_noise_seg], dim=1),
                             torch.concat([noise_im, noise_seg], dim=1))
             if self.do_context_embedding:
-                gen_loss += self.context_recon_weight * self.recon_loss(context_recon, images)
+                gen_loss += self.context_recon_weight * self.recon_loss(context_recon, images_original)
                 gen_loss += self.covariance_weight * self.covariance_loss(context_embedding)
             # convert x_t to x_{t-1} and descriminate the goods
             dis_loss = 0.0

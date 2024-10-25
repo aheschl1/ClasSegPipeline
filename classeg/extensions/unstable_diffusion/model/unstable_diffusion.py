@@ -425,18 +425,19 @@ class ContextIntegrator(nn.Module):
         self.time_emb_dim = time_emb_dim
 
         self.context_embedding_projector = nn.Sequential(
+            nn.Linear(context_embedding_dim, channels),
             nn.ReLU(),
-            nn.Linear(context_embedding_dim, channels)
+            nn.Linear(channels, channels)
         )
-        self.time_embedding_layer = TimeEmbedder(time_emb_dim, channels)
+        # self.time_embedding_layer = TimeEmbedder(time_emb_dim, channels)
         
         self.cross_attention_norm = nn.GroupNorm(8, num_channels=channels)
         self.context_norm = nn.GroupNorm(8, num_channels=channels)
 
         self.cross_attention = nn.MultiheadAttention(channels, 4, batch_first=True)
         self.convolution = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(channels, channels, kernel_size=3, padding=1)
         )
     def forward(self, x, t, context_embedding):
         """
@@ -460,8 +461,9 @@ class ContextIntegrator(nn.Module):
         )
 
         out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W) # [N, C, H, W]
+        out = x + out_attn
 
-        return self.convolution(out+out_attn)
+        return self.convolution(out)
 
 
 
@@ -562,6 +564,20 @@ class UnstableDiffusion(nn.Module):
                 time_emb_dim=self.time_emb_dim,
                 context_embedding_dim=self.context_embedding_dim
             )
+
+            self.image_context_integrator_first = ContextIntegrator(
+                channels=channels[-1],
+                time_emb_dim=self.time_emb_dim,
+                context_embedding_dim=self.context_embedding_dim
+            )
+
+            self.seg_context_integrator_first = ContextIntegrator(
+                channels=channels[-1],
+                time_emb_dim=self.time_emb_dim,
+                context_embedding_dim=self.context_embedding_dim
+            )
+
+
             self.image_context_decoder = nn.Sequential(
                 self._generate_decoder(sequential=True, skipped=False)
             )
@@ -749,6 +765,10 @@ class UnstableDiffusion(nn.Module):
         im_out, seg_out, skipped_connections_im, skipped_connections_seg = (
             self._encode_forward(im_out, seg_out, t)
         )
+        #1st
+        if self.do_context_embedding:
+            im_out = self.image_context_integrator_first(im_out, t, img_embedding)
+            seg_out = self.seg_context_integrator_first(seg_out, t, img_embedding)
         # ======== MIDDLE ========
         im_out, seg_out = self.middle_layer(im_out, seg_out, t)
         # Raw image embedding for controllable dataset generation
