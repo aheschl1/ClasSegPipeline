@@ -431,10 +431,10 @@ class ContextIntegrator(nn.Module):
         )
         # self.time_embedding_layer = TimeEmbedder(time_emb_dim, channels)
         
-        self.cross_attention_norm = nn.GroupNorm(8, num_channels=channels)
-        self.context_norm = nn.GroupNorm(8, num_channels=channels)
+        # self.cross_attention_norm = nn.GroupNorm(8, num_channels=channels)
+        # self.context_norm = nn.GroupNorm(8, num_channels=channels)
 
-        self.cross_attention = nn.MultiheadAttention(channels, 4, batch_first=True)
+        # self.cross_attention = nn.MultiheadAttention(channels, 4, batch_first=True)
         self.convolution = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, padding=1),
             nn.ReLU(),
@@ -449,19 +449,19 @@ class ContextIntegrator(nn.Module):
         out = x
         context_embedding = self.context_embedding_projector(context_embedding)
         # Do cross attention betwene the image x ~ [N, C, H, W] and the context embedding ~ [N, C]
-        N, C, H, W = out.shape
-        in_attn = out.reshape(N, C, H * W)
-        in_attn = self.cross_attention_norm(in_attn).transpose(1, 2)
+        # N, C, H, W = out.shape
+        # in_attn = out.reshape(N, C, H * W)
+        # in_attn = self.cross_attention_norm(in_attn).transpose(1, 2)
 
-        kv_attn = context_embedding.reshape(N, C, 1)
-        kv_attn = self.context_norm(kv_attn).transpose(1, 2)
+        # kv_attn = context_embedding.reshape(N, C, 1)
+        # kv_attn = self.context_norm(kv_attn).transpose(1, 2)
 
-        out_attn, _ = self.cross_attention(
-            in_attn, kv_attn, kv_attn
-        )
+        # out_attn, _ = self.cross_attention(
+        #     in_attn, kv_attn, kv_attn
+        # )
 
-        out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W) # [N, C, H, W]
-        out = x + out_attn
+        # out_attn = out_attn.transpose(1, 2).reshape(N, C, H, W) # [N, C, H, W]
+        out = x + context_embedding[:, :, None, None]
 
         return self.convolution(out)
 
