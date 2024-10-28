@@ -31,7 +31,7 @@ class UnstableDiffusionInferer(Inferer):
                  infer_timesteps: int = 1000,
                  sr_timesteps = None,
                  training=False,
-                 r="Inference", 
+                 r="Inference",
                  **kwargs):
         """
         Inferer for pipeline.
@@ -205,6 +205,9 @@ class UnstableDiffusionInferer(Inferer):
             # torch.save(embed_sample, "/home/student/andrewheschl/Documents/Diffusion_ClasSeg/embed_sample.pt")
 
             # torch.save(embed_sample, "/home/student/andrewheschl/Documents/Diffusion_ClasSeg/embed.pt")
+        # randomly delete some features with dropout like behavior
+        # embed_sample = torch.functional.F.dropout(embed_sample, p=self.context_dropout, training=True)
+
         for t in tqdm(seq, desc="Running Inference"):
             time_tensor = (torch.ones(xt_im.shape[0]) * t).to(xt_im.device).long()
             t_n = t - skip if t !=0 else -1
