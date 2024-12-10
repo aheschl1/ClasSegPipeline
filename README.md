@@ -5,6 +5,8 @@ this pipeline is all you need to get efficient training with organized logging, 
 
 Still in an early stage of development, but feel free to fork and submit pull requests.
 
+NEW: Configs can now be either JSON or YAML. The default for new datasets is YAML.
+
 Windows is not compatible currently because of path things. This will be fixed eventually, but Linux > Windows.
 # Default Supported Data Types
 1) Natural images (PNG, JPG, ....) grayscale and RGB

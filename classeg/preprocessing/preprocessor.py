@@ -18,7 +18,7 @@ from classeg.utils.utils import (
     get_raw_datapoints,
     get_dataloaders_from_fold,
     get_labels_from_raw,
-    get_dataset_mode_from_name
+    get_dataset_mode_from_name, write_yaml
 )
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -83,7 +83,7 @@ class Preprocessor:
         Creates the config.json file that should contain training hyperparameters. Hardcode default values here.
         """
         config = self.get_config()
-        write_json(config, f"{PREPROCESSED_ROOT}/{self.dataset_name}/config.json")
+        write_yaml(config, f"{PREPROCESSED_ROOT}/{self.dataset_name}/config.yaml")
 
     def normalize_function(self, data: np.array) -> np.array:
         """

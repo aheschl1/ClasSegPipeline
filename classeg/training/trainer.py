@@ -18,8 +18,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from classeg.training.logging.logging import TensorboardLogger, WandBLogger
+from classeg.utils.config_reader_writers import ConfigReader
 from classeg.utils.constants import *
-from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json
+from classeg.utils.utils import get_dataloaders_from_fold, get_config_from_dataset, get_dataset_mode_from_name, read_json, write_yaml
 from classeg.utils.utils import write_json
 
 
@@ -78,7 +79,7 @@ class Trainer:
         self.output_dir = self._prepare_output_directory(unique_folder_name)
         self._best_val_loss = 999999.999  # Arbitrary large number
         if resume:
-            self.config = read_json(f"{self.output_dir}/config.json")
+            self.config = ConfigReader.read_from_root(self.output_dir, "config")
         else:
             self.config = get_config_from_dataset(dataset_name, config_name)
         self.logger = TensorboardLogger(self.output_dir) if LOGGER_TYPE == TENSORBOARD else \
@@ -146,7 +147,7 @@ class Trainer:
         shutil.make_archive(f"{self.output_dir}/source_code", "zip", root)
         if self.model_path is not None and os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
-        write_json(self.config, f"{self.output_dir}/config.json")
+        write_yaml(self.config, f"{self.output_dir}/config.yaml")
 
     def _prepare_output_directory(self, session_id: str) -> str:
         """

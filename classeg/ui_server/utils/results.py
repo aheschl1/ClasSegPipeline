@@ -3,6 +3,7 @@ import json
 import os
 
 from classeg.log_analysis.log_analyzer import LogAnalyzer
+from classeg.utils.config_reader_writers import ConfigReader
 from classeg.utils.constants import RESULTS_ROOT
 
 
@@ -31,8 +32,7 @@ def get_experiment_from_dataset(dataset_name, experiment_name):
     folds = glob.glob(f"{root}/*")
     for fold in folds:
         if os.path.exists(f"{fold}/{experiment_name}"):
-            with open(f"{fold}/{experiment_name}/config.json") as f:
-                config = json.load(f)
+            config = ConfigReader.read_from_root(f"{fold}/{experiment_name}", "config")
 
             with open(f"{fold}/{experiment_name}/logs.txt") as f:
                 logs = f.read()

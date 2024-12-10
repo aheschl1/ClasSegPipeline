@@ -13,6 +13,7 @@ from classeg.dataloading.dataset import PipelineDataset
 from classeg.utils.constants import *
 from classeg.utils.utils import batch_collate_fn
 from classeg.utils.utils import read_json
+from classeg.utils.config_reader_writers import ConfigReader
 
 
 class Inferer:
@@ -42,7 +43,7 @@ class Inferer:
         self.lookup_root = (
             f"{RESULTS_ROOT}/{self.dataset_name}/fold_{fold}/{name}"
         )
-        self.config = read_json(f"{self.lookup_root}/config.json")
+        self.config = ConfigReader.read_from_root(self.lookup_root, "config")
         self.weights = weights
         self.device = "cuda"
         if not late_model_instantiation:

@@ -14,9 +14,11 @@ from tqdm import tqdm
 
 from classeg.dataloading.datapoint import Datapoint
 from classeg.dataloading.dataset import PipelineDataset
+from classeg.utils.config_reader_writers import ConfigReader
 from classeg.utils.constants import PREPROCESSED_ROOT, RAW_ROOT, SEGMENTATION, CLASSIFICATION, SELF_SUPERVISED
 import importlib
 import socket
+import yaml
 
 
 def import_from_recursive(from_package: str, class_name: str) -> Any:
@@ -135,6 +137,22 @@ def write_json(data: Union[Dict, List], path: str, create_folder: bool = False) 
         file.write(json.dumps(data, indent=4))
 
 
+def write_yaml(data: Union[Dict, List], path: str, create_folder: bool = False) -> None:
+    """
+    Write helper for yaml.
+    :param data: Dictionary data to be written.
+    :param path: The path to write.
+    :param create_folder: If the path doesn't exist, should we create folders?
+    :return: None
+    """
+    if not os.path.exists('/'.join(path.split('/')[0:-1])):
+        assert create_folder, 'Path does not exist, and you did not indicate create_folder.'
+        os.makedirs(path)
+
+    with open(path, 'w') as file:
+        yaml.dump(data, file)
+
+
 def read_json(path: str) -> Dict:
     """
     Read json file.
@@ -143,6 +161,16 @@ def read_json(path: str) -> Dict:
     """
     with open(path, 'r') as file:
         return json.load(file)
+
+
+def read_yaml(path: str) -> Dict:
+    """
+    Read yaml file.
+    :param path:
+    :return: Dictionary data of yaml file.
+    """
+    with open(path, 'r') as file:
+        return yaml.safe_load(file)
 
 
 def get_dataset_name_from_id(id: Union[str, int], name: str = None) -> str:
@@ -406,8 +434,8 @@ def get_config_from_dataset(dataset_name: str, config_name: str = 'config') -> D
     :param dataset_name: The name of the dataset.
     :return: Config dictionary.
     """
-    path = f"{PREPROCESSED_ROOT}/{dataset_name}/{config_name}.json"
-    return read_json(path)
+    path = f"{PREPROCESSED_ROOT}/{dataset_name}"
+    return ConfigReader.read_from_root(path, config_name)
 
 
 def batch_collate_fn(batch: List[Tuple[torch.Tensor, Datapoint]]):
