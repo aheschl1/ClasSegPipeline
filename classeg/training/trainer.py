@@ -356,7 +356,7 @@ class Trainer:
 
         :return: Learning rate scheduler.
         """
-        scheduler = StepLR(self.optim, step_size=100, gamma=0.9)
+        scheduler = StepLR(self.optim, step_size=10, gamma=0.9)
         if self._is_logger:
             log(f"Scheduler being used is {scheduler}")
         return scheduler

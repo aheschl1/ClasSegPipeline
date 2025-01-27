@@ -166,7 +166,7 @@ class SegmentationTrainer(Trainer):
         :return: The loss function to be used.
         """
         if self.device == 0:
-            log("Loss being used is nn.CrossEntropyLoss()")
+            log("Loss being used is nn.DiceCELoss()")
         return DiceCELoss(
             include_background=False,
             softmax=True,

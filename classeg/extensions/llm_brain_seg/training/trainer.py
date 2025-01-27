@@ -69,6 +69,23 @@ class SegmentationTrainer(Trainer):
         running_loss = 0.
         total_items = 0
         # ForkedPdb().set_trace()
+        if epoch == 0 and self.config.get('use_llm', True):
+            # freeze the llm model which is in model.llm in position 2, which is a sequantial
+            all_params = sum(param.numel() for param in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+            for param in self.model.llm[2].parameters():
+                param.requires_grad = False
+            all_params = sum(param.numel() for param in self.model.parameters())
+            trainable_paramsb = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+            print("reduced params from {} to {}".format(trainable_params, trainable_paramsb))
+        elif epoch == 10:
+            # unfreeze the llm model which is in model.llm in position 2, which is a sequantial
+            for param in self.model.llm[2].parameters():
+                param.requires_grad = True
         log_image = epoch % 10 == 0
         for data, labels, _ in tqdm.tqdm(self.train_dataloader):
             self.optim.zero_grad(set_to_none=True)
@@ -166,7 +183,7 @@ class SegmentationTrainer(Trainer):
         :return: The loss function to be used.
         """
         if self.device == 0:
-            log("Loss being used is nn.CrossEntropyLoss()")
+            log("Loss being used is nn.DiceCELoss()")
         return DiceCELoss(
             include_background=False,
             softmax=True,
