@@ -9,7 +9,7 @@ import albumentations as A
 from monai.losses import DiceCELoss
 from torchmetrics.segmentation import GeneralizedDiceScore, MeanIoU
 import tqdm
-
+import matplotlib.pyplot as plt
 
 class SegmentationTrainer(Trainer):
     """
@@ -177,4 +177,8 @@ class SegmentationTrainer(Trainer):
         return super().get_dataloaders()
 
     def get_model(self, path: str) -> nn.Module:
-        return super().get_model(path)
+        from classeg.extensions.llm_brain_seg.training.model.model import UNet
+        return UNet(
+            in_channels=3,
+            use_weights=self.config.get('use_llm', True)
+        )

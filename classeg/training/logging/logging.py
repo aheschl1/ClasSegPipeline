@@ -137,7 +137,7 @@ class TensorboardLogger(Logger):
     def log_augmented_image(self, image: Any, mask: Any = None):
         self.summary_writer.add_image("Augmented Images", image, self.image_step)
         if mask is not None:
-            self.summary_writer.add_image("Augmented Masks", mask, self.image_step)
+            self.summary_writer.add_image("Augmented Masks", mask[None, :] , self.image_step)
         self.image_step += 1
         self.summary_writer.flush()
 
@@ -182,6 +182,15 @@ class TensorboardLogger(Logger):
         for key, value in masks.items():
             self.summary_writer.add_image(
                 f"Infered {key}",
+                value[None, :],
+                self.epoch
+            )
+        self.summary_writer.flush()
+    
+    def log_metrics(self, metrics: dict, set:str):
+        for key, value in metrics.items():
+            self.summary_writer.add_scalar(
+                f"{set}/{key}",
                 value,
                 self.epoch
             )
@@ -282,6 +291,11 @@ class WandBLogger(Logger):
     def log_scalar(self, data, title):
         wandb.log({
             title: data
+        }, step=self.epoch)
+
+    def log_metrics(self, metrics: dict, set:str):
+        wandb.log({
+            f"{set}_metrics": metrics
         }, step=self.epoch)
 
     def log_graph(self, points: List[Tuple[float, float]], x="x", y="y", title="2D Graph"):
