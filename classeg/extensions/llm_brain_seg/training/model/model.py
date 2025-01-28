@@ -120,6 +120,7 @@ class UNet(nn.Module):
                  depth=3,
                  channel_growth_factor=2,
                  llm_brain="meta-llama/Llama-3.2-1B",
+                 include_llm=True,
                  use_weights=True
                  ):
         super().__init__()
@@ -144,6 +145,8 @@ class UNet(nn.Module):
             nn.Linear(2048, 1024),
             nn.Unflatten(2, (32, 32))
         )
+        if not include_llm:
+            self.llm[2] = nn.Identity()
 
     def forward(self, x):
         x, skipped = self.encoder(x)

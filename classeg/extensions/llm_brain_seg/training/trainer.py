@@ -69,7 +69,7 @@ class SegmentationTrainer(Trainer):
         running_loss = 0.
         total_items = 0
         # ForkedPdb().set_trace()
-        if epoch == 0 and self.config.get('use_llm', True):
+        if epoch == 0 and self.config.get('use_pretrained_llm', True):
             # freeze the llm model which is in model.llm in position 2, which is a sequantial
             all_params = sum(param.numel() for param in self.model.parameters())
             trainable_params = sum(
@@ -82,7 +82,7 @@ class SegmentationTrainer(Trainer):
                 p.numel() for p in self.model.parameters() if p.requires_grad
             )
             print("reduced params from {} to {}".format(trainable_params, trainable_paramsb))
-        elif epoch == 10:
+        elif epoch == self.config.get('unfreeze_llm', 0):
             # unfreeze the llm model which is in model.llm in position 2, which is a sequantial
             for param in self.model.llm[2].parameters():
                 param.requires_grad = True
@@ -197,5 +197,6 @@ class SegmentationTrainer(Trainer):
         from classeg.extensions.llm_brain_seg.training.model.model import UNet
         return UNet(
             in_channels=3,
-            use_weights=self.config.get('use_llm', True)
+            use_weights=self.config.get('use_pretrained_llm', True),
+            include_llm=self.config.get('include_llm', True),
         )
