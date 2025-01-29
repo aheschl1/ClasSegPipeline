@@ -87,6 +87,10 @@ class Logger:
     def log_scalar(self, data, title):
         raise NotImplementedError("Method not implemented in parent class.")
 
+    @abstractmethod
+    def log_metrics(self, metrics: dict, set: str):
+        raise NotImplementedError("Method not implemented in parent class.")
+
     def __del__(self):
         self.cleanup()
 
@@ -182,6 +186,15 @@ class TensorboardLogger(Logger):
         for key, value in masks.items():
             self.summary_writer.add_image(
                 f"Infered {key}",
+                value,
+                self.epoch
+            )
+        self.summary_writer.flush()
+
+    def log_metrics(self, metrics: dict, set: str):
+        for key, value in metrics.items():
+            self.summary_writer.add_scalar(
+                f"{set}/{key}",
                 value,
                 self.epoch
             )
@@ -298,6 +311,11 @@ class WandBLogger(Logger):
     def log_histogram(self, data:dict, title):
         wandb.log({
             title: wandb.Histogram(sequence=data)
+        }, step=self.epoch)
+
+    def log_metrics(self, metrics: dict, set:str):
+        wandb.log({
+            f"{set}_metrics": metrics
         }, step=self.epoch)
 
     def cleanup(self):
