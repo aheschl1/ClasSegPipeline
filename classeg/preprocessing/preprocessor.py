@@ -83,7 +83,7 @@ class Preprocessor:
         Creates the config.json file that should contain training hyperparameters. Hardcode default values here.
         """
         config = self.get_config()
-        write_yaml(config, f"{PREPROCESSED_ROOT}/{self.dataset_name}/config.yaml")
+        write_yaml(config, os.path.join(PREPROCESSED_ROOT, self.dataset_name, "config.yaml"))
 
     def normalize_function(self, data: np.array) -> np.array:
         """
@@ -122,8 +122,8 @@ class Preprocessor:
         labels = get_labels_from_raw(self.dataset_name)
         assert len(labels) > 1, "We only found one label folder, maybe the folder structure is wrong."
         label_to_id_mapping, id_to_label_mapping = map_labels_to_id(return_inverse=True)
-        write_json(label_to_id_mapping, f"{PREPROCESSED_ROOT}/{self.dataset_name}/label_to_id.json")
-        write_json(id_to_label_mapping, f"{PREPROCESSED_ROOT}/{self.dataset_name}/id_to_label.json")
+        write_json(label_to_id_mapping, os.path.join(PREPROCESSED_ROOT, self.dataset_name, "label_to_id.json"))
+        write_json(id_to_label_mapping, os.path.join(PREPROCESSED_ROOT, self.dataset_name, "id_to_label.json"))
         # Label stuff done, start with fetching data. We will also save a case to label mapping.
 
     def _store_case_label_mapping_for_classification(self):
@@ -140,7 +140,7 @@ class Preprocessor:
                 mapping[point.case_name] = point.label
             return mapping
 
-        write_json(get_case_to_label_mapping(), f"{PREPROCESSED_ROOT}/{self.dataset_name}/case_label_mapping.json")
+        write_json(get_case_to_label_mapping(), os.path.join(PREPROCESSED_ROOT, self.dataset_name, "case_label_mapping.json"))
 
     def _preprocess_segmentation(self):
         """
@@ -170,7 +170,7 @@ class Preprocessor:
         """
         Ensure the raw data exists in RAW_ROOT.
         """
-        if not os.path.exists(f"{RAW_ROOT}/{self.dataset_name}"):
+        if not os.path.exists(os.path.join(RAW_ROOT, self.dataset_name)):
             raise ValueError(f"The raw folder for {self.dataset_name} does not exist :()")
 
     def process(self) -> None:
@@ -203,7 +203,7 @@ class Preprocessor:
 
         # Label stuff done, start with fetching data. We will also save a case to label mapping.
         splits_map = self.get_folds(self.folds)
-        write_json(splits_map, f"{PREPROCESSED_ROOT}/{self.dataset_name}/folds.json")
+        write_json(splits_map, os.path.join(PREPROCESSED_ROOT, self.dataset_name, "folds.json"))
         self.verify_dataset_integrity()
         # We now have the folds: time to preprocess the data
         for fold_id in splits_map:
@@ -249,14 +249,14 @@ class Preprocessor:
         :param fold: The fold to prepare.
         """
         # prep dirs
-        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}")
-        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train")
-        os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val")
+        os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}"))
+        os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "train"))
+        os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "val"))
         if self.mode == SEGMENTATION:
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/imagesTr")
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/imagesTr")
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/train/labelsTr")
-            os.mkdir(f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/val/labelsTr")
+            os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "train", "imagesTr"))
+            os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "val", "imagesTr"))
+            os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "train", "labelsTr"))
+            os.mkdir(os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "val", "labelsTr"))
 
     def process_fold(self, fold: int) -> None:
         """
@@ -291,8 +291,7 @@ class Preprocessor:
                     "mean": train_loader.mean.tolist(),
                     "std": train_loader.std.tolist()
                 }
-                write_json(mean_json, f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/mean_std.json")
-
+                write_json(mean_json, os.path.join(PREPROCESSED_ROOT, self.dataset_name, f"fold_{fold}", "mean_std.json"))
         for _set in ["train", "val"]:
             loader = train_loader if _set == "train" else val_loader
             for images, labels, points in tqdm(loader, desc=f"Preprocessing {_set} set"):
@@ -306,10 +305,24 @@ class Preprocessor:
                 if self.normalize:
                     images = self.normalize_function(images)
 
-                image_path = (f"{PREPROCESSED_ROOT}/{self.dataset_name}/fold_{fold}/{_set}/imagesTr/"
-                              f"{point.case_name}.{point.extension if point.extension == 'nii.gz' else 'npy'}")
+
+                image_path = os.path.join(
+                    PREPROCESSED_ROOT,
+                    self.dataset_name,
+                    f"fold_{fold}",
+                    _set,
+                    "imagesTr",
+                    f"{point.case_name}.{point.extension if point.extension == 'nii.gz' else 'npy'}"
+                )
                 if self.mode in [CLASSIFICATION, SELF_SUPERVISED]:
-                    image_path = image_path.replace("/imagesTr", "")
+                    # remove path segment, os agnostic
+                    image_path = os.path.join(
+                        PREPROCESSED_ROOT,
+                        self.dataset_name,
+                        f"fold_{fold}",
+                        _set,
+                        f"{point.case_name}.{point.extension if point.extension == 'nii.gz' else 'npy'}"
+                    )
 
                 writer.write(
                     images,

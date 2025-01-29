@@ -128,7 +128,7 @@ class Trainer:
         Ensures that the preprocess folder exists for the current dataset,
         and that the fold specified has been processed.
         """
-        preprocess_dir = f"{PREPROCESSED_ROOT}/{self.dataset_name}"
+        preprocess_dir = os.path.join(PREPROCESSED_ROOT, self.dataset_name)
         assert os.path.exists(preprocess_dir), (
             f"Preprocess root for dataset {self.dataset_name} does not exist. "
             f"run src.preprocessing.preprocess_entry.py before training."
@@ -143,7 +143,7 @@ class Trainer:
         Also writes the configuration to a json file in the output directory.
         """
         # Package the repository, ignoring large files, into a zip, and save it to the output dir
-        root = "/".join(__file__.split("/")[:-2])
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         shutil.make_archive(f"{self.output_dir}/source_code", "zip", root)
         if self.model_path is not None and os.path.exists(self.model_path):
             shutil.copy(self.model_path, f"{self.output_dir}/model.json")
@@ -156,9 +156,9 @@ class Trainer:
         :param session_id: Unique identifier for the session.
         :return: str which is the output directory.
         """
-        output_dir = f"{RESULTS_ROOT}/{self.dataset_name}/fold_{self.fold}/{session_id}"
+        output_dir = os.path.join(RESULTS_ROOT, self.dataset_name, f"fold_{self.fold}", session_id)
         os.makedirs(output_dir, exist_ok=True)
-        logging.basicConfig(level=logging.INFO, filename=f"{output_dir}/logs.txt", force=True)
+        logging.basicConfig(level=logging.INFO, filename=os.path.join(output_dir, "logs.txt"), force=True)
         if self._is_logger:
             print(f"Sending logging and outputs to {output_dir}")
         return output_dir
@@ -319,7 +319,7 @@ class Trainer:
         """
         if self._is_logger:
             checkpoint = {}
-            path = f"{self.output_dir}/{save_name}.pth"
+            path = os.path.join(self.output_dir, f"{save_name}.pth")
             if self.world_size > 1:
                 checkpoint["weights"] = self.model.module.state_dict()
             else:
@@ -338,8 +338,9 @@ class Trainer:
         :param weights_name: The name of the weights to load in the form of *result folder*/*weight name*.pth
         :return: None
         """
-        assert os.path.exists(f"{self.output_dir}/{weights_name}.pth")
-        checkpoint = torch.load(f"{self.output_dir}/{weights_name}.pth", map_location=self.device)
+        weights_path = os.path.join(self.output_dir, f"{weights_name}.pth")
+        assert os.path.exists(weights_path)
+        checkpoint = torch.load(weights_path, map_location=self.device)
         # Because we are saving during the current epoch, we need to increment the epoch by 1, to resume at the next
         # one.
         self._current_epoch = checkpoint["current_epoch"]+1
@@ -391,7 +392,7 @@ class Trainer:
         :return: The pytorch network module.
         """
         if path is None and self.resume:
-            path = f"{self.output_dir}/model.json"
+            path = os.path.join(self.output_dir, "model.json")
             log(f"We will attempt to load the model from {path}.")
 
         if not os.path.exists(path):
