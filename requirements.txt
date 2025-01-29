@@ -26,3 +26,4 @@ onnx
 torchmetrics
 flask
 flask_cors
+pytest

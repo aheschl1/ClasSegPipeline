@@ -84,7 +84,7 @@ def get_extensions():
     """
     classeg_root = os.path.dirname(os.path.dirname(__file__))
     extensions = []
-    for loader, name, is_pkg in pkgutil.walk_packages(path=[f"{classeg_root}/extensions"]):
+    for loader, name, is_pkg in pkgutil.walk_packages(path=[os.path.join(classeg_root, "extensions")]):
         extensions.append(name)
     return extensions
 
@@ -129,7 +129,7 @@ def write_json(data: Union[Dict, List], path: str, create_folder: bool = False) 
     :param create_folder: If the path doesn't exist, should we create folders?
     :return: None
     """
-    if not os.path.exists('/'.join(path.split('/')[0:-1])):
+    if not os.path.exists(os.path.dirname(path)):
         assert create_folder, 'Path does not exist, and you did not indicate create_folder.'
         os.makedirs(path)
 
@@ -145,7 +145,7 @@ def write_yaml(data: Union[Dict, List], path: str, create_folder: bool = False) 
     :param create_folder: If the path doesn't exist, should we create folders?
     :return: None
     """
-    if not os.path.exists('/'.join(path.split('/')[0:-1])):
+    if not os.path.exists(os.path.dirname(path)):
         assert create_folder, 'Path does not exist, and you did not indicate create_folder.'
         os.makedirs(path)
 
@@ -184,9 +184,8 @@ def get_dataset_name_from_id(id: Union[str, int], name: str = None) -> str:
     id = '0' * (3 - len(id)) + id
     dataset_name = f"Dataset_{id}"
     if name is None:
-        preprocessed_folders = [x.split("/")[-1] for x in glob.glob(f"{PREPROCESSED_ROOT}/*") if
-                                f"_{id}" in x.split("/")[-1]]
-        raw_folders = [x.split("/")[-1] for x in glob.glob(f"{RAW_ROOT}/*") if f"_{id}" in x.split("/")[-1]]
+        preprocessed_folders = [os.path.basename(x) for x in glob.glob(os.path.join(PREPROCESSED_ROOT, "*")) if f"_{id}" in os.path.basename(x)]
+        raw_folders = [os.path.basename(x) for x in glob.glob(f"{RAW_ROOT}/*") if f"_{id}" in os.path.basename(x)]
         if len(preprocessed_folders) > 1 or len(raw_folders) > 1:
             raise EnvironmentError(f"Found more than one dataset with id {id}.")
         if len(preprocessed_folders) == 1 and len(raw_folders) == 1:
@@ -209,9 +208,9 @@ def check_raw_exists(dataset_name: str) -> bool:
     """
     assert "Dataset_" in dataset_name, f"You passed {dataset_name} to utils/check_raw_exists. Expected a dataset " \
                                        f"folder name."
-    if os.path.exists(f"{RAW_ROOT}/{dataset_name}"):
+    if os.path.exists(os.path.join(RAW_ROOT, dataset_name)):
         return False
-    os.makedirs(f"{RAW_ROOT}/{dataset_name}")
+    os.makedirs(os.path.join(RAW_ROOT, dataset_name))
     return True
 
 
@@ -234,22 +233,22 @@ def get_dataset_mode_from_name(dataset_name: str):
     :param dataset_name:
     :return:
     """
-    raw_root = f"{RAW_ROOT}/{dataset_name}"
-    preprocessed_root = f"{PREPROCESSED_ROOT}/{dataset_name}"
+    raw_root = os.path.join(RAW_ROOT, dataset_name)
+    preprocessed_root = os.path.join(PREPROCESSED_ROOT, dataset_name)
     if os.path.exists(raw_root):
-        first_level = glob.glob(f"{raw_root}/*")
+        first_level = glob.glob(os.path.join(raw_root, "*"))
         if not os.path.isdir(first_level[0]):
             mode = SELF_SUPERVISED
-        elif len(first_level) == 2 and "imagesTr" in [first_level[i].split("/")[-1] for i in [0, 1]]:
+        elif len(first_level) == 2 and "imagesTr" in [os.path.basename(first_level[i]) for i in [0, 1]]:
             mode = SEGMENTATION
         else:
             mode = CLASSIFICATION
     else:
-        first_level = glob.glob(f"{preprocessed_root}/*")
-        if "id_to_label.json" in [x.split('/')[-1] for x in first_level]:
+        first_level = glob.glob(os.path.join(preprocessed_root, "*"))
+        if "id_to_label.json" in [os.path.basename(x) for x in first_level]:
             mode = CLASSIFICATION
         else:
-            second_level = glob.glob(f"{preprocessed_root}/fold_0/train/*")
+            second_level = glob.glob(os.path.join(preprocessed_root, "fold_0", "train", "*"))
             if os.path.isdir(second_level[0]):
                 mode = SEGMENTATION
             else:
@@ -264,26 +263,26 @@ def get_raw_datapoints(dataset_name: str) -> List[Datapoint]:
     :return: List of datapoints in the dataset.
     """
 
-    dataset_root = f"{RAW_ROOT}/{dataset_name}"
+    dataset_root = os.path.join(RAW_ROOT, dataset_name)
     label_to_id_mapping = None
     datapoints = []
     logging.info("Reading dataset paths.")
     mode = get_dataset_mode_from_name(dataset_name)
     if mode == SEGMENTATION:
-        sample_paths = glob.glob(f"{dataset_root}/imagesTr/*")
+        sample_paths = glob.glob(os.path.join(dataset_root, "imagesTr", "*")) 
     elif mode == CLASSIFICATION:
-        label_to_id_mapping = read_json(f"{PREPROCESSED_ROOT}/{dataset_name}/label_to_id.json")
-        sample_paths = glob.glob(f"{dataset_root}/*/*", recursive=True)
+        label_to_id_mapping = read_json(os.path.join(PREPROCESSED_ROOT, dataset_name, "label_to_id.json"))
+        sample_paths = glob.glob(os.path.join(dataset_root, "*", "*"), recursive=True) 
     else:
-        sample_paths = glob.glob(f"{dataset_root}/*")
+        sample_paths = glob.glob(os.path.join(dataset_root, "*"))
     logging.info("Paths reading has completed.")
     for path in tqdm(sample_paths, desc="Preparing datapoints"):
-        case_name = path.split('/')[-1].split('.')[0]
+        case_name = os.path.basename(path).split('.')[0]
         verify_case_name(case_name)
         if mode == SEGMENTATION:
             label = path.replace("imagesTr", "labelsTr")
         elif mode == CLASSIFICATION:
-            label = label_to_id_mapping[path.split("/")[-2]]
+            label = label_to_id_mapping[os.path.basename(os.path.dirname(path))]
         else:
             label = None
 
@@ -298,7 +297,7 @@ def get_label_case_mapping_from_dataset(dataset_name: str) -> Dict:
     :param dataset_name: The name of the dataset.
     :return: case_label_mapping dictionary
     """
-    path = f"{PREPROCESSED_ROOT}/{dataset_name}/case_label_mapping.json"
+    path = os.path.join(PREPROCESSED_ROOT, dataset_name, "case_label_mapping.json")
     return read_json(path)
 
 
@@ -308,9 +307,9 @@ def get_labels_from_raw(dataset_name: str) -> List[str]:
     :param dataset_name: Name of the dataset.
     :return: List of labels.
     """
-    path = f"{RAW_ROOT}/{dataset_name}"
-    folders = glob.glob(f"{path}/*")
-    return [f.split('/')[-1] for f in folders if os.path.isdir(f)]
+    path = os.path.join(RAW_ROOT, dataset_name)
+    folders = glob.glob(os.path.join(path, "*"))
+    return [os.path.basename(f) for f in folders if os.path.isdir(f)]
 
 
 @contextmanager
@@ -340,19 +339,19 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
     """
 
     case_label_mapping = None
-    train_root = f"{PREPROCESSED_ROOT}/{dataset_name}/fold_{fold}/train"
-    val_root = f"{PREPROCESSED_ROOT}/{dataset_name}/fold_{fold}/val"
+    train_root = os.path.join(PREPROCESSED_ROOT, dataset_name, f"fold_{fold}", "train")
+    val_root = os.path.join(PREPROCESSED_ROOT, dataset_name, f"fold_{fold}", "val")
     if verbose:
         logging.info("Reading dataset paths.")
     mode = get_dataset_mode_from_name(dataset_name)
     if mode == SEGMENTATION:
-        val_paths = glob.glob(f"{val_root}/imagesTr/*")
-        train_paths = glob.glob(f"{train_root}/imagesTr/*")
+        val_paths = glob.glob(os.path.join(val_root, "imagesTr", "*"))
+        train_paths =  glob.glob(os.path.join(train_root, "imagesTr", "*"))
     else:
         if mode == CLASSIFICATION:
             case_label_mapping = get_label_case_mapping_from_dataset(dataset_name)
-        val_paths = glob.glob(f"{val_root}/*")
-        train_paths = glob.glob(f"{train_root}/*")
+        val_paths = glob.glob(os.path.join(val_root, "*"))
+        train_paths = glob.glob(os.path.join(train_root, "*"))
 
     if verbose:
         logging.info("Paths reading has completed.")
@@ -362,7 +361,7 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
         else dummy_context()
     with context as pbar:
         for path in train_paths:
-            name = path.split('/')[-1].split('.')[0]
+            name = os.path.basename(path).split('.')[0]
             # -12 is sentinel value for segmentation labels to ensure intention.
             verify_case_name(name)
             if mode == SEGMENTATION:
@@ -380,7 +379,7 @@ def get_preprocessed_datapoints(dataset_name: str, fold: int,
             )
             pbar.update()
         for path in val_paths:
-            name = path.split('/')[-1].split('.')[0]
+            name = os.path.basename(path).split('.')[0]
             # -12 is sentinel value for segmentation labels to ensure intention.
             verify_case_name(name)
             if mode == SEGMENTATION:
@@ -423,7 +422,7 @@ def get_folds_from_dataset(dataset_name: str) -> Dict[str, Dict[str, List[str]]]
     :param dataset_name: The name of the dataset.
     :return: The fold dictionary.
     """
-    path = f"{PREPROCESSED_ROOT}/{dataset_name}/folds.json"
+    path = os.path.join(PREPROCESSED_ROOT, dataset_name, "folds.json")
     return read_json(path)
 
 
@@ -434,7 +433,7 @@ def get_config_from_dataset(dataset_name: str, config_name: str = 'config') -> D
     :param dataset_name: The name of the dataset.
     :return: Config dictionary.
     """
-    path = f"{PREPROCESSED_ROOT}/{dataset_name}"
+    path = os.path.join(PREPROCESSED_ROOT, dataset_name)
     return ConfigReader.read_from_root(path, config_name)
 
 
@@ -569,15 +568,15 @@ def get_datapoint_from_dataset_and_case(dataset_name: str, case: int, preprocess
     dataset_root_b = f"{RAW_ROOT if not preprocessed else PREPROCESSED_ROOT}/{dataset_name}"
     for set in ["train", "val"]:
         if preprocessed:
-            dataset_root = f"{dataset_root_b}/fold_0/{set}"
+            dataset_root = os.path.join(dataset_root_b, "fold_0", set)
         else:
             dataset_root = dataset_root_b
         if mode == SEGMENTATION:
-            sample_paths = glob.glob(f"{dataset_root}/imagesTr/*")
+            sample_paths = glob.glob(os.path.join(dataset_root, "imagesTr", "*"))
         elif mode == CLASSIFICATION:
-            sample_paths = glob.glob(f"{dataset_root}/**/*", recursive=True)
+            sample_paths = glob.glob(os.path.join(dataset_root, "**", "*"), recursive=True)
         else:
-            sample_paths = glob.glob(f"{dataset_root}/*")
+            sample_paths = glob.glob(os.path.join(dataset_root, "*"))
         path = [x for x in sample_paths if case_name in x]
         if len(path) >= 1:
             path = path[0]
@@ -585,7 +584,7 @@ def get_datapoint_from_dataset_and_case(dataset_name: str, case: int, preprocess
     if mode == SEGMENTATION:
         label = path.replace("imagesTr", "labelsTr")
     elif mode == CLASSIFICATION:
-        label = path.split("/")[-2]
+        label = os.path.basename(os.path.dirname(path))
     else:
         label = None
 
