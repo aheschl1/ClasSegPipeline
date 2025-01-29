@@ -31,7 +31,8 @@ setup(
         "onnx",
         "torchmetrics",
         "flask",
-        "flask_cors"
+        "flask_cors",
+        "pytest"
     ],
     entry_points={
         'console_scripts': [
