@@ -7,7 +7,8 @@ Still in an early stage of development, but feel free to fork and submit pull re
 
 NEW: Configs can now be either JSON or YAML. The default for new datasets is YAML.
 
-Windows is not compatible currently because of path things. This will be fixed eventually, but Linux > Windows.
+Windows compatibility is not guaranteed. If you have issues, please submit a pull request.
+Agnostic setup is in progress.
 # Default Supported Data Types
 1) Natural images (PNG, JPG, ....) grayscale and RGB
 2) Medical images (Dicom, NIfTI) 2d and 3d
