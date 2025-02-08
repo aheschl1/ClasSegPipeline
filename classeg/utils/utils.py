@@ -527,7 +527,8 @@ def get_dataloaders_from_fold(dataset_name: str,
         pin_memory=not cache,
         collate_fn=batch_collate_fn,
         sampler=train_sampler,
-        persistent_workers=True
+        persistent_workers=True,
+        prefetch_factor=config.get("prefetch_factor", 1)
     )
 
     val_dataloader = DataLoader(
@@ -538,7 +539,8 @@ def get_dataloaders_from_fold(dataset_name: str,
         pin_memory=not cache,
         collate_fn=batch_collate_fn,
         sampler=val_sampler,
-        persistent_workers=True
+        persistent_workers=True,
+        prefetch_factor=config.get("prefetch_factor", 1)
     )
 
     return train_dataloader, val_dataloader

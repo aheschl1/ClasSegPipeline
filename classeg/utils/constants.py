@@ -16,7 +16,7 @@ if not os.path.exists(os.path.expanduser("~/.classegrc")):
         "best_epoch_celebration": "That is a new best epoch, saving the state!",
         "default_processes": os.cpu_count(),
         "model_bucket_directory": f"{os.path.dirname(os.path.dirname(os.path.dirname(__file__)))}/model_definitions",
-        "logger": TENSORBOARD,
+        "logger": WANDB,
         "compile": False
     }
 

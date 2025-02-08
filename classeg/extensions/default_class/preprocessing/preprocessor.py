@@ -80,6 +80,7 @@ class ExtensionPreprocessor(Preprocessor):
         return {
             "batch_size": 32,
             "processes": DEFAULT_PROCESSES,
+            "prefetch_factor": 1,
             "lr": 0.001,
             "epochs": 50,
             "momentum": 0,
